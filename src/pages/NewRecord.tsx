@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Search, FileText, Calendar as CalendarIcon, User, Stethoscope, Pill, Download, X, ArrowLeft, Plus, Paperclip, Upload, History, AlertTriangle, Syringe, Scissors, Heart, MoreVertical, Bed, TestTube } from "lucide-react";
 import { LabOrderDialog } from "@/components/LabOrderDialog";
+import { AdmissionRequestDialog } from "@/components/AdmissionRequestDialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { EncounterSidebar } from "@/components/EncounterSidebar";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
@@ -584,10 +585,21 @@ const [newDifferentialDiagnosis, setNewDifferentialDiagnosis] = useState("");
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem>
-              <Bed className="mr-2 h-4 w-4" />
-              Hospitalized
-            </DropdownMenuItem>
+            <AdmissionRequestDialog
+              patientData={{
+                patientId: selectedPatient,
+                patientName: mockPatientData.owner.name,
+                petName: mockPatientData.name,
+                species: mockPatientData.species + " (" + mockPatientData.breed + ")",
+                veterinarian: selectedVeterinarian,
+                diagnosis: formData.primaryDiagnosis || formData.assessment
+              }}
+            >
+              <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                <Bed className="mr-2 h-4 w-4" />
+                Request Hospitalization
+              </DropdownMenuItem>
+            </AdmissionRequestDialog>
             <LabOrderDialog 
               prefillData={{
                 patientId: selectedPatient,
