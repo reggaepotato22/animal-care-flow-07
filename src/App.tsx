@@ -15,6 +15,7 @@ import ClinicalRecordDetails from "./pages/ClinicalRecordDetails";
 import Staff from "./pages/Staff";
 import Reports from "./pages/Reports";
 import Labs from "./pages/Labs";
+import AddLabResults from "./pages/AddLabResults";
 import Postmortem from "./pages/Postmortem";
 import Hospitalization from "./pages/Hospitalization";
 import NotFound from "./pages/NotFound";
@@ -39,6 +40,7 @@ const App = () => (
             <Route path="/records/:id" element={<ClinicalRecordDetails />} />
             <Route path="/staff" element={<Staff />} />
             <Route path="/labs" element={<Labs />} />
+            <Route path="/labs/results/add/:orderId" element={<AddLabResults />} />
             <Route path="/postmortem" element={<Postmortem />} />
             <Route path="/hospitalization" element={<Hospitalization />} />
             <Route path="/reports" element={<Reports />} />

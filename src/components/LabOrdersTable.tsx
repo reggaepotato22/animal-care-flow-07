@@ -6,9 +6,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { MoreVertical, Eye, Edit, FileText, Calendar, User, Plus } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { LabResultsDialog } from "./LabResultsDialog";
 import { LabOrderDetailsDialog } from "./LabOrderDetailsDialog";
-import { AddLabResultsDialog } from "./AddLabResultsDialog";
 import { toast } from "sonner";
 
 interface LabOrder {
@@ -56,6 +56,7 @@ const getPriorityColor = (priority: string) => {
 };
 
 export function LabOrdersTable({ orders, onResultsAdded }: LabOrdersTableProps) {
+  const navigate = useNavigate();
   const [statusUpdates, setStatusUpdates] = useState<Record<string, string>>({});
   const [selectedOrder, setSelectedOrder] = useState<LabOrder | null>(null);
   const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
@@ -189,12 +190,10 @@ export function LabOrdersTable({ orders, onResultsAdded }: LabOrdersTableProps) 
                             Edit Order
                           </DropdownMenuItem>
                           {(currentStatus === "collected" || currentStatus === "in-progress") && (
-                            <AddLabResultsDialog order={order} onResultsAdded={handleResultsAdded}>
-                              <DropdownMenuItem onSelect={(e) => e.preventDefault()} onClick={(e) => e.stopPropagation()}>
-                                <Plus className="mr-2 h-4 w-4" />
-                                Add Results
-                              </DropdownMenuItem>
-                            </AddLabResultsDialog>
+                            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); navigate(`/labs/results/add/${order.id}`); }}>
+                              <Plus className="mr-2 h-4 w-4" />
+                              Add Results
+                            </DropdownMenuItem>
                           )}
                           {currentStatus === "completed" && (
                             <LabResultsDialog order={order}>
