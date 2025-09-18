@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, Search, Filter, Download, TestTube, Calendar, Clock, AlertCircle, CheckCircle, BarChart3 } from "lucide-react";
+import { Plus, Search, Filter, Download, TestTube, Calendar, Clock, AlertCircle, CheckCircle } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { LabOrderDialog } from "@/components/LabOrderDialog";
 import { LabResultsDialog } from "@/components/LabResultsDialog";
 import { LabOrdersTable } from "@/components/LabOrdersTable";
-import { LabResultsTrends } from "@/components/LabResultsTrends";
+
 
 interface LabOrder {
   id: string;
@@ -219,7 +219,6 @@ export default function Labs() {
         <TabsList>
           <TabsTrigger value="orders">Lab Orders</TabsTrigger>
           <TabsTrigger value="results">Results</TabsTrigger>
-          <TabsTrigger value="trends">Trends & Analytics</TabsTrigger>
         </TabsList>
 
         <TabsContent value="orders" className="space-y-4">
@@ -314,9 +313,6 @@ export default function Labs() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="trends" className="space-y-4">
-          <LabResultsTrends orders={labOrders} />
-        </TabsContent>
       </Tabs>
     </div>
   );
