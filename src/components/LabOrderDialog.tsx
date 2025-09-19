@@ -55,19 +55,39 @@ interface LabOrderDialogProps {
 }
 
 const availableTests = [
-  { id: "cbc", name: "Complete Blood Count (CBC)", category: "Hematology" },
-  { id: "chemistry", name: "Chemistry Panel", category: "Clinical Chemistry" },
-  { id: "urinalysis", name: "Urinalysis", category: "Urinalysis" },
-  { id: "fecal", name: "Fecal Parasite Exam", category: "Parasitology" },
-  { id: "thyroid", name: "Thyroid Panel (T4)", category: "Endocrinology" },
-  { id: "felv-fiv", name: "FeLV/FIV Test", category: "Serology" },
-  { id: "heartworm", name: "Heartworm Test", category: "Serology" },
-  { id: "radiographs", name: "Radiographs", category: "Imaging" },
-  { id: "cytology", name: "Cytology", category: "Pathology" },
-  { id: "culture", name: "Bacterial Culture", category: "Microbiology" },
+  // Bloodwork
+  { id: "cbc", name: "Complete Blood Count (CBC)", category: "Bloodwork", isCommon: true },
+  { id: "chemistry", name: "Chemistry Panel", category: "Bloodwork", isCommon: true },
+  { id: "thyroid", name: "Thyroid Panel (T4)", category: "Bloodwork", isCommon: false },
+  { id: "felv-fiv", name: "FeLV/FIV Test", category: "Bloodwork", isCommon: true },
+  { id: "heartworm", name: "Heartworm Test", category: "Bloodwork", isCommon: true },
+  { id: "electrolytes", name: "Electrolyte Panel", category: "Bloodwork", isCommon: false },
+  { id: "coagulation", name: "Coagulation Profile", category: "Bloodwork", isCommon: false },
+  
+  // Urinalysis
+  { id: "urinalysis", name: "Complete Urinalysis", category: "Urinalysis", isCommon: true },
+  { id: "urine-culture", name: "Urine Culture & Sensitivity", category: "Urinalysis", isCommon: false },
+  { id: "urine-protein", name: "Urine Protein/Creatinine Ratio", category: "Urinalysis", isCommon: false },
+  
+  // Imaging
+  { id: "radiographs", name: "Radiographs (X-rays)", category: "Imaging", isCommon: true },
+  { id: "ultrasound", name: "Abdominal Ultrasound", category: "Imaging", isCommon: false },
+  { id: "echocardiogram", name: "Echocardiogram", category: "Imaging", isCommon: false },
+  { id: "ct-scan", name: "CT Scan", category: "Imaging", isCommon: false },
+  
+  // Pathology
+  { id: "cytology", name: "Cytology", category: "Pathology", isCommon: true },
+  { id: "biopsy", name: "Histopathology (Biopsy)", category: "Pathology", isCommon: false },
+  { id: "fecal", name: "Fecal Parasite Exam", category: "Pathology", isCommon: true },
+  { id: "culture", name: "Bacterial Culture & Sensitivity", category: "Pathology", isCommon: false },
+  { id: "necropsy", name: "Necropsy", category: "Pathology", isCommon: false },
 ];
 
-const testCategories = Array.from(new Set(availableTests.map(test => test.category)));
+// Get commonly ordered tests
+const commonTests = availableTests.filter(test => test.isCommon);
+
+// Define test categories in preferred order
+const testCategories = ["Bloodwork", "Urinalysis", "Imaging", "Pathology"];
 
 const patients = [
   { id: "P001", name: "Max", species: "Canine", breed: "Golden Retriever" },
@@ -422,30 +442,55 @@ export function LabOrderDialog({ children, prefillData, onLabOrderCreated }: Lab
                     )}
 
                     {/* Available tests by category */}
-                    {testCategories.map((category) => (
-                      <div key={category} className="space-y-2">
-                        <h4 className="text-sm font-medium text-muted-foreground">{category}</h4>
-                        <div className="grid grid-cols-2 gap-2">
-                          {availableTests
-                            .filter(test => test.category === category)
-                            .map((test) => (
-                              <div key={test.id} className="flex items-center space-x-2">
-                                <Checkbox
-                                  id={test.id}
-                                  checked={selectedTests.includes(test.id)}
-                                  onCheckedChange={() => toggleTest(test.id)}
-                                />
-                                <label
-                                  htmlFor={test.id}
-                                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-                                >
-                                  {test.name}
-                                </label>
-                              </div>
-                            ))}
+                    <div className="space-y-4">
+                      {/* Commonly Ordered Tests */}
+                      <div className="space-y-2">
+                        <h4 className="text-sm font-semibold text-primary">⭐ Commonly Ordered Tests</h4>
+                        <div className="grid grid-cols-2 gap-2 p-3 bg-muted/50 rounded-lg">
+                          {commonTests.map((test) => (
+                            <div key={test.id} className="flex items-center space-x-2">
+                              <Checkbox
+                                id={test.id}
+                                checked={selectedTests.includes(test.id)}
+                                onCheckedChange={() => toggleTest(test.id)}
+                              />
+                              <label
+                                htmlFor={test.id}
+                                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                              >
+                                {test.name}
+                              </label>
+                            </div>
+                          ))}
                         </div>
                       </div>
-                    ))}
+
+                      {/* Tests by Category */}
+                      {testCategories.map((category) => (
+                        <div key={category} className="space-y-2">
+                          <h4 className="text-sm font-medium text-muted-foreground">{category}</h4>
+                          <div className="grid grid-cols-2 gap-2">
+                            {availableTests
+                              .filter(test => test.category === category)
+                              .map((test) => (
+                                <div key={test.id} className="flex items-center space-x-2">
+                                  <Checkbox
+                                    id={`cat-${test.id}`}
+                                    checked={selectedTests.includes(test.id)}
+                                    onCheckedChange={() => toggleTest(test.id)}
+                                  />
+                                  <label
+                                    htmlFor={`cat-${test.id}`}
+                                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                                  >
+                                    {test.name}
+                                  </label>
+                                </div>
+                              ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                   <FormMessage />
                 </FormItem>
