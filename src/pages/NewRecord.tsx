@@ -560,7 +560,7 @@ const [newDifferentialDiagnosis, setNewDifferentialDiagnosis] = useState("");
   return (
     <div className="relative min-h-screen">
       {/* Main Content Area */}
-      <div className="mr-80"> {/* Add right margin for sidebar */}
+      <div> {/* Removed right margin for sidebar */}
         <div className="max-w-5xl mx-auto space-y-6 px-6"> {/* Fixed-width container */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
