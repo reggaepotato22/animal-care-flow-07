@@ -131,19 +131,6 @@ export default function Records() {
         <CardContent className="p-0">
           <div className="overflow-x-auto">
             <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-12"></TableHead>
-                  <TableHead className="w-16">Pet</TableHead>
-                  <TableHead className="w-32">Pet Name</TableHead>
-                  <TableHead className="w-36">Owner</TableHead>
-                  <TableHead className="w-40">Species</TableHead>
-                  <TableHead className="w-28">Date</TableHead>
-                  <TableHead className="w-32">Veterinarian</TableHead>
-                  <TableHead className="w-24">Status</TableHead>
-                  <TableHead className="w-28">Attachments</TableHead>
-                </TableRow>
-              </TableHeader>
               <TableBody>
                 {filteredRecords.map(record => {
                 const isExpanded = expandedRecords.has(record.id);
