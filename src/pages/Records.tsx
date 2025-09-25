@@ -152,9 +152,9 @@ export default function Records() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-12"></TableHead>
-                <TableHead className="w-16">Pet</TableHead>
-                <TableHead className="min-w-24">Pet Name</TableHead>
+                <TableHead className="w-12 pl-4"></TableHead>
+                <TableHead className="w-16 pl-0">Pet</TableHead>
+                <TableHead className="min-w-24 pl-0">Pet Name</TableHead>
                 <TableHead className="min-w-32">Owner</TableHead>
                 <TableHead className="min-w-36">Species</TableHead>
                 <TableHead className="min-w-24">Date</TableHead>
@@ -178,7 +178,7 @@ export default function Records() {
                     setExpandedRecords(newExpanded);
                   }}>
                     <TableRow className="hover:bg-muted/50">
-                      <TableCell className="w-12">
+                      <TableCell className="w-12 pl-4">
                         <CollapsibleTrigger asChild>
                           <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
                             {isExpanded ? (
@@ -189,7 +189,7 @@ export default function Records() {
                           </Button>
                         </CollapsibleTrigger>
                       </TableCell>
-                      <TableCell className="w-16">
+                      <TableCell className="w-16 pl-0">
                         <Avatar className="h-8 w-8">
                           <AvatarImage src={record.petImage} alt={record.petName} />
                           <AvatarFallback className="text-xs">
@@ -198,7 +198,7 @@ export default function Records() {
                         </Avatar>
                       </TableCell>
                       <TableCell 
-                        className="font-medium cursor-pointer"
+                        className="font-medium cursor-pointer pl-0"
                         onClick={() => navigate(`/records/${record.id}`)}
                       >
                         {record.petName}
