@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Search, Plus, FileText, Paperclip, User, Stethoscope, ChevronDown, ChevronRight } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 interface ClinicalRecord {
   id: string;
@@ -21,6 +22,7 @@ interface ClinicalRecord {
   treatment: string;
   status: "ongoing" | "completed" | "follow-up";
   attachments: number;
+  petImage?: string;
 }
 
 
@@ -36,7 +38,8 @@ const mockRecords: ClinicalRecord[] = [
     diagnosis: "Mild sprain in left forelimb",
     treatment: "Rest, anti-inflammatory medication",
     status: "ongoing",
-    attachments: 2
+    attachments: 2,
+    petImage: "/placeholder.svg"
   },
   {
     id: "2",
@@ -49,7 +52,8 @@ const mockRecords: ClinicalRecord[] = [
     diagnosis: "Upper respiratory infection",
     treatment: "Antibiotics, supportive care",
     status: "completed",
-    attachments: 1
+    attachments: 1,
+    petImage: "/placeholder.svg"
   },
   {
     id: "3",
@@ -62,7 +66,8 @@ const mockRecords: ClinicalRecord[] = [
     diagnosis: "Healthy, vaccinations updated",
     treatment: "Routine vaccinations",
     status: "completed",
-    attachments: 0
+    attachments: 0,
+    petImage: "/placeholder.svg"
   }
 ];
 
@@ -148,6 +153,7 @@ export default function Records() {
             <TableHeader>
               <TableRow>
                 <TableHead className="w-12"></TableHead>
+                <TableHead className="w-16">Pet</TableHead>
                 <TableHead className="min-w-24">Pet Name</TableHead>
                 <TableHead className="min-w-32">Owner</TableHead>
                 <TableHead className="min-w-36">Species</TableHead>
@@ -182,6 +188,14 @@ export default function Records() {
                             )}
                           </Button>
                         </CollapsibleTrigger>
+                      </TableCell>
+                      <TableCell className="w-16">
+                        <Avatar className="h-8 w-8">
+                          <AvatarImage src={record.petImage} alt={record.petName} />
+                          <AvatarFallback className="text-xs">
+                            {record.petName.slice(0, 2).toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
                       </TableCell>
                       <TableCell 
                         className="font-medium cursor-pointer"
@@ -237,7 +251,7 @@ export default function Records() {
                     <CollapsibleContent asChild>
                       <TableRow>
                         <TableCell></TableCell>
-                        <TableCell colSpan={7} className="bg-muted/20 p-4">
+                        <TableCell colSpan={8} className="bg-muted/20 p-4">
                           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
                             <div className="space-y-2">
                               <h4 className="font-semibold text-foreground flex items-center gap-2">
