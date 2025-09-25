@@ -128,111 +128,113 @@ export default function Records() {
 
       {/* Records Table */}
       <Card>
-        <CardContent className="p-0 overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                
-                <TableHead className="w-16 pl-0">Pet</TableHead>
-                <TableHead className="min-w-24 pl-0">Pet Name</TableHead>
-                <TableHead className="min-w-32">Owner</TableHead>
-                <TableHead className="min-w-36">Species</TableHead>
-                <TableHead className="min-w-24">Date</TableHead>
-                <TableHead className="min-w-28">Veterinarian</TableHead>
-                <TableHead className="min-w-20">Status</TableHead>
-                <TableHead className="min-w-24">Attachments</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredRecords.map(record => {
-              const isExpanded = expandedRecords.has(record.id);
-              return <Collapsible key={record.id} open={isExpanded} onOpenChange={open => {
-                const newExpanded = new Set(expandedRecords);
-                if (open) {
-                  newExpanded.add(record.id);
-                } else {
-                  newExpanded.delete(record.id);
-                }
-                setExpandedRecords(newExpanded);
-              }}>
-                    <TableRow className="hover:bg-muted/50">
-                      <TableCell className="w-12 pl-4">
-                        <CollapsibleTrigger asChild>
-                          <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
-                            {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                          </Button>
-                        </CollapsibleTrigger>
-                      </TableCell>
-                      <TableCell className="w-16 pl-0">
-                        <Avatar className="h-8 w-8">
-                          <AvatarImage src={record.petImage} alt={record.petName} />
-                          <AvatarFallback className="text-xs">
-                            {record.petName.slice(0, 2).toUpperCase()}
-                          </AvatarFallback>
-                        </Avatar>
-                      </TableCell>
-                      <TableCell className="font-medium cursor-pointer pl-0" onClick={() => navigate(`/records/${record.id}`)}>
-                        {record.petName}
-                      </TableCell>
-                      <TableCell className="cursor-pointer" onClick={() => navigate(`/records/${record.id}`)}>
-                        {record.patientName}
-                      </TableCell>
-                      <TableCell className="cursor-pointer" onClick={() => navigate(`/records/${record.id}`)}>
-                        {record.species}
-                      </TableCell>
-                      <TableCell className="cursor-pointer" onClick={() => navigate(`/records/${record.id}`)}>
-                        {new Date(record.date).toLocaleDateString()}
-                      </TableCell>
-                      <TableCell className="cursor-pointer" onClick={() => navigate(`/records/${record.id}`)}>
-                        {record.veterinarian}
-                      </TableCell>
-                      <TableCell className="cursor-pointer" onClick={() => navigate(`/records/${record.id}`)}>
-                        <Badge className={getStatusColor(record.status)}>
-                          {record.status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="cursor-pointer" onClick={() => navigate(`/records/${record.id}`)}>
-                        {record.attachments > 0 && <Badge variant="outline" className="flex items-center gap-1 w-fit">
-                            <Paperclip className="h-3 w-3" />
-                            {record.attachments}
-                          </Badge>}
-                      </TableCell>
-                    </TableRow>
-                    
-                    <CollapsibleContent asChild>
-                      <TableRow>
-                        <TableCell></TableCell>
-                        <TableCell colSpan={8} className="bg-muted/20 p-4">
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                            <div className="space-y-2">
-                              <h4 className="font-semibold text-foreground flex items-center gap-2">
-                                <User className="h-4 w-4" />
-                                Complaint
-                              </h4>
-                              <p className="text-muted-foreground">{record.complaint}</p>
-                            </div>
-                            <div className="space-y-2">
-                              <h4 className="font-semibold text-foreground flex items-center gap-2">
-                                <Stethoscope className="h-4 w-4" />
-                                Diagnosis
-                              </h4>
-                              <p className="text-muted-foreground">{record.diagnosis}</p>
-                            </div>
-                            <div className="space-y-2">
-                              <h4 className="font-semibold text-foreground flex items-center gap-2">
-                                <FileText className="h-4 w-4" />
-                                Treatment
-                              </h4>
-                              <p className="text-muted-foreground">{record.treatment}</p>
-                            </div>
-                          </div>
+        <CardContent className="p-0">
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-12"></TableHead>
+                  <TableHead className="w-16">Pet</TableHead>
+                  <TableHead className="w-32">Pet Name</TableHead>
+                  <TableHead className="w-36">Owner</TableHead>
+                  <TableHead className="w-40">Species</TableHead>
+                  <TableHead className="w-28">Date</TableHead>
+                  <TableHead className="w-32">Veterinarian</TableHead>
+                  <TableHead className="w-24">Status</TableHead>
+                  <TableHead className="w-28">Attachments</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredRecords.map(record => {
+                const isExpanded = expandedRecords.has(record.id);
+                return <Collapsible key={record.id} open={isExpanded} onOpenChange={open => {
+                  const newExpanded = new Set(expandedRecords);
+                  if (open) {
+                    newExpanded.add(record.id);
+                  } else {
+                    newExpanded.delete(record.id);
+                  }
+                  setExpandedRecords(newExpanded);
+                }}>
+                      <TableRow className="hover:bg-muted/50">
+                        <TableCell className="w-12">
+                          <CollapsibleTrigger asChild>
+                            <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+                              {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                            </Button>
+                          </CollapsibleTrigger>
+                        </TableCell>
+                        <TableCell className="w-16">
+                          <Avatar className="h-8 w-8">
+                            <AvatarImage src={record.petImage} alt={record.petName} />
+                            <AvatarFallback className="text-xs">
+                              {record.petName.slice(0, 2).toUpperCase()}
+                            </AvatarFallback>
+                          </Avatar>
+                        </TableCell>
+                        <TableCell className="w-32 font-medium cursor-pointer" onClick={() => navigate(`/records/${record.id}`)}>
+                          {record.petName}
+                        </TableCell>
+                        <TableCell className="w-36 cursor-pointer" onClick={() => navigate(`/records/${record.id}`)}>
+                          {record.patientName}
+                        </TableCell>
+                        <TableCell className="w-40 cursor-pointer" onClick={() => navigate(`/records/${record.id}`)}>
+                          {record.species}
+                        </TableCell>
+                        <TableCell className="w-28 cursor-pointer" onClick={() => navigate(`/records/${record.id}`)}>
+                          {new Date(record.date).toLocaleDateString()}
+                        </TableCell>
+                        <TableCell className="w-32 cursor-pointer" onClick={() => navigate(`/records/${record.id}`)}>
+                          {record.veterinarian}
+                        </TableCell>
+                        <TableCell className="w-24 cursor-pointer" onClick={() => navigate(`/records/${record.id}`)}>
+                          <Badge className={getStatusColor(record.status)}>
+                            {record.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="w-28 cursor-pointer" onClick={() => navigate(`/records/${record.id}`)}>
+                          {record.attachments > 0 && <Badge variant="outline" className="flex items-center gap-1 w-fit">
+                              <Paperclip className="h-3 w-3" />
+                              {record.attachments}
+                            </Badge>}
                         </TableCell>
                       </TableRow>
-                    </CollapsibleContent>
-                  </Collapsible>;
-            })}
-            </TableBody>
-          </Table>
+                      
+                      <CollapsibleContent asChild>
+                        <TableRow>
+                          <TableCell></TableCell>
+                          <TableCell colSpan={8} className="bg-muted/20 p-4">
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                              <div className="space-y-2">
+                                <h4 className="font-semibold text-foreground flex items-center gap-2">
+                                  <User className="h-4 w-4" />
+                                  Complaint
+                                </h4>
+                                <p className="text-muted-foreground">{record.complaint}</p>
+                              </div>
+                              <div className="space-y-2">
+                                <h4 className="font-semibold text-foreground flex items-center gap-2">
+                                  <Stethoscope className="h-4 w-4" />
+                                  Diagnosis
+                                </h4>
+                                <p className="text-muted-foreground">{record.diagnosis}</p>
+                              </div>
+                              <div className="space-y-2">
+                                <h4 className="font-semibold text-foreground flex items-center gap-2">
+                                  <FileText className="h-4 w-4" />
+                                  Treatment
+                                </h4>
+                                <p className="text-muted-foreground">{record.treatment}</p>
+                              </div>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      </CollapsibleContent>
+                    </Collapsible>;
+              })}
+              </TableBody>
+            </Table>
+          </div>
         </CardContent>
       </Card>
 
