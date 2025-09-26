@@ -820,7 +820,7 @@ const [newDifferentialDiagnosis, setNewDifferentialDiagnosis] = useState("");
           <div className="h-full p-6 overflow-y-auto">
             {/* Main Form */}
             <Tabs defaultValue="soap" className="w-full">
-            <TabsList className="grid w-full grid-cols-7">
+            <TabsList className="inline-flex h-10 items-center justify-start rounded-md bg-muted p-1 text-muted-foreground w-full overflow-x-auto">
               <TabsTrigger value="soap">SOAP Notes</TabsTrigger>
               <TabsTrigger value="vitals">Vitals</TabsTrigger>
               <TabsTrigger value="assessment">Assessment</TabsTrigger>
