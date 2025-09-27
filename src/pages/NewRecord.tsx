@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, FileText, Calendar as CalendarIcon, User, Stethoscope, Pill, Download, X, ArrowLeft, Plus, Paperclip, Upload, History, AlertTriangle, Syringe, Scissors, Heart, MoreVertical, Bed, TestTube } from "lucide-react";
+import { Search, FileText, Calendar as CalendarIcon, User, Stethoscope, Pill, Download, X, ArrowLeft, Plus, Paperclip, Upload, History, AlertTriangle, Syringe, Scissors, Heart, MoreVertical, Bed, TestTube, ChevronLeft, ChevronRight } from "lucide-react";
 import { LabOrderDialog } from "@/components/LabOrderDialog";
 import { AdmissionRequestDialog } from "@/components/AdmissionRequestDialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -317,6 +317,46 @@ export default function NewRecord() {
   // Patient and veterinarian state
   const [selectedPatient, setSelectedPatient] = useState(visitData?.patientId || "");
   const [selectedVeterinarian, setSelectedVeterinarian] = useState(visitData?.veterinarian || "");
+  
+  // Scrollable tabs state
+  const tabsScrollRef = useRef<HTMLDivElement>(null);
+  const [showLeftArrow, setShowLeftArrow] = useState(false);
+  const [showRightArrow, setShowRightArrow] = useState(false);
+
+  // Check scroll position to show/hide arrows
+  const checkScrollPosition = () => {
+    if (!tabsScrollRef.current) return;
+    
+    const { scrollLeft, scrollWidth, clientWidth } = tabsScrollRef.current;
+    setShowLeftArrow(scrollLeft > 0);
+    setShowRightArrow(scrollLeft < scrollWidth - clientWidth - 1);
+  };
+
+  // Scroll tabs left/right
+  const scrollTabs = (direction: 'left' | 'right') => {
+    if (!tabsScrollRef.current) return;
+    
+    const scrollAmount = 200;
+    const newScrollLeft = direction === 'left' 
+      ? tabsScrollRef.current.scrollLeft - scrollAmount
+      : tabsScrollRef.current.scrollLeft + scrollAmount;
+    
+    tabsScrollRef.current.scrollTo({
+      left: newScrollLeft,
+      behavior: 'smooth'
+    });
+  };
+
+  // Initialize scroll check
+  useEffect(() => {
+    checkScrollPosition();
+    const resizeObserver = new ResizeObserver(checkScrollPosition);
+    if (tabsScrollRef.current) {
+      resizeObserver.observe(tabsScrollRef.current);
+    }
+    return () => resizeObserver.disconnect();
+  }, []);
+  
   
   // Form state for SOAP notes
   const [formData, setFormData] = useState({
@@ -820,15 +860,48 @@ const [newDifferentialDiagnosis, setNewDifferentialDiagnosis] = useState("");
           <div className="h-full p-6 overflow-y-auto">
             {/* Main Form */}
             <Tabs defaultValue="soap" className="w-full">
-            <TabsList className="inline-flex h-10 items-center justify-start rounded-md bg-muted p-1 text-muted-foreground w-full overflow-x-auto">
-              <TabsTrigger value="soap">SOAP Notes</TabsTrigger>
-              <TabsTrigger value="vitals">Vitals</TabsTrigger>
-              <TabsTrigger value="assessment">Assessment</TabsTrigger>
-              <TabsTrigger value="treatment">Treatment Plan</TabsTrigger>
-              <TabsTrigger value="vaccination">Vaccination</TabsTrigger>
-              <TabsTrigger value="medications">Medications</TabsTrigger>
-              <TabsTrigger value="attachments">Attachments</TabsTrigger>
-            </TabsList>
+            <div className="relative">
+              {/* Left Arrow */}
+              {showLeftArrow && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="absolute left-0 top-1/2 -translate-y-1/2 z-10 h-8 w-8 p-0 bg-background/80 backdrop-blur-sm border border-border/50"
+                  onClick={() => scrollTabs('left')}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+              )}
+              
+              {/* Right Arrow */}
+              {showRightArrow && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="absolute right-0 top-1/2 -translate-y-1/2 z-10 h-8 w-8 p-0 bg-background/80 backdrop-blur-sm border border-border/50"
+                  onClick={() => scrollTabs('right')}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              )}
+
+              {/* Scrollable TabsList */}
+              <div 
+                ref={tabsScrollRef}
+                className="overflow-x-auto scrollbar-hide px-8"
+                onScroll={checkScrollPosition}
+              >
+                <TabsList className="inline-flex h-10 items-center justify-start rounded-md bg-muted p-1 text-muted-foreground min-w-max">
+                  <TabsTrigger value="soap">SOAP Notes</TabsTrigger>
+                  <TabsTrigger value="vitals">Vitals</TabsTrigger>
+                  <TabsTrigger value="assessment">Assessment</TabsTrigger>
+                  <TabsTrigger value="treatment">Treatment Plan</TabsTrigger>
+                  <TabsTrigger value="vaccination">Vaccination</TabsTrigger>
+                  <TabsTrigger value="medications">Medications</TabsTrigger>
+                  <TabsTrigger value="attachments">Attachments</TabsTrigger>
+                </TabsList>
+              </div>
+            </div>
 
             {/* SOAP Notes Tab */}
             <TabsContent value="soap" className="space-y-6">
