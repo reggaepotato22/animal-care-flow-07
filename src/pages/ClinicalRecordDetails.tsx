@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { ArrowLeft, Calendar, User, Stethoscope, Paperclip, FileText, Pill, Heart, FlaskConical, TestTube, Clock } from "lucide-react";
+import { ArrowLeft, Calendar, User, Stethoscope, Paperclip, FileText, Pill, Heart, FlaskConical, TestTube, Clock, Image, FileImage, FileScan } from "lucide-react";
 import { LabOrderDialog } from "@/components/LabOrderDialog";
 
 // Mock data - in a real app this would come from an API
@@ -20,7 +20,50 @@ const mockRecord = {
   diagnosis: "Mild sprain in left forelimb",
   treatment: "Rest, anti-inflammatory medication",
   status: "ongoing" as const,
-  attachments: 2,
+  attachments: [
+    {
+      id: "1",
+      name: "Left_Forelimb_Lateral.jpg",
+      type: "X-rays",
+      uploadDate: "2024-01-20",
+      size: "2.4 MB"
+    },
+    {
+      id: "2",
+      name: "Left_Forelimb_AP.jpg",
+      type: "X-rays",
+      uploadDate: "2024-01-20",
+      size: "2.1 MB"
+    },
+    {
+      id: "3",
+      name: "Complete_Blood_Count.pdf",
+      type: "Lab Reports",
+      uploadDate: "2024-01-20",
+      size: "156 KB"
+    },
+    {
+      id: "4",
+      name: "Inflammation_Markers.pdf",
+      type: "Lab Reports",
+      uploadDate: "2024-01-20",
+      size: "98 KB"
+    },
+    {
+      id: "5",
+      name: "Max_Playing_Before_Injury.jpg",
+      type: "Photos",
+      uploadDate: "2024-01-19",
+      size: "1.8 MB"
+    },
+    {
+      id: "6",
+      name: "Affected_Limb_Photo.jpg",
+      type: "Photos",
+      uploadDate: "2024-01-20",
+      size: "2.2 MB"
+    }
+  ],
   soap: {
     subjective: "Owner reports that Max has been limping on his left front leg for the past 2 days. The limping is more pronounced after exercise and seems to improve with rest. No visible wounds or swelling noticed by owner. Max is still eating and drinking normally, with good energy levels overall.",
     objective: "Physical examination reveals mild lameness in left forelimb. Palpation shows slight tenderness in the carpal joint area. No swelling or heat detected. Range of motion is slightly reduced compared to right limb. Temperature: 38.5°C, Heart rate: 90 bpm, Respiratory rate: 24 breaths/min. All other systems appear normal.",
@@ -359,23 +402,46 @@ export default function ClinicalRecordDetails() {
                 <CardDescription>Related files, images, and diagnostic results</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2 p-3 border rounded-lg hover:bg-muted/50 cursor-pointer">
-                    <FileText className="h-4 w-4 text-primary flex-shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm truncate">X-ray_Left_Forelimb.jpg</p>
-                      <p className="text-xs text-muted-foreground">Uploaded on {mockRecord.date}</p>
+                <div className="space-y-4">
+                  {/* Group attachments by type */}
+                  {Object.entries(
+                    mockRecord.attachments.reduce((acc, attachment) => {
+                      if (!acc[attachment.type]) {
+                        acc[attachment.type] = [];
+                      }
+                      acc[attachment.type].push(attachment);
+                      return acc;
+                    }, {} as Record<string, typeof mockRecord.attachments>)
+                  ).map(([type, files]) => (
+                    <div key={type} className="space-y-2">
+                      <div className="flex items-center gap-2 mb-2">
+                        {type === "X-rays" && <FileScan className="h-4 w-4 text-primary" />}
+                        {type === "Lab Reports" && <FileText className="h-4 w-4 text-primary" />}
+                        {type === "Photos" && <Image className="h-4 w-4 text-primary" />}
+                        <h3 className="font-semibold text-sm">{type}</h3>
+                        <Badge variant="secondary" className="text-xs">{files.length}</Badge>
+                      </div>
+                      <div className="space-y-2 pl-6">
+                        {files.map((file) => (
+                          <div 
+                            key={file.id} 
+                            className="flex items-center gap-2 p-3 border rounded-lg hover:bg-muted/50 cursor-pointer transition-colors"
+                          >
+                            {type === "X-rays" && <FileImage className="h-4 w-4 text-muted-foreground flex-shrink-0" />}
+                            {type === "Lab Reports" && <FileText className="h-4 w-4 text-muted-foreground flex-shrink-0" />}
+                            {type === "Photos" && <Image className="h-4 w-4 text-muted-foreground flex-shrink-0" />}
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium text-sm truncate">{file.name}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {new Date(file.uploadDate).toLocaleDateString()} • {file.size}
+                              </p>
+                            </div>
+                            <Button variant="outline" size="sm" className="text-xs">View</Button>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                    <Button variant="outline" size="sm" className="text-xs">View</Button>
-                  </div>
-                  <div className="flex items-center gap-2 p-3 border rounded-lg hover:bg-muted/50 cursor-pointer">
-                    <FileText className="h-4 w-4 text-primary flex-shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm truncate">Lab_Results_Complete_Blood_Count.pdf</p>
-                      <p className="text-xs text-muted-foreground">Uploaded on {mockRecord.date}</p>
-                    </div>
-                    <Button variant="outline" size="sm" className="text-xs">View</Button>
-                  </div>
+                  ))}
                 </div>
               </CardContent>
             </Card>
