@@ -11,6 +11,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 interface ClinicalRecord {
   id: string;
+  patientId: string;
   patientName: string;
   petName: string;
   species: string;
@@ -25,6 +26,7 @@ interface ClinicalRecord {
 }
 const mockRecords: ClinicalRecord[] = [{
   id: "1",
+  patientId: "P-2025-10234",
   patientName: "Sarah Johnson",
   petName: "Max",
   species: "Dog (Golden Retriever)",
@@ -38,6 +40,7 @@ const mockRecords: ClinicalRecord[] = [{
   petImage: "/placeholder.svg"
 }, {
   id: "2",
+  patientId: "P-2025-10235",
   patientName: "Mike Wilson",
   petName: "Whiskers",
   species: "Cat (Persian)",
@@ -51,6 +54,7 @@ const mockRecords: ClinicalRecord[] = [{
   petImage: "/placeholder.svg"
 }, {
   id: "3",
+  patientId: "P-2025-10236",
   patientName: "Emily Davis",
   petName: "Bella",
   species: "Dog (Labrador)",
@@ -160,7 +164,10 @@ export default function Records() {
                           </Avatar>
                         </TableCell>
                         <TableCell className="w-32 font-medium cursor-pointer" onClick={() => navigate(`/records/${record.id}`)}>
-                          {record.petName}
+                          <div>
+                            <div>{record.petName}</div>
+                            <div className="text-xs font-mono text-muted-foreground">{record.patientId}</div>
+                          </div>
                         </TableCell>
                         <TableCell className="w-36 cursor-pointer" onClick={() => navigate(`/records/${record.id}`)}>
                           {record.patientName}

@@ -9,6 +9,7 @@ import { LabOrderDialog } from "@/components/LabOrderDialog";
 // Mock data - in a real app this would come from an API
 const mockRecord = {
   id: "1",
+  patientId: "P-2025-10234",
   patientName: "Sarah Johnson",
   petName: "Max",
   species: "Dog (Golden Retriever)",
@@ -144,6 +145,9 @@ export default function ClinicalRecordDetails() {
               {mockRecord.veterinarian}
             </span>
           </p>
+          <p className="text-sm font-mono text-primary font-semibold mt-1">
+            Patient ID: {mockRecord.patientId}
+          </p>
         </div>
 
         <div className="flex items-center gap-2">
@@ -180,6 +184,10 @@ export default function ClinicalRecordDetails() {
           </div>
         </CardHeader>
         <CardContent>
+          <div className="mb-4 pb-4 border-b">
+            <p className="text-sm font-medium">Patient ID</p>
+            <p className="text-lg font-mono font-semibold text-primary">{mockRecord.patientId}</p>
+          </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div>
               <p className="text-sm font-medium">Age</p>
