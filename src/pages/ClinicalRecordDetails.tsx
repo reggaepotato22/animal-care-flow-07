@@ -145,9 +145,6 @@ export default function ClinicalRecordDetails() {
               {mockRecord.veterinarian}
             </span>
           </p>
-          <p className="text-sm font-mono text-primary font-semibold mt-1">
-            Patient ID: {mockRecord.patientId}
-          </p>
         </div>
 
         <div className="flex items-center gap-2">
