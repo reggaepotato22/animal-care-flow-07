@@ -5,6 +5,7 @@ import { Calendar, MapPin, Phone, Heart } from "lucide-react";
 
 interface Patient {
   id: string;
+  patientId?: string;
   name: string;
   species: string;
   breed: string;
@@ -50,6 +51,11 @@ export function PatientCard({ patient, onViewDetails }: PatientCardProps) {
               <p className="text-sm text-muted-foreground">
                 {patient.species} • {patient.breed}
               </p>
+              {patient.patientId && (
+                <p className="text-xs font-mono text-muted-foreground mt-1">
+                  ID: {patient.patientId}
+                </p>
+              )}
             </div>
           </div>
           <Badge className={getStatusColor(patient.status)}>

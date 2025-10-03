@@ -25,6 +25,7 @@ import {
 const mockPatients = [
   {
     id: "1",
+    patientId: "P-2025-10234",
     name: "Max",
     species: "Dog",
     breed: "Golden Retriever",
@@ -38,6 +39,7 @@ const mockPatients = [
   },
   {
     id: "2",
+    patientId: "P-2025-10235",
     name: "Whiskers",
     species: "Cat",
     breed: "Persian",
@@ -51,6 +53,7 @@ const mockPatients = [
   },
   {
     id: "3",
+    patientId: "P-2025-10236",
     name: "Luna",
     species: "Cat",
     breed: "Maine Coon",
@@ -64,6 +67,7 @@ const mockPatients = [
   },
   {
     id: "4",
+    patientId: "P-2025-10237",
     name: "Rocky",
     species: "Dog",
     breed: "German Shepherd",
@@ -187,6 +191,7 @@ export default function Patients() {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead>Patient ID</TableHead>
                 <TableHead>Patient</TableHead>
                 <TableHead>Species & Breed</TableHead>
                 <TableHead>Age & Weight</TableHead>
@@ -214,6 +219,7 @@ export default function Patients() {
 
                 return (
                   <TableRow key={patient.id}>
+                    <TableCell className="font-mono text-xs text-muted-foreground">{patient.patientId}</TableCell>
                     <TableCell className="font-medium">{patient.name}</TableCell>
                     <TableCell>
                       <div className="text-sm">

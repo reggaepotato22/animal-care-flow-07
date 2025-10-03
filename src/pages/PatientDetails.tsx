@@ -17,6 +17,7 @@ import { useState } from "react";
 const mockPatients = {
   "1": {
     id: "1",
+    patientId: "P-2025-10234",
     name: "Max",
     species: "Dog",
     breed: "Golden Retriever",
@@ -55,6 +56,7 @@ const mockPatients = {
   },
   "2": {
     id: "2",
+    patientId: "P-2025-10235",
     name: "Whiskers",
     species: "Cat",
     breed: "Persian",
@@ -91,6 +93,7 @@ const mockPatients = {
   },
   "3": {
     id: "3",
+    patientId: "P-2025-10236",
     name: "Luna",
     species: "Cat",
     breed: "Maine Coon",
@@ -122,6 +125,7 @@ const mockPatients = {
   },
   "4": {
     id: "4",
+    patientId: "P-2025-10237",
     name: "Rocky",
     species: "Dog",
     breed: "German Shepherd",
@@ -225,6 +229,9 @@ export default function PatientDetails() {
               <p className="text-muted-foreground">
                 {patient.species} • {patient.breed}
               </p>
+              <p className="text-sm font-mono text-primary font-semibold mt-1">
+                ID: {patient.patientId}
+              </p>
             </div>
             <div className="flex items-center space-x-2">
               <Badge className={getStatusColor(currentStatus)}>
@@ -318,6 +325,10 @@ export default function PatientDetails() {
             </div>
           </CardHeader>
           <CardContent className="space-y-3">
+            <div className="mb-3 pb-3 border-b">
+              <span className="text-xs text-muted-foreground">Patient ID</span>
+              <p className="font-mono font-semibold text-primary">{patient.patientId}</p>
+            </div>
             <div className="grid grid-cols-2 gap-2 text-sm">
               <span className="text-muted-foreground">Age:</span>
               <span className="font-medium">{patient.age}</span>

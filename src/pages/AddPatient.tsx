@@ -1,10 +1,12 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { generatePatientId } from "@/lib/utils";
 import { ArrowLeft, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -49,6 +51,7 @@ export default function AddPatient() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [patientId] = useState(() => generatePatientId());
 
   const form = useForm<PatientFormData>({
     resolver: zodResolver(patientSchema),
@@ -81,11 +84,11 @@ export default function AddPatient() {
     // Simulate API call delay
     await new Promise(resolve => setTimeout(resolve, 1000));
     
-    console.log("Patient data:", data);
+    console.log("Patient data:", { ...data, patientId });
     
     toast({
       title: "Patient Added Successfully",
-      description: `${data.name} has been added to the system.`,
+      description: `${data.name} has been added with ID: ${patientId}`,
     });
     
     setIsSubmitting(false);
@@ -114,6 +117,19 @@ export default function AddPatient() {
 
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+          {/* Patient ID Display */}
+          <Card className="bg-muted/50 border-2">
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground mb-1">Patient Identification Number</p>
+                  <p className="text-2xl font-bold font-mono text-primary">{patientId}</p>
+                </div>
+                <Badge variant="secondary" className="text-sm px-3 py-1">Auto-Generated</Badge>
+              </div>
+            </CardContent>
+          </Card>
+
           <div className="grid gap-6 lg:grid-cols-2">
             {/* Pet Information */}
             <Card>

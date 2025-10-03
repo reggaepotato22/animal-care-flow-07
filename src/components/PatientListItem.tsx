@@ -4,6 +4,7 @@ import { Calendar, MapPin, Phone, Heart } from "lucide-react";
 
 interface Patient {
   id: string;
+  patientId?: string;
   name: string;
   species: string;
   breed: string;
@@ -49,6 +50,11 @@ export function PatientListItem({ patient, onViewDetails }: PatientListItemProps
             <p className="text-sm text-muted-foreground">
               {patient.species} • {patient.breed}
             </p>
+            {patient.patientId && (
+              <p className="text-xs font-mono text-muted-foreground mt-1">
+                ID: {patient.patientId}
+              </p>
+            )}
           </div>
           
           <div className="text-sm">

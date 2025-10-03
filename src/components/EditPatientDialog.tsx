@@ -9,6 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 
 interface Patient {
   id: string;
+  patientId?: string;
   name: string;
   species: string;
   breed: string;
