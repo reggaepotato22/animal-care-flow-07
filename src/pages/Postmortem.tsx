@@ -176,19 +176,6 @@ export default function Postmortem() {
       <Card>
         <CardContent className="p-0 overflow-x-auto">
           <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-12"></TableHead>
-                <TableHead className="w-28">Report ID</TableHead>
-                <TableHead className="w-24">Pet Name</TableHead>
-                <TableHead className="w-32">Owner</TableHead>
-                <TableHead className="w-40">Species</TableHead>
-                <TableHead className="w-32">Date of Death</TableHead>
-                <TableHead className="w-32">Veterinarian</TableHead>
-                <TableHead className="w-28">Manner</TableHead>
-                <TableHead className="w-24">Condition</TableHead>
-              </TableRow>
-            </TableHeader>
             <TableBody>
               {filteredRecords.map((record) => {
                 const isExpanded = expandedRecords.has(record.id);
