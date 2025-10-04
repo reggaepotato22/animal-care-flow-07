@@ -125,6 +125,7 @@ export default function Hospitalization() {
   const [selectedStatus, setSelectedStatus] = useState<string>("all");
   const [selectedRecord, setSelectedRecord] = useState<HospitalizationRecord | null>(null);
   const [activeTab, setActiveTab] = useState("hospitalized");
+  const [detailsTab, setDetailsTab] = useState("admission");
 
   const filteredRecords = records.filter(record => {
     const matchesSearch = 
@@ -202,7 +203,7 @@ export default function Hospitalization() {
           </Badge>
         </div>
 
-        <Tabs defaultValue="admission" className="space-y-4">
+        <Tabs value={detailsTab} onValueChange={setDetailsTab} className="space-y-4">
           <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="admission">Admission Details</TabsTrigger>
             <TabsTrigger value="orders">Clinical Orders</TabsTrigger>
