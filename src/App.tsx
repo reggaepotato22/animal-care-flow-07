@@ -17,6 +17,7 @@ import Reports from "./pages/Reports";
 import Labs from "./pages/Labs";
 import AddLabResults from "./pages/AddLabResults";
 import Postmortem from "./pages/Postmortem";
+import PostmortemDetails from "./pages/PostmortemDetails";
 import Hospitalization from "./pages/Hospitalization";
 import NotFound from "./pages/NotFound";
 
@@ -42,6 +43,7 @@ const App = () => (
             <Route path="/labs" element={<Labs />} />
             <Route path="/labs/results/add/:orderId" element={<AddLabResults />} />
             <Route path="/postmortem" element={<Postmortem />} />
+            <Route path="/postmortem/:id" element={<PostmortemDetails />} />
             <Route path="/hospitalization" element={<Hospitalization />} />
             <Route path="/reports" element={<Reports />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

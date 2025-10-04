@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -86,10 +87,10 @@ const mockPostMortemRecords: PostMortemRecord[] = [
 ];
 
 export default function Postmortem() {
+  const navigate = useNavigate();
   const [records] = useState<PostMortemRecord[]>(mockPostMortemRecords);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedManner, setSelectedManner] = useState<string>("all");
-  const [expandedRecords, setExpandedRecords] = useState<Set<string>>(new Set());
 
   const filteredRecords = records.filter(record => {
     const matchesSearch = 
@@ -177,119 +178,49 @@ export default function Postmortem() {
         <CardContent className="p-0 overflow-x-auto">
           <Table>
             <TableBody>
-              {filteredRecords.map((record) => {
-                const isExpanded = expandedRecords.has(record.id);
-                
-                return (
-                  <Collapsible key={record.id} open={isExpanded} onOpenChange={(open) => {
-                    const newExpanded = new Set(expandedRecords);
-                    if (open) {
-                      newExpanded.add(record.id);
-                    } else {
-                      newExpanded.delete(record.id);
-                    }
-                    setExpandedRecords(newExpanded);
-                  }}>
-                    <TableRow className="hover:bg-muted/50">
-                      <TableCell className="w-12">
-                        <CollapsibleTrigger asChild>
-                          <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
-                            {isExpanded ? (
-                              <ChevronDown className="h-4 w-4" />
-                            ) : (
-                              <ChevronRight className="h-4 w-4" />
-                            )}
-                          </Button>
-                        </CollapsibleTrigger>
-                      </TableCell>
-                      <TableCell className="w-28 font-mono text-sm font-medium">
-                        {record.reportId}
-                      </TableCell>
-                      <TableCell className="w-24 font-medium">
-                        {record.petName}
-                      </TableCell>
-                      <TableCell className="w-32">
-                        {record.patientName}
-                      </TableCell>
-                      <TableCell className="w-40">
-                        <div className="truncate">
-                          {record.species} ({record.breed})
-                        </div>
-                      </TableCell>
-                      <TableCell className="w-32">
-                        <div className="flex flex-col text-sm">
-                          <span>{new Date(record.dateOfDeath).toLocaleDateString()}</span>
-                          <span className="text-muted-foreground text-xs">{record.timeOfDeath}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="w-32">
-                        <div className="truncate">
-                          {record.examiningVeterinarian}
-                        </div>
-                      </TableCell>
-                      <TableCell className="w-28">
-                        <Badge className={getMannerColor(record.mannerOfDeath)}>
-                          {record.mannerOfDeath}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="w-24">
-                        <Badge className={getBodyConditionColor(record.bodyCondition)}>
-                          {record.bodyCondition.replace('_', ' ')}
-                        </Badge>
-                      </TableCell>
-                    </TableRow>
-                    
-                    <CollapsibleContent asChild>
-                      <TableRow>
-                        <TableCell></TableCell>
-                        <TableCell colSpan={8} className="bg-muted/20 p-4">
-                          <div className="space-y-4">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                              <div className="space-y-2">
-                                <h4 className="font-semibold text-foreground flex items-center gap-2">
-                                  <Skull className="h-4 w-4" />
-                                  Cause of Death
-                                </h4>
-                                <p className="text-muted-foreground text-sm">{record.causeOfDeath}</p>
-                              </div>
-                              <div className="space-y-2">
-                                <h4 className="font-semibold text-foreground flex items-center gap-2">
-                                  <User className="h-4 w-4" />
-                                  External Examination
-                                </h4>
-                                <p className="text-muted-foreground text-sm">{record.externalExamination}</p>
-                              </div>
-                            </div>
-                            <div className="space-y-2">
-                              <h4 className="font-semibold text-foreground flex items-center gap-2">
-                                <FileText className="h-4 w-4" />
-                                Gross Findings
-                              </h4>
-                              <p className="text-muted-foreground text-sm">{record.grossFindings}</p>
-                            </div>
-                            {record.additionalTesting.length > 0 && (
-                              <div className="space-y-2">
-                                <h4 className="font-semibold text-foreground">Additional Testing</h4>
-                                <div className="flex gap-2">
-                                  {record.additionalTesting.map((test, index) => (
-                                    <Badge key={index} variant="outline" className="text-xs">
-                                      {test}
-                                    </Badge>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-                            <div className="text-xs text-muted-foreground flex items-center gap-2">
-                              <Calendar className="h-3 w-3" />
-                              Report created: {new Date(record.createdDate).toLocaleDateString()}
-                            </div>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    </CollapsibleContent>
-                  </Collapsible>
-                );
-              })}
+              {filteredRecords.map((record) => (
+                <TableRow 
+                  key={record.id} 
+                  className="hover:bg-muted/50 cursor-pointer"
+                  onClick={() => navigate(`/postmortem/${record.id}`)}
+                >
+                  <TableCell className="w-28 font-mono text-sm font-medium">
+                    {record.reportId}
+                  </TableCell>
+                  <TableCell className="w-24 font-medium">
+                    {record.petName}
+                  </TableCell>
+                  <TableCell className="w-32">
+                    {record.patientName}
+                  </TableCell>
+                  <TableCell className="w-40">
+                    <div className="truncate">
+                      {record.species} ({record.breed})
+                    </div>
+                  </TableCell>
+                  <TableCell className="w-32">
+                    <div className="flex flex-col text-sm">
+                      <span>{new Date(record.dateOfDeath).toLocaleDateString()}</span>
+                      <span className="text-muted-foreground text-xs">{record.timeOfDeath}</span>
+                    </div>
+                  </TableCell>
+                  <TableCell className="w-32">
+                    <div className="truncate">
+                      {record.examiningVeterinarian}
+                    </div>
+                  </TableCell>
+                  <TableCell className="w-28">
+                    <Badge className={getMannerColor(record.mannerOfDeath)}>
+                      {record.mannerOfDeath}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="w-24">
+                    <Badge className={getBodyConditionColor(record.bodyCondition)}>
+                      {record.bodyCondition.replace('_', ' ')}
+                    </Badge>
+                  </TableCell>
+                </TableRow>
+              ))}
             </TableBody>
           </Table>
         </CardContent>
