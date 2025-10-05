@@ -12,6 +12,7 @@ import { AdmissionDetails } from "@/components/hospitalization/AdmissionDetails"
 import { ClinicalOrders } from "@/components/hospitalization/ClinicalOrders";
 import { MonitoringSection } from "@/components/hospitalization/MonitoringSection";
 import { ProgressNotes } from "@/components/hospitalization/ProgressNotes";
+import { AdmissionRequestDialog } from "@/components/AdmissionRequestDialog";
 
 interface HospitalizationRecord {
   id: string;
@@ -241,10 +242,12 @@ export default function Hospitalization() {
           </p>
         </div>
         
-        <Button className="flex items-center gap-2">
-          <Plus className="h-4 w-4" />
-          Schedule Admission
-        </Button>
+        <AdmissionRequestDialog>
+          <Button className="flex items-center gap-2">
+            <Plus className="h-4 w-4" />
+            Schedule Admission
+          </Button>
+        </AdmissionRequestDialog>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
