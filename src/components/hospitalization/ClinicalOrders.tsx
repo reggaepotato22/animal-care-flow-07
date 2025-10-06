@@ -4,7 +4,12 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, Pill, Droplets, Utensils, Scissors, FlaskConical } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 interface HospitalizationRecord {
   id: string;
@@ -59,7 +64,8 @@ interface ClinicalOrdersProps {
 }
 
 export function ClinicalOrders({ record }: ClinicalOrdersProps) {
-  const [medications] = useState<Medication[]>([
+  const { toast } = useToast();
+  const [medications, setMedications] = useState<Medication[]>([
     {
       id: "M001",
       name: "Tramadol",
@@ -118,6 +124,48 @@ export function ClinicalOrders({ record }: ClinicalOrdersProps) {
     }
   ]);
 
+  const [isAddMedicationOpen, setIsAddMedicationOpen] = useState(false);
+  const [newMedication, setNewMedication] = useState({
+    name: "",
+    dose: "",
+    frequency: "",
+    route: "",
+    type: "scheduled" as "scheduled" | "prn",
+    status: "active" as "active" | "completed" | "discontinued"
+  });
+
+  const handleAddMedication = () => {
+    if (!newMedication.name || !newMedication.dose || !newMedication.frequency || !newMedication.route) {
+      toast({
+        title: "Missing information",
+        description: "Please fill in all required fields.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const medication: Medication = {
+      id: `M${String(medications.length + 1).padStart(3, '0')}`,
+      ...newMedication,
+      startDate: new Date().toISOString().split('T')[0]
+    };
+
+    setMedications([...medications, medication]);
+    setNewMedication({
+      name: "",
+      dose: "",
+      frequency: "",
+      route: "",
+      type: "scheduled",
+      status: "active"
+    });
+    setIsAddMedicationOpen(false);
+    toast({
+      title: "Medication added",
+      description: `${medication.name} has been added successfully.`
+    });
+  };
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case "active":
@@ -156,10 +204,82 @@ export function ClinicalOrders({ record }: ClinicalOrdersProps) {
                 <Pill className="h-5 w-5" />
                 Medications
               </CardTitle>
-              <Button size="sm">
-                <Plus className="h-4 w-4 mr-2" />
-                Add Medication
-              </Button>
+              <Dialog open={isAddMedicationOpen} onOpenChange={setIsAddMedicationOpen}>
+                <DialogTrigger asChild>
+                  <Button size="sm">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Medication
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-[500px]">
+                  <DialogHeader>
+                    <DialogTitle>Add Medication</DialogTitle>
+                    <DialogDescription>
+                      Add a new medication order for {record.petName}
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="grid gap-4 py-4">
+                    <div className="grid gap-2">
+                      <Label htmlFor="med-name">Medication Name *</Label>
+                      <Input
+                        id="med-name"
+                        value={newMedication.name}
+                        onChange={(e) => setNewMedication({...newMedication, name: e.target.value})}
+                        placeholder="e.g., Amoxicillin"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="grid gap-2">
+                        <Label htmlFor="dose">Dose *</Label>
+                        <Input
+                          id="dose"
+                          value={newMedication.dose}
+                          onChange={(e) => setNewMedication({...newMedication, dose: e.target.value})}
+                          placeholder="e.g., 10mg/kg"
+                        />
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="frequency">Frequency *</Label>
+                        <Input
+                          id="frequency"
+                          value={newMedication.frequency}
+                          onChange={(e) => setNewMedication({...newMedication, frequency: e.target.value})}
+                          placeholder="e.g., Q8H, BID"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="grid gap-2">
+                        <Label htmlFor="route">Route *</Label>
+                        <Input
+                          id="route"
+                          value={newMedication.route}
+                          onChange={(e) => setNewMedication({...newMedication, route: e.target.value})}
+                          placeholder="e.g., PO, IV, IM"
+                        />
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="type">Type</Label>
+                        <Select value={newMedication.type} onValueChange={(value: "scheduled" | "prn") => setNewMedication({...newMedication, type: value})}>
+                          <SelectTrigger id="type">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="scheduled">Scheduled</SelectItem>
+                            <SelectItem value="prn">PRN</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setIsAddMedicationOpen(false)}>
+                      Cancel
+                    </Button>
+                    <Button onClick={handleAddMedication}>Add Medication</Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
             </div>
           </CardHeader>
           <CardContent>
