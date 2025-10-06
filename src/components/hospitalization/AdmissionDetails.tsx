@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar, Clock, User, Stethoscope, MapPin, Edit, Check, X } from "lucide-react";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
@@ -35,6 +36,8 @@ export function AdmissionDetails({ record }: AdmissionDetailsProps) {
     ward: record.ward,
     kennelNumber: `K-${record.id.slice(-2)}`
   });
+  const [isEditingStatus, setIsEditingStatus] = useState(false);
+  const [editedStatus, setEditedStatus] = useState<"admitted" | "discharged" | "critical">(record.status);
   const { toast } = useToast();
 
   const handleSaveReason = () => {
@@ -67,6 +70,20 @@ export function AdmissionDetails({ record }: AdmissionDetailsProps) {
       kennelNumber: `K-${record.id.slice(-2)}`
     });
     setIsEditingAssignment(false);
+  };
+
+  const handleSaveStatus = () => {
+    // Here you would typically save to backend
+    toast({
+      title: "Status updated",
+      description: `The hospitalization status has been updated to ${editedStatus}.`,
+    });
+    setIsEditingStatus(false);
+  };
+
+  const handleCancelStatusEdit = () => {
+    setEditedStatus(record.status);
+    setIsEditingStatus(false);
   };
 
   return (
@@ -242,23 +259,51 @@ export function AdmissionDetails({ record }: AdmissionDetailsProps) {
           <CardTitle>Current Status & Overview</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Badge className={
-                record.status === "critical" ? "bg-destructive/10 text-destructive border-destructive/20" :
-                record.status === "admitted" ? "bg-info/10 text-info border-info/20" :
-                "bg-success/10 text-success border-success/20"
-              }>
-                {record.status.toUpperCase()}
-              </Badge>
-              <span className="text-sm text-muted-foreground">
-                Last updated: {new Date().toLocaleString()}
-              </span>
+          {isEditingStatus ? (
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="status">Status</Label>
+                <Select value={editedStatus} onValueChange={(value: "admitted" | "discharged" | "critical") => setEditedStatus(value)}>
+                  <SelectTrigger id="status">
+                    <SelectValue placeholder="Select status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="admitted">Admitted</SelectItem>
+                    <SelectItem value="critical">Critical</SelectItem>
+                    <SelectItem value="discharged">Discharged</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex gap-2">
+                <Button onClick={handleSaveStatus} size="sm">
+                  <Check className="h-4 w-4 mr-2" />
+                  Save
+                </Button>
+                <Button onClick={handleCancelStatusEdit} variant="outline" size="sm">
+                  <X className="h-4 w-4 mr-2" />
+                  Cancel
+                </Button>
+              </div>
             </div>
-            <Button variant="outline">
-              Update Status
-            </Button>
-          </div>
+          ) : (
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <Badge className={
+                  editedStatus === "critical" ? "bg-destructive/10 text-destructive border-destructive/20" :
+                  editedStatus === "admitted" ? "bg-info/10 text-info border-info/20" :
+                  "bg-success/10 text-success border-success/20"
+                }>
+                  {editedStatus.toUpperCase()}
+                </Badge>
+                <span className="text-sm text-muted-foreground">
+                  Last updated: {new Date().toLocaleString()}
+                </span>
+              </div>
+              <Button onClick={() => setIsEditingStatus(true)} variant="outline">
+                Update Status
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
