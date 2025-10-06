@@ -2,6 +2,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Calendar, Clock, User, Stethoscope, MapPin, Edit, Check, X } from "lucide-react";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
@@ -27,6 +29,12 @@ interface AdmissionDetailsProps {
 export function AdmissionDetails({ record }: AdmissionDetailsProps) {
   const [isEditingReason, setIsEditingReason] = useState(false);
   const [editedReason, setEditedReason] = useState(record.reason);
+  const [isEditingAssignment, setIsEditingAssignment] = useState(false);
+  const [editedAssignment, setEditedAssignment] = useState({
+    attendingVet: record.attendingVet,
+    ward: record.ward,
+    kennelNumber: `K-${record.id.slice(-2)}`
+  });
   const { toast } = useToast();
 
   const handleSaveReason = () => {
@@ -41,6 +49,24 @@ export function AdmissionDetails({ record }: AdmissionDetailsProps) {
   const handleCancelEdit = () => {
     setEditedReason(record.reason);
     setIsEditingReason(false);
+  };
+
+  const handleSaveAssignment = () => {
+    // Here you would typically save to backend
+    toast({
+      title: "Assignment updated",
+      description: "The assignment details have been updated successfully.",
+    });
+    setIsEditingAssignment(false);
+  };
+
+  const handleCancelAssignmentEdit = () => {
+    setEditedAssignment({
+      attendingVet: record.attendingVet,
+      ward: record.ward,
+      kennelNumber: `K-${record.id.slice(-2)}`
+    });
+    setIsEditingAssignment(false);
   };
 
   return (
@@ -148,24 +174,65 @@ export function AdmissionDetails({ record }: AdmissionDetailsProps) {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div>
-            <label className="text-sm font-medium text-muted-foreground">Attending Veterinarian</label>
-            <p className="font-medium">{record.attendingVet}</p>
-          </div>
-          <div>
-            <label className="text-sm font-medium text-muted-foreground">Ward/Room Assignment</label>
-            <p className="font-medium">{record.ward}</p>
-          </div>
-          <div>
-            <label className="text-sm font-medium text-muted-foreground">Kennel Number</label>
-            <p className="font-medium">K-{record.id.slice(-2)}</p>
-          </div>
-          <div className="pt-2">
-            <Button variant="outline" size="sm">
-              <Edit className="h-4 w-4 mr-2" />
-              Change Assignment
-            </Button>
-          </div>
+          {isEditingAssignment ? (
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="attendingVet">Attending Veterinarian</Label>
+                <Input
+                  id="attendingVet"
+                  value={editedAssignment.attendingVet}
+                  onChange={(e) => setEditedAssignment({...editedAssignment, attendingVet: e.target.value})}
+                />
+              </div>
+              <div>
+                <Label htmlFor="ward">Ward/Room Assignment</Label>
+                <Input
+                  id="ward"
+                  value={editedAssignment.ward}
+                  onChange={(e) => setEditedAssignment({...editedAssignment, ward: e.target.value})}
+                />
+              </div>
+              <div>
+                <Label htmlFor="kennelNumber">Kennel Number</Label>
+                <Input
+                  id="kennelNumber"
+                  value={editedAssignment.kennelNumber}
+                  onChange={(e) => setEditedAssignment({...editedAssignment, kennelNumber: e.target.value})}
+                />
+              </div>
+              <div className="flex gap-2">
+                <Button onClick={handleSaveAssignment} size="sm">
+                  <Check className="h-4 w-4 mr-2" />
+                  Save
+                </Button>
+                <Button onClick={handleCancelAssignmentEdit} variant="outline" size="sm">
+                  <X className="h-4 w-4 mr-2" />
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <>
+              <div>
+                <label className="text-sm font-medium text-muted-foreground">Attending Veterinarian</label>
+                <p className="font-medium">{editedAssignment.attendingVet}</p>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-muted-foreground">Ward/Room Assignment</label>
+                <p className="font-medium">{editedAssignment.ward}</p>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-muted-foreground">Kennel Number</label>
+                <p className="font-medium">{editedAssignment.kennelNumber}</p>
+              </div>
+              <div className="pt-2">
+                <Button onClick={() => setIsEditingAssignment(true)} variant="outline" size="sm">
+                  <Edit className="h-4 w-4 mr-2" />
+                  Change Assignment
+                </Button>
+              </div>
+            </>
+          )}
         </CardContent>
       </Card>
 
