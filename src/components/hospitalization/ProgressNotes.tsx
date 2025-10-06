@@ -2,7 +2,13 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, User, Calendar, Edit, TrendingUp } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 interface HospitalizationRecord {
   id: string;
@@ -27,7 +33,8 @@ interface ProgressNotesProps {
 }
 
 export function ProgressNotes({ record }: ProgressNotesProps) {
-  const [progressNotes] = useState<ProgressNote[]>([
+  const { toast } = useToast();
+  const [progressNotes, setProgressNotes] = useState<ProgressNote[]>([
     {
       id: "PN001",
       date: "2024-01-21",
@@ -55,6 +62,55 @@ export function ProgressNotes({ record }: ProgressNotesProps) {
     }
   ]);
 
+  const [isAddNoteOpen, setIsAddNoteOpen] = useState(false);
+  const [newNote, setNewNote] = useState({
+    veterinarian: "",
+    assessment: "",
+    plan: "",
+    modifications: "",
+    nextReview: "",
+    condition: "stable" as "improving" | "stable" | "declining"
+  });
+
+  const handleAddNote = () => {
+    if (!newNote.veterinarian || !newNote.assessment || !newNote.plan || !newNote.nextReview) {
+      toast({
+        title: "Missing information",
+        description: "Please fill in all required fields.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const now = new Date();
+    const progressNote: ProgressNote = {
+      id: `PN${String(progressNotes.length + 1).padStart(3, '0')}`,
+      date: now.toISOString().split('T')[0],
+      time: now.toTimeString().slice(0, 5),
+      veterinarian: newNote.veterinarian,
+      assessment: newNote.assessment,
+      plan: newNote.plan,
+      modifications: newNote.modifications ? newNote.modifications.split('\n').filter(m => m.trim()) : [],
+      nextReview: newNote.nextReview,
+      condition: newNote.condition
+    };
+
+    setProgressNotes([progressNote, ...progressNotes]);
+    setNewNote({
+      veterinarian: "",
+      assessment: "",
+      plan: "",
+      modifications: "",
+      nextReview: "",
+      condition: "stable"
+    });
+    setIsAddNoteOpen(false);
+    toast({
+      title: "Progress note added",
+      description: "The progress note has been added successfully."
+    });
+  };
+
   const getConditionColor = (condition: string) => {
     switch (condition) {
       case "improving": return "bg-success/10 text-success border-success/20";
@@ -77,10 +133,92 @@ export function ProgressNotes({ record }: ProgressNotesProps) {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h3 className="text-lg font-semibold">Daily Progress Notes</h3>
-        <Button size="sm">
-          <Plus className="h-4 w-4 mr-2" />
-          Add Progress Note
-        </Button>
+        <Dialog open={isAddNoteOpen} onOpenChange={setIsAddNoteOpen}>
+          <DialogTrigger asChild>
+            <Button size="sm">
+              <Plus className="h-4 w-4 mr-2" />
+              Add Progress Note
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-[600px]">
+            <DialogHeader>
+              <DialogTitle>Add Progress Note</DialogTitle>
+              <DialogDescription>
+                Add a new progress note for {record.petName}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto">
+              <div className="grid gap-2">
+                <Label htmlFor="veterinarian">Veterinarian *</Label>
+                <Input
+                  id="veterinarian"
+                  value={newNote.veterinarian}
+                  onChange={(e) => setNewNote({...newNote, veterinarian: e.target.value})}
+                  placeholder="e.g., Dr. Smith"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="condition">Patient Condition *</Label>
+                <Select value={newNote.condition} onValueChange={(value: "improving" | "stable" | "declining") => setNewNote({...newNote, condition: value})}>
+                  <SelectTrigger id="condition">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="improving">Improving</SelectItem>
+                    <SelectItem value="stable">Stable</SelectItem>
+                    <SelectItem value="declining">Declining</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="assessment">Assessment *</Label>
+                <Textarea
+                  id="assessment"
+                  value={newNote.assessment}
+                  onChange={(e) => setNewNote({...newNote, assessment: e.target.value})}
+                  placeholder="Describe the patient's current condition, symptoms, and observations..."
+                  className="min-h-[100px]"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="plan">Plan *</Label>
+                <Textarea
+                  id="plan"
+                  value={newNote.plan}
+                  onChange={(e) => setNewNote({...newNote, plan: e.target.value})}
+                  placeholder="Outline the treatment plan and next steps..."
+                  className="min-h-[100px]"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="modifications">Treatment Modifications (optional)</Label>
+                <Textarea
+                  id="modifications"
+                  value={newNote.modifications}
+                  onChange={(e) => setNewNote({...newNote, modifications: e.target.value})}
+                  placeholder="List any changes to treatment (one per line)..."
+                  className="min-h-[80px]"
+                />
+                <p className="text-xs text-muted-foreground">Enter each modification on a new line</p>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="nextReview">Next Review Date & Time *</Label>
+                <Input
+                  id="nextReview"
+                  type="datetime-local"
+                  value={newNote.nextReview}
+                  onChange={(e) => setNewNote({...newNote, nextReview: e.target.value})}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsAddNoteOpen(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleAddNote}>Add Progress Note</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
 
       <div className="space-y-6">
