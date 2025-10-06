@@ -1,7 +1,10 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Calendar, Clock, User, Stethoscope, MapPin, Edit } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { Calendar, Clock, User, Stethoscope, MapPin, Edit, Check, X } from "lucide-react";
+import { useState } from "react";
+import { useToast } from "@/hooks/use-toast";
 
 interface HospitalizationRecord {
   id: string;
@@ -22,6 +25,24 @@ interface AdmissionDetailsProps {
 }
 
 export function AdmissionDetails({ record }: AdmissionDetailsProps) {
+  const [isEditingReason, setIsEditingReason] = useState(false);
+  const [editedReason, setEditedReason] = useState(record.reason);
+  const { toast } = useToast();
+
+  const handleSaveReason = () => {
+    // Here you would typically save to backend
+    toast({
+      title: "Reason updated",
+      description: "The hospitalization reason has been updated successfully.",
+    });
+    setIsEditingReason(false);
+  };
+
+  const handleCancelEdit = () => {
+    setEditedReason(record.reason);
+    setIsEditingReason(false);
+  };
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
       {/* Patient Information */}
@@ -85,13 +106,36 @@ export function AdmissionDetails({ record }: AdmissionDetailsProps) {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-sm leading-relaxed">{record.reason}</p>
-          <div className="mt-4">
-            <Button variant="outline" size="sm">
-              <Edit className="h-4 w-4 mr-2" />
-              Edit Reason
-            </Button>
-          </div>
+          {isEditingReason ? (
+            <div className="space-y-4">
+              <Textarea
+                value={editedReason}
+                onChange={(e) => setEditedReason(e.target.value)}
+                className="min-h-[100px]"
+                placeholder="Enter reason for hospitalization..."
+              />
+              <div className="flex gap-2">
+                <Button onClick={handleSaveReason} size="sm">
+                  <Check className="h-4 w-4 mr-2" />
+                  Save
+                </Button>
+                <Button onClick={handleCancelEdit} variant="outline" size="sm">
+                  <X className="h-4 w-4 mr-2" />
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <>
+              <p className="text-sm leading-relaxed">{editedReason}</p>
+              <div className="mt-4">
+                <Button onClick={() => setIsEditingReason(true)} variant="outline" size="sm">
+                  <Edit className="h-4 w-4 mr-2" />
+                  Edit Reason
+                </Button>
+              </div>
+            </>
+          )}
         </CardContent>
       </Card>
 
