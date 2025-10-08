@@ -88,7 +88,7 @@ export function ClinicalOrders({ record }: ClinicalOrdersProps) {
     }
   ]);
 
-  const [ivFluids] = useState<IVFluid[]>([
+  const [ivFluids, setIvFluids] = useState<IVFluid[]>([
     {
       id: "IV001",
       type: "LRS",
@@ -134,6 +134,15 @@ export function ClinicalOrders({ record }: ClinicalOrdersProps) {
     status: "active" as "active" | "completed" | "discontinued"
   });
 
+  const [isAddIVFluidOpen, setIsAddIVFluidOpen] = useState(false);
+  const [newIVFluid, setNewIVFluid] = useState({
+    type: "",
+    rate: "",
+    additives: "",
+    duration: "",
+    status: "running" as "running" | "completed" | "discontinued"
+  });
+
   const handleAddMedication = () => {
     if (!newMedication.name || !newMedication.dose || !newMedication.frequency || !newMedication.route) {
       toast({
@@ -163,6 +172,41 @@ export function ClinicalOrders({ record }: ClinicalOrdersProps) {
     toast({
       title: "Medication added",
       description: `${medication.name} has been added successfully.`
+    });
+  };
+
+  const handleAddIVFluid = () => {
+    if (!newIVFluid.type || !newIVFluid.rate || !newIVFluid.duration) {
+      toast({
+        title: "Missing information",
+        description: "Please fill in all required fields.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const ivFluid: IVFluid = {
+      id: `IV${String(ivFluids.length + 1).padStart(3, '0')}`,
+      type: newIVFluid.type,
+      rate: newIVFluid.rate,
+      additives: newIVFluid.additives ? newIVFluid.additives.split(',').map(a => a.trim()) : [],
+      startTime: new Date().toISOString().replace('T', ' ').substring(0, 16),
+      duration: newIVFluid.duration,
+      status: newIVFluid.status
+    };
+
+    setIvFluids([...ivFluids, ivFluid]);
+    setNewIVFluid({
+      type: "",
+      rate: "",
+      additives: "",
+      duration: "",
+      status: "running"
+    });
+    setIsAddIVFluidOpen(false);
+    toast({
+      title: "IV fluid added",
+      description: `${ivFluid.type} has been added successfully.`
     });
   };
 
@@ -327,10 +371,81 @@ export function ClinicalOrders({ record }: ClinicalOrdersProps) {
                 <Droplets className="h-5 w-5" />
                 IV Fluids
               </CardTitle>
-              <Button size="sm">
-                <Plus className="h-4 w-4 mr-2" />
-                Add IV Fluid
-              </Button>
+              <Dialog open={isAddIVFluidOpen} onOpenChange={setIsAddIVFluidOpen}>
+                <DialogTrigger asChild>
+                  <Button size="sm">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add IV Fluid
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-[500px]">
+                  <DialogHeader>
+                    <DialogTitle>Add IV Fluid</DialogTitle>
+                    <DialogDescription>
+                      Add a new IV fluid order for {record.petName}
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="grid gap-4 py-4">
+                    <div className="grid gap-2">
+                      <Label htmlFor="fluid-type">Fluid Type *</Label>
+                      <Input
+                        id="fluid-type"
+                        value={newIVFluid.type}
+                        onChange={(e) => setNewIVFluid({...newIVFluid, type: e.target.value})}
+                        placeholder="e.g., LRS, 0.9% NaCl"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="grid gap-2">
+                        <Label htmlFor="rate">Rate *</Label>
+                        <Input
+                          id="rate"
+                          value={newIVFluid.rate}
+                          onChange={(e) => setNewIVFluid({...newIVFluid, rate: e.target.value})}
+                          placeholder="e.g., 5ml/kg/hr"
+                        />
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="duration">Duration *</Label>
+                        <Input
+                          id="duration"
+                          value={newIVFluid.duration}
+                          onChange={(e) => setNewIVFluid({...newIVFluid, duration: e.target.value})}
+                          placeholder="e.g., 24 hours"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="additives">Additives (comma-separated)</Label>
+                      <Input
+                        id="additives"
+                        value={newIVFluid.additives}
+                        onChange={(e) => setNewIVFluid({...newIVFluid, additives: e.target.value})}
+                        placeholder="e.g., KCl 20mEq/L, Vitamin B"
+                      />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="iv-status">Status</Label>
+                      <Select value={newIVFluid.status} onValueChange={(value: "running" | "completed" | "discontinued") => setNewIVFluid({...newIVFluid, status: value})}>
+                        <SelectTrigger id="iv-status">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="running">Running</SelectItem>
+                          <SelectItem value="completed">Completed</SelectItem>
+                          <SelectItem value="discontinued">Discontinued</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setIsAddIVFluidOpen(false)}>
+                      Cancel
+                    </Button>
+                    <Button onClick={handleAddIVFluid}>Add IV Fluid</Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
             </div>
           </CardHeader>
           <CardContent>
