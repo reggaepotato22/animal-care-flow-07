@@ -112,7 +112,7 @@ export function ClinicalOrders({ record }: ClinicalOrdersProps) {
     }
   ]);
 
-  const [labTests] = useState<LabTest[]>([
+  const [labTests, setLabTests] = useState<LabTest[]>([
     {
       id: "L001",
       testName: "CBC with differential",
@@ -151,6 +151,16 @@ export function ClinicalOrders({ record }: ClinicalOrdersProps) {
     assignedTo: "",
     nextDue: "",
     status: "pending" as "pending" | "completed" | "overdue"
+  });
+
+  const [isAddLabTestOpen, setIsAddLabTestOpen] = useState(false);
+  const [newLabTest, setNewLabTest] = useState({
+    testName: "",
+    scheduledDate: "",
+    scheduledTime: "",
+    orderedBy: "",
+    priority: "routine" as "routine" | "urgent" | "stat",
+    status: "ordered" as "ordered" | "collected" | "processing" | "completed"
   });
 
   const handleAddMedication = () => {
@@ -253,6 +263,42 @@ export function ClinicalOrders({ record }: ClinicalOrdersProps) {
     toast({
       title: "Procedure added",
       description: `${procedure.name} has been added successfully.`
+    });
+  };
+
+  const handleAddLabTest = () => {
+    if (!newLabTest.testName || !newLabTest.scheduledDate || !newLabTest.scheduledTime || !newLabTest.orderedBy) {
+      toast({
+        title: "Missing information",
+        description: "Please fill in all required fields.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const labTest: LabTest = {
+      id: `L${String(labTests.length + 1).padStart(3, '0')}`,
+      testName: newLabTest.testName,
+      scheduledDate: newLabTest.scheduledDate,
+      scheduledTime: newLabTest.scheduledTime,
+      orderedBy: newLabTest.orderedBy,
+      priority: newLabTest.priority,
+      status: newLabTest.status
+    };
+
+    setLabTests([...labTests, labTest]);
+    setNewLabTest({
+      testName: "",
+      scheduledDate: "",
+      scheduledTime: "",
+      orderedBy: "",
+      priority: "routine",
+      status: "ordered"
+    });
+    setIsAddLabTestOpen(false);
+    toast({
+      title: "Lab test ordered",
+      description: `${labTest.testName} has been ordered successfully.`
     });
   };
 
@@ -664,10 +710,97 @@ export function ClinicalOrders({ record }: ClinicalOrdersProps) {
                 <FlaskConical className="h-5 w-5" />
                 Scheduled Lab Tests
               </CardTitle>
-              <Button size="sm">
-                <Plus className="h-4 w-4 mr-2" />
-                Order Lab Test
-              </Button>
+              <Dialog open={isAddLabTestOpen} onOpenChange={setIsAddLabTestOpen}>
+                <DialogTrigger asChild>
+                  <Button size="sm">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Order Lab Test
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-[500px]">
+                  <DialogHeader>
+                    <DialogTitle>Order Lab Test</DialogTitle>
+                    <DialogDescription>
+                      Order a new lab test for {record.petName}
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="grid gap-4 py-4">
+                    <div className="grid gap-2">
+                      <Label htmlFor="test-name">Test Name *</Label>
+                      <Input
+                        id="test-name"
+                        value={newLabTest.testName}
+                        onChange={(e) => setNewLabTest({...newLabTest, testName: e.target.value})}
+                        placeholder="e.g., CBC with differential, Chemistry panel"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="grid gap-2">
+                        <Label htmlFor="scheduled-date">Scheduled Date *</Label>
+                        <Input
+                          id="scheduled-date"
+                          type="date"
+                          value={newLabTest.scheduledDate}
+                          onChange={(e) => setNewLabTest({...newLabTest, scheduledDate: e.target.value})}
+                        />
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="scheduled-time">Scheduled Time *</Label>
+                        <Input
+                          id="scheduled-time"
+                          type="time"
+                          value={newLabTest.scheduledTime}
+                          onChange={(e) => setNewLabTest({...newLabTest, scheduledTime: e.target.value})}
+                        />
+                      </div>
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="ordered-by">Ordered By *</Label>
+                      <Input
+                        id="ordered-by"
+                        value={newLabTest.orderedBy}
+                        onChange={(e) => setNewLabTest({...newLabTest, orderedBy: e.target.value})}
+                        placeholder="e.g., Dr. Smith"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="grid gap-2">
+                        <Label htmlFor="priority">Priority</Label>
+                        <Select value={newLabTest.priority} onValueChange={(value: "routine" | "urgent" | "stat") => setNewLabTest({...newLabTest, priority: value})}>
+                          <SelectTrigger id="priority">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="routine">Routine</SelectItem>
+                            <SelectItem value="urgent">Urgent</SelectItem>
+                            <SelectItem value="stat">STAT</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="test-status">Status</Label>
+                        <Select value={newLabTest.status} onValueChange={(value: "ordered" | "collected" | "processing" | "completed") => setNewLabTest({...newLabTest, status: value})}>
+                          <SelectTrigger id="test-status">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="ordered">Ordered</SelectItem>
+                            <SelectItem value="collected">Collected</SelectItem>
+                            <SelectItem value="processing">Processing</SelectItem>
+                            <SelectItem value="completed">Completed</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setIsAddLabTestOpen(false)}>
+                      Cancel
+                    </Button>
+                    <Button onClick={handleAddLabTest}>Order Lab Test</Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
             </div>
           </CardHeader>
           <CardContent>
