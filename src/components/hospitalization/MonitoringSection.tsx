@@ -4,7 +4,12 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, Heart, Thermometer, Clock, FileText } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 interface HospitalizationRecord {
   id: string;
@@ -39,7 +44,8 @@ interface MonitoringSectionProps {
 }
 
 export function MonitoringSection({ record }: MonitoringSectionProps) {
-  const [vitals] = useState<VitalSign[]>([
+  const { toast } = useToast();
+  const [vitals, setVitals] = useState<VitalSign[]>([
     {
       id: "V001",
       timestamp: "2024-01-21 06:00",
@@ -94,6 +100,56 @@ export function MonitoringSection({ record }: MonitoringSectionProps) {
     }
   ]);
 
+  const [isRecordVitalsOpen, setIsRecordVitalsOpen] = useState(false);
+  const [newVitals, setNewVitals] = useState({
+    temperature: "",
+    pulse: "",
+    respiration: "",
+    weight: "",
+    hydrationStatus: "Well hydrated",
+    painScore: "",
+    recordedBy: ""
+  });
+
+  const handleRecordVitals = () => {
+    if (!newVitals.temperature || !newVitals.pulse || !newVitals.respiration || !newVitals.weight || !newVitals.painScore || !newVitals.recordedBy) {
+      toast({
+        title: "Missing information",
+        description: "Please fill in all required fields.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const vitalSign: VitalSign = {
+      id: `V${String(vitals.length + 1).padStart(3, '0')}`,
+      timestamp: new Date().toISOString().replace('T', ' ').substring(0, 16),
+      temperature: parseFloat(newVitals.temperature),
+      pulse: parseInt(newVitals.pulse),
+      respiration: parseInt(newVitals.respiration),
+      weight: parseFloat(newVitals.weight),
+      hydrationStatus: newVitals.hydrationStatus,
+      painScore: parseInt(newVitals.painScore),
+      recordedBy: newVitals.recordedBy
+    };
+
+    setVitals([...vitals, vitalSign]);
+    setNewVitals({
+      temperature: "",
+      pulse: "",
+      respiration: "",
+      weight: "",
+      hydrationStatus: "Well hydrated",
+      painScore: "",
+      recordedBy: ""
+    });
+    setIsRecordVitalsOpen(false);
+    toast({
+      title: "Vitals recorded",
+      description: "Vital signs have been recorded successfully."
+    });
+  };
+
   const getPainScoreColor = (score: number) => {
     if (score <= 2) return "bg-success/10 text-success border-success/20";
     if (score <= 5) return "bg-warning/10 text-warning border-warning/20";
@@ -133,10 +189,113 @@ export function MonitoringSection({ record }: MonitoringSectionProps) {
                 <Heart className="h-5 w-5" />
                 Vital Signs Monitoring
               </CardTitle>
-              <Button size="sm">
-                <Plus className="h-4 w-4 mr-2" />
-                Record Vitals
-              </Button>
+              <Dialog open={isRecordVitalsOpen} onOpenChange={setIsRecordVitalsOpen}>
+                <DialogTrigger asChild>
+                  <Button size="sm">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Record Vitals
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-[500px]">
+                  <DialogHeader>
+                    <DialogTitle>Record Vital Signs</DialogTitle>
+                    <DialogDescription>
+                      Record new vital signs for {record.petName}
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="grid gap-4 py-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="grid gap-2">
+                        <Label htmlFor="temperature">Temperature (°F) *</Label>
+                        <Input
+                          id="temperature"
+                          type="number"
+                          step="0.1"
+                          value={newVitals.temperature}
+                          onChange={(e) => setNewVitals({...newVitals, temperature: e.target.value})}
+                          placeholder="e.g., 101.2"
+                        />
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="pulse">Pulse (bpm) *</Label>
+                        <Input
+                          id="pulse"
+                          type="number"
+                          value={newVitals.pulse}
+                          onChange={(e) => setNewVitals({...newVitals, pulse: e.target.value})}
+                          placeholder="e.g., 88"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="grid gap-2">
+                        <Label htmlFor="respiration">Respiration *</Label>
+                        <Input
+                          id="respiration"
+                          type="number"
+                          value={newVitals.respiration}
+                          onChange={(e) => setNewVitals({...newVitals, respiration: e.target.value})}
+                          placeholder="e.g., 24"
+                        />
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="weight">Weight (lbs) *</Label>
+                        <Input
+                          id="weight"
+                          type="number"
+                          step="0.1"
+                          value={newVitals.weight}
+                          onChange={(e) => setNewVitals({...newVitals, weight: e.target.value})}
+                          placeholder="e.g., 32.5"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="grid gap-2">
+                        <Label htmlFor="hydration">Hydration Status</Label>
+                        <Select value={newVitals.hydrationStatus} onValueChange={(value) => setNewVitals({...newVitals, hydrationStatus: value})}>
+                          <SelectTrigger id="hydration">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Well hydrated">Well hydrated</SelectItem>
+                            <SelectItem value="Mild dehydration">Mild dehydration</SelectItem>
+                            <SelectItem value="Moderate dehydration">Moderate dehydration</SelectItem>
+                            <SelectItem value="Severe dehydration">Severe dehydration</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="pain-score">Pain Score (0-10) *</Label>
+                        <Input
+                          id="pain-score"
+                          type="number"
+                          min="0"
+                          max="10"
+                          value={newVitals.painScore}
+                          onChange={(e) => setNewVitals({...newVitals, painScore: e.target.value})}
+                          placeholder="e.g., 2"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="recorded-by">Recorded By *</Label>
+                      <Input
+                        id="recorded-by"
+                        value={newVitals.recordedBy}
+                        onChange={(e) => setNewVitals({...newVitals, recordedBy: e.target.value})}
+                        placeholder="e.g., Nurse Johnson"
+                      />
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setIsRecordVitalsOpen(false)}>
+                      Cancel
+                    </Button>
+                    <Button onClick={handleRecordVitals}>Record Vitals</Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
             </div>
           </CardHeader>
           <CardContent>
