@@ -100,7 +100,7 @@ export function ClinicalOrders({ record }: ClinicalOrdersProps) {
     }
   ]);
 
-  const [procedures] = useState<Procedure[]>([
+  const [procedures, setProcedures] = useState<Procedure[]>([
     {
       id: "P001",
       name: "Wound care - surgical site",
@@ -141,6 +141,16 @@ export function ClinicalOrders({ record }: ClinicalOrdersProps) {
     additives: "",
     duration: "",
     status: "running" as "running" | "completed" | "discontinued"
+  });
+
+  const [isAddProcedureOpen, setIsAddProcedureOpen] = useState(false);
+  const [newProcedure, setNewProcedure] = useState({
+    name: "",
+    frequency: "",
+    instructions: "",
+    assignedTo: "",
+    nextDue: "",
+    status: "pending" as "pending" | "completed" | "overdue"
   });
 
   const handleAddMedication = () => {
@@ -207,6 +217,42 @@ export function ClinicalOrders({ record }: ClinicalOrdersProps) {
     toast({
       title: "IV fluid added",
       description: `${ivFluid.type} has been added successfully.`
+    });
+  };
+
+  const handleAddProcedure = () => {
+    if (!newProcedure.name || !newProcedure.frequency || !newProcedure.instructions || !newProcedure.assignedTo || !newProcedure.nextDue) {
+      toast({
+        title: "Missing information",
+        description: "Please fill in all required fields.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const procedure: Procedure = {
+      id: `P${String(procedures.length + 1).padStart(3, '0')}`,
+      name: newProcedure.name,
+      frequency: newProcedure.frequency,
+      instructions: newProcedure.instructions,
+      assignedTo: newProcedure.assignedTo,
+      nextDue: newProcedure.nextDue,
+      status: newProcedure.status
+    };
+
+    setProcedures([...procedures, procedure]);
+    setNewProcedure({
+      name: "",
+      frequency: "",
+      instructions: "",
+      assignedTo: "",
+      nextDue: "",
+      status: "pending"
+    });
+    setIsAddProcedureOpen(false);
+    toast({
+      title: "Procedure added",
+      description: `${procedure.name} has been added successfully.`
     });
   };
 
@@ -489,10 +535,92 @@ export function ClinicalOrders({ record }: ClinicalOrdersProps) {
                 <Scissors className="h-5 w-5" />
                 Procedures & Care Instructions
               </CardTitle>
-              <Button size="sm">
-                <Plus className="h-4 w-4 mr-2" />
-                Add Procedure
-              </Button>
+              <Dialog open={isAddProcedureOpen} onOpenChange={setIsAddProcedureOpen}>
+                <DialogTrigger asChild>
+                  <Button size="sm">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Procedure
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-[500px]">
+                  <DialogHeader>
+                    <DialogTitle>Add Procedure</DialogTitle>
+                    <DialogDescription>
+                      Add a new procedure or care instruction for {record.petName}
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="grid gap-4 py-4">
+                    <div className="grid gap-2">
+                      <Label htmlFor="proc-name">Procedure Name *</Label>
+                      <Input
+                        id="proc-name"
+                        value={newProcedure.name}
+                        onChange={(e) => setNewProcedure({...newProcedure, name: e.target.value})}
+                        placeholder="e.g., Wound care, Physical therapy"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="grid gap-2">
+                        <Label htmlFor="proc-frequency">Frequency *</Label>
+                        <Input
+                          id="proc-frequency"
+                          value={newProcedure.frequency}
+                          onChange={(e) => setNewProcedure({...newProcedure, frequency: e.target.value})}
+                          placeholder="e.g., Q8H, BID, TID"
+                        />
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="assigned-to">Assigned To *</Label>
+                        <Input
+                          id="assigned-to"
+                          value={newProcedure.assignedTo}
+                          onChange={(e) => setNewProcedure({...newProcedure, assignedTo: e.target.value})}
+                          placeholder="e.g., Nursing staff, Dr. Smith"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="instructions">Instructions *</Label>
+                      <Input
+                        id="instructions"
+                        value={newProcedure.instructions}
+                        onChange={(e) => setNewProcedure({...newProcedure, instructions: e.target.value})}
+                        placeholder="Detailed procedure instructions"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="grid gap-2">
+                        <Label htmlFor="next-due">Next Due *</Label>
+                        <Input
+                          id="next-due"
+                          type="datetime-local"
+                          value={newProcedure.nextDue}
+                          onChange={(e) => setNewProcedure({...newProcedure, nextDue: e.target.value})}
+                        />
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="proc-status">Status</Label>
+                        <Select value={newProcedure.status} onValueChange={(value: "pending" | "completed" | "overdue") => setNewProcedure({...newProcedure, status: value})}>
+                          <SelectTrigger id="proc-status">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="pending">Pending</SelectItem>
+                            <SelectItem value="completed">Completed</SelectItem>
+                            <SelectItem value="overdue">Overdue</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setIsAddProcedureOpen(false)}>
+                      Cancel
+                    </Button>
+                    <Button onClick={handleAddProcedure}>Add Procedure</Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
             </div>
           </CardHeader>
           <CardContent>
