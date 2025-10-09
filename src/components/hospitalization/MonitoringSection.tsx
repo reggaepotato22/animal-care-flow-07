@@ -70,7 +70,7 @@ export function MonitoringSection({ record }: MonitoringSectionProps) {
     }
   ]);
 
-  const [nursingNotes] = useState<NursingNote[]>([
+  const [nursingNotes, setNursingNotes] = useState<NursingNote[]>([
     {
       id: "N001",
       timestamp: "2024-01-21 06:30",
@@ -109,6 +109,15 @@ export function MonitoringSection({ record }: MonitoringSectionProps) {
     hydrationStatus: "Well hydrated",
     painScore: "",
     recordedBy: ""
+  });
+
+  const [isAddNoteOpen, setIsAddNoteOpen] = useState(false);
+  const [newNote, setNewNote] = useState({
+    shift: "Day",
+    nurse: "",
+    category: "General",
+    note: "",
+    priority: "normal" as "normal" | "important" | "critical"
   });
 
   const handleRecordVitals = () => {
@@ -154,6 +163,41 @@ export function MonitoringSection({ record }: MonitoringSectionProps) {
     if (score <= 2) return "bg-success/10 text-success border-success/20";
     if (score <= 5) return "bg-warning/10 text-warning border-warning/20";
     return "bg-destructive/10 text-destructive border-destructive/20";
+  };
+
+  const handleAddNote = () => {
+    if (!newNote.nurse || !newNote.note) {
+      toast({
+        title: "Missing information",
+        description: "Please fill in all required fields.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const nursingNote: NursingNote = {
+      id: `N${String(nursingNotes.length + 1).padStart(3, '0')}`,
+      timestamp: new Date().toISOString().replace('T', ' ').substring(0, 16),
+      shift: newNote.shift,
+      nurse: newNote.nurse,
+      category: newNote.category,
+      note: newNote.note,
+      priority: newNote.priority
+    };
+
+    setNursingNotes([...nursingNotes, nursingNote]);
+    setNewNote({
+      shift: "Day",
+      nurse: "",
+      category: "General",
+      note: "",
+      priority: "normal"
+    });
+    setIsAddNoteOpen(false);
+    toast({
+      title: "Note added",
+      description: "Nursing note has been added successfully."
+    });
   };
 
   const getPriorityColor = (priority: string) => {
@@ -361,10 +405,93 @@ export function MonitoringSection({ record }: MonitoringSectionProps) {
                 <FileText className="h-5 w-5" />
                 Nursing Notes
               </CardTitle>
-              <Button size="sm">
-                <Plus className="h-4 w-4 mr-2" />
-                Add Note
-              </Button>
+              <Dialog open={isAddNoteOpen} onOpenChange={setIsAddNoteOpen}>
+                <DialogTrigger asChild>
+                  <Button size="sm">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Note
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-[500px]">
+                  <DialogHeader>
+                    <DialogTitle>Add Nursing Note</DialogTitle>
+                    <DialogDescription>
+                      Add a new nursing note for {record.petName}
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="grid gap-4 py-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="grid gap-2">
+                        <Label htmlFor="shift">Shift *</Label>
+                        <Select value={newNote.shift} onValueChange={(value) => setNewNote({...newNote, shift: value})}>
+                          <SelectTrigger id="shift">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Day">Day</SelectItem>
+                            <SelectItem value="Evening">Evening</SelectItem>
+                            <SelectItem value="Night">Night</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="nurse">Nurse *</Label>
+                        <Input
+                          id="nurse"
+                          value={newNote.nurse}
+                          onChange={(e) => setNewNote({...newNote, nurse: e.target.value})}
+                          placeholder="e.g., Nurse Johnson"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="grid gap-2">
+                        <Label htmlFor="category">Category</Label>
+                        <Select value={newNote.category} onValueChange={(value) => setNewNote({...newNote, category: value})}>
+                          <SelectTrigger id="category">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="General">General</SelectItem>
+                            <SelectItem value="Medication">Medication</SelectItem>
+                            <SelectItem value="Behavior">Behavior</SelectItem>
+                            <SelectItem value="Feeding">Feeding</SelectItem>
+                            <SelectItem value="Vitals">Vitals</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="priority">Priority</Label>
+                        <Select value={newNote.priority} onValueChange={(value) => setNewNote({...newNote, priority: value as "normal" | "important" | "critical"})}>
+                          <SelectTrigger id="priority">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="normal">Normal</SelectItem>
+                            <SelectItem value="important">Important</SelectItem>
+                            <SelectItem value="critical">Critical</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="note">Note *</Label>
+                      <Input
+                        id="note"
+                        value={newNote.note}
+                        onChange={(e) => setNewNote({...newNote, note: e.target.value})}
+                        placeholder="Enter detailed nursing note..."
+                      />
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setIsAddNoteOpen(false)}>
+                      Cancel
+                    </Button>
+                    <Button onClick={handleAddNote}>Add Note</Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
             </div>
           </CardHeader>
           <CardContent>
