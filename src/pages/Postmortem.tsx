@@ -8,7 +8,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Search, Plus, FileText, Skull, ChevronDown, ChevronRight, Calendar, User } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { PostMortemReportDialog } from "@/components/PostMortemReportDialog";
 
 interface PostMortemRecord {
   id: string;
@@ -135,12 +134,13 @@ export default function Postmortem() {
           </p>
         </div>
         
-        <PostMortemReportDialog>
-          <Button className="flex items-center gap-2">
-            <Plus className="h-4 w-4" />
-            New Post-Mortem Report
-          </Button>
-        </PostMortemReportDialog>
+        <Button 
+          className="flex items-center gap-2"
+          onClick={() => navigate("/postmortem/new")}
+        >
+          <Plus className="h-4 w-4" />
+          New Post-Mortem Report
+        </Button>
       </div>
 
       {/* Search and Filters */}
