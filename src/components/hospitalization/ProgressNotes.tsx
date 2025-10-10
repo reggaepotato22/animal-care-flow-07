@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, User, Calendar, Edit, TrendingUp } from "lucide-react";
+import { Plus, User, Calendar, TrendingUp } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface HospitalizationRecord {
@@ -240,17 +240,12 @@ export function ProgressNotes({ record }: ProgressNotesProps) {
                     </Badge>
                   )}
                 </div>
-                <div className="flex items-center gap-2">
                   <Badge className={getConditionColor(note.condition)}>
                     <span className="flex items-center gap-1">
                       {getConditionIcon(note.condition)}
                       {note.condition}
                     </span>
                   </Badge>
-                  <Button variant="ghost" size="sm">
-                    <Edit className="h-4 w-4" />
-                  </Button>
-                </div>
               </div>
               <div className="flex items-center gap-2">
                 <User className="h-4 w-4 text-muted-foreground" />
