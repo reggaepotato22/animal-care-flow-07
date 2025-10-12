@@ -50,7 +50,7 @@ export function AppointmentCalendar({ appointments, selectedDate, onDateSelect }
                 fontWeight: 'bold'
               }
             }}
-            className="rounded-md border"
+            className="rounded-md border w-full"
           />
         </CardContent>
       </Card>
