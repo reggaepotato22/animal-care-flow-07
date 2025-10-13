@@ -907,8 +907,8 @@ const [newDifferentialDiagnosis, setNewDifferentialDiagnosis] = useState("");
             <TabsContent value="soap" className="space-y-6">
               <Card>
                 <CardHeader>
-                  <CardTitle>SOAP Notes</CardTitle>
-                  <CardDescription>Document the clinical examination using the SOAP format</CardDescription>
+                  <CardTitle>Subjective</CardTitle>
+                  <CardDescription>Chief complaint and owner's observations</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
                   <div className="grid grid-cols-2 gap-4">
@@ -996,115 +996,9 @@ const [newDifferentialDiagnosis, setNewDifferentialDiagnosis] = useState("");
                       </div>
                     </div>
                     
-                    <div className="space-y-4">
-                      <Label className="text-base font-medium">Objective (Physical Examination)</Label>
-                      
-                      {/* Vital Signs Grid */}
-                      <div className="space-y-3">
-                        <Label className="text-sm font-medium text-muted-foreground">Vital Signs</Label>
-                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                          <div className="space-y-2">
-                            <Label htmlFor="temperature" className="text-sm">Temperature</Label>
-                            <div className="relative">
-                              <Input
-                                id="temperature"
-                                value={formData.temperature}
-                                onChange={(e) => setFormData(prev => ({ ...prev, temperature: e.target.value }))}
-                                placeholder="101.5"
-                                className="pr-8"
-                              />
-                              <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-sm text-muted-foreground">°F</span>
-                            </div>
-                          </div>
-                          
-                          <div className="space-y-2">
-                            <Label htmlFor="heartRate" className="text-sm">Heart Rate</Label>
-                            <div className="relative">
-                              <Input
-                                id="heartRate"
-                                value={formData.heartRate}
-                                onChange={(e) => setFormData(prev => ({ ...prev, heartRate: e.target.value }))}
-                                placeholder="80"
-                                className="pr-12"
-                              />
-                              <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-sm text-muted-foreground">bpm</span>
-                            </div>
-                          </div>
-                          
-                          <div className="space-y-2">
-                            <Label htmlFor="respiratoryRate" className="text-sm">Respiratory Rate</Label>
-                            <div className="relative">
-                              <Input
-                                id="respiratoryRate"
-                                value={formData.respiratoryRate}
-                                onChange={(e) => setFormData(prev => ({ ...prev, respiratoryRate: e.target.value }))}
-                                placeholder="20"
-                                className="pr-12"
-                              />
-                              <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-sm text-muted-foreground">rpm</span>
-                            </div>
-                          </div>
-                          
-                          <div className="space-y-2">
-                            <Label htmlFor="weight" className="text-sm">Weight</Label>
-                            <div className="relative">
-                              <Input
-                                id="weight"
-                                value={formData.weight}
-                                onChange={(e) => setFormData(prev => ({ ...prev, weight: e.target.value }))}
-                                placeholder="25.5"
-                                className="pr-8"
-                              />
-                              <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-sm text-muted-foreground">kg</span>
-                            </div>
-                          </div>
-                          
-                          <div className="space-y-2">
-                            <Label htmlFor="bloodPressure" className="text-sm">Blood Pressure</Label>
-                            <div className="relative">
-                              <Input
-                                id="bloodPressure"
-                                value={formData.bloodPressure}
-                                onChange={(e) => setFormData(prev => ({ ...prev, bloodPressure: e.target.value }))}
-                                placeholder="120/80"
-                                className="pr-16"
-                              />
-                              <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-sm text-muted-foreground">mmHg</span>
-                            </div>
-                          </div>
-                          
-                          <div className="space-y-2">
-                            <Label htmlFor="bodyConditionScore" className="text-sm">Body Condition Score</Label>
-                            <div className="relative">
-                              <Input
-                                id="bodyConditionScore"
-                                value={formData.bodyConditionScore}
-                                onChange={(e) => setFormData(prev => ({ ...prev, bodyConditionScore: e.target.value }))}
-                                placeholder="5"
-                                className="pr-8"
-                              />
-                              <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-sm text-muted-foreground">/9</span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                      
-                      {/* Other Observations */}
-                      <div className="space-y-2">
-                        <Label htmlFor="otherObservations" className="text-sm font-medium text-muted-foreground">Other Observations & Findings</Label>
-                        <Textarea 
-                          id="otherObservations"
-                          value={formData.otherObservations}
-                          onChange={(e) => setFormData(prev => ({ ...prev, otherObservations: e.target.value }))}
-                          placeholder="Physical examination findings, mucous membrane color, hydration status, lymph nodes, etc..."
-                          className="min-h-[80px]"
-                        />
-                      </div>
-                    </div>
                     
-                    <div className="space-y-6">
-                      <div className="space-y-4">
-                        <h3 className="text-lg font-semibold">Assessment</h3>
+                    <div className="space-y-4">
+                      <h3 className="text-lg font-semibold">Assessment</h3>
                         
                         {/* Primary Diagnosis */}
                         <div className="space-y-2">
@@ -1240,7 +1134,6 @@ const [newDifferentialDiagnosis, setNewDifferentialDiagnosis] = useState("");
                           />
                         </div>
                       </div>
-                    </div>
                     
                     <div className="space-y-2">
                       <Label htmlFor="plan">Plan (Treatment)</Label>
