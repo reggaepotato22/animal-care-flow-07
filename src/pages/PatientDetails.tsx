@@ -11,7 +11,9 @@ import { NewVisitDialog } from "@/components/NewVisitDialog";
 import { DischargeSummaryDialog } from "@/components/DischargeSummaryDialog";
 import { PostMortemReportDialog } from "@/components/PostMortemReportDialog";
 import { EditPatientDialog } from "@/components/EditPatientDialog";
-import { useState } from "react";
+import { useState, useMemo } from "react";
+import { PatientHeader } from "@/components/PatientHeader";
+import { VitalsSparkline } from "@/components/VitalsSparkline";
 
 // Mock data - in a real app this would come from an API
 const mockPatients = {
@@ -205,6 +207,8 @@ export default function PatientDetails() {
     // In a real app, this would make an API call to update the patient status
   };
 
+  const weightTrend = useMemo(() => (patient.vitals || []).map(v => ({ date: v.date, value: Number((v.weight || "0").replace(/[^0-9.]/g, "")) })), [patient.vitals]);
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -221,18 +225,7 @@ export default function PatientDetails() {
           </Button>
           <Separator orientation="vertical" className="h-8" />
           <div className="flex items-center space-x-3">
-            <div className="w-16 h-16 bg-veterinary-light rounded-full flex items-center justify-center">
-              <Heart className="h-8 w-8 text-veterinary-teal" />
-            </div>
-            <div>
-              <h1 className="text-3xl font-bold">{patient.name}</h1>
-              <p className="text-muted-foreground">
-                {patient.species} • {patient.breed}
-              </p>
-              <p className="text-sm font-mono text-primary font-semibold mt-1">
-                ID: {patient.patientId}
-              </p>
-            </div>
+            
             <div className="flex items-center space-x-2">
               <Badge className={getStatusColor(currentStatus)}>
                 {currentStatus}
@@ -310,7 +303,17 @@ export default function PatientDetails() {
         </div>
       </div>
 
-      {/* Patient Info Cards */}
+      <PatientHeader
+        name={patient.name}
+        species={patient.species}
+        breed={patient.breed}
+        status={currentStatus}
+        patientId={patient.patientId}
+        owner={{ name: patient.owner, phone: patient.phone, email: patient.email, address: patient.address }}
+        onStatusChipClass={getStatusColor}
+      />
+      
+      {/* Patient summary row */}
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         <Card>
           <CardHeader>
@@ -493,10 +496,6 @@ export default function PatientDetails() {
                 <Pill className="h-5 w-5 text-veterinary-teal" />
                 <span>Vaccinations</span>
               </CardTitle>
-              <Button size="sm">
-                <Pill className="mr-2 h-4 w-4" />
-                Add
-              </Button>
             </div>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -508,6 +507,12 @@ export default function PatientDetails() {
                       <h4 className="font-semibold text-sm">{vaccine.name}</h4>
                       <p className="text-xs text-muted-foreground">
                         Last: {vaccine.date}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Batch: {(vaccine as any).batchNumber ?? 'N/A'}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Administered by: {(vaccine as any).administeredBy ?? 'N/A'}
                       </p>
                     </div>
                     <Badge variant={new Date(vaccine.due) < new Date() ? "destructive" : "default"} className="text-xs">
@@ -528,10 +533,7 @@ export default function PatientDetails() {
                 <Pill className="h-5 w-5 text-veterinary-teal" />
                 <span>Medications</span>
               </CardTitle>
-              <Button size="sm">
-                <Pill className="mr-2 h-4 w-4" />
-                Add
-              </Button>
+              
             </div>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -586,7 +588,7 @@ export default function PatientDetails() {
             </div>
           </CardContent>
         </Card>
+        </div>
       </div>
-    </div>
   );
 }
