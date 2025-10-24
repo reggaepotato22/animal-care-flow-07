@@ -26,9 +26,9 @@ interface LabRequest {
 
 interface EncounterItem {
   id: string;
-  type: "lab" | "imaging" | "referral" | "prescription";
+  type: string;
   title: string;
-  status: "pending" | "in-progress" | "completed" | "cancelled";
+  status: string;
   timestamp: string;
   details?: any;
 }

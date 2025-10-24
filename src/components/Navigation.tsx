@@ -13,6 +13,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Hospital,
+  Pill,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -52,6 +53,11 @@ const navigationItems = [
     name: "Hospitalization",
     href: "/hospitalization",
     icon: Hospital,
+  },
+  {
+    name: "Treatments",
+    href: "/treatments",
+    icon: Pill,
   },
   {
     name: "Staff",

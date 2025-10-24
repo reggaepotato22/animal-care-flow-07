@@ -1,8 +1,9 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { Phone, Mail, MapPin, Heart, ArrowLeft } from "lucide-react";
+import { Phone, Mail, MapPin, Heart, ArrowLeft, Edit } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { EditPatientDialog } from "@/components/EditPatientDialog";
 
 interface PatientHeaderProps {
   name: string;
@@ -10,7 +11,13 @@ interface PatientHeaderProps {
   breed: string;
   status: string;
   patientId: string;
+  age: string;
+  weight: string;
+  sex: string;
+  color: string;
+  microchip: string;
   owner: { name: string; phone: string; email: string; address: string };
+  patient: any; // Full patient object for EditPatientDialog
   onStatusChipClass: (status: string) => string;
 }
 
@@ -20,7 +27,13 @@ export function PatientHeader({
   breed,
   status,
   patientId,
+  age,
+  weight,
+  sex,
+  color,
+  microchip,
   owner,
+  patient,
   onStatusChipClass
 }: PatientHeaderProps) {
   const navigate = useNavigate();
@@ -41,19 +54,57 @@ export function PatientHeader({
           </div>
         </div>
         <div className="hidden md:flex gap-2">
-          <Button variant="outline" asChild>
-            <a href={`tel:${owner.phone}`}><Phone className="mr-2 h-4 w-4" /> Call</a>
-          </Button>
-          <Button variant="outline" asChild>
-            <a href={`mailto:${owner.email}`}><Mail className="mr-2 h-4 w-4" /> Email</a>
-          </Button>
+          <EditPatientDialog patient={patient}>
+            <Button variant="outline" size="sm">
+              <Edit className="mr-2 h-4 w-4" />
+              Edit Patient
+            </Button>
+          </EditPatientDialog>
         </div>
       </div>
       <Separator className="my-4" />
-      <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
-        <div className="flex items-center gap-2"><Phone className="h-4 w-4" /> {owner.phone}</div>
-        <div className="flex items-center gap-2"><Mail className="h-4 w-4" /> {owner.email}</div>
-        <div className="flex items-center gap-2"><MapPin className="h-4 w-4" /> {owner.address}</div>
+      
+      {/* Patient Details */}
+      <div className="grid grid-cols-5 gap-4 mb-4">
+        <div className="space-y-1">
+          <span className="text-xs text-muted-foreground">Age</span>
+          <p className="text-sm font-medium">{age}</p>
+        </div>
+        <div className="space-y-1">
+          <span className="text-xs text-muted-foreground">Weight</span>
+          <p className="text-sm font-medium">{weight}</p>
+        </div>
+        <div className="space-y-1">
+          <span className="text-xs text-muted-foreground">Sex</span>
+          <p className="text-sm font-medium">{sex}</p>
+        </div>
+        <div className="space-y-1">
+          <span className="text-xs text-muted-foreground">Color</span>
+          <p className="text-sm font-medium">{color}</p>
+        </div>
+        <div className="space-y-1">
+          <span className="text-xs text-muted-foreground">Microchip</span>
+          <p className="text-sm font-medium font-mono text-xs">{microchip}</p>
+        </div>
+      </div>
+
+      <Separator className="my-4" />
+      
+      {/* Owner Contact Info */}
+      <div className="flex items-center justify-between">
+        <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
+          <div className="flex items-center gap-2"><Phone className="h-4 w-4" /> {owner.phone}</div>
+          <div className="flex items-center gap-2"><Mail className="h-4 w-4" /> {owner.email}</div>
+          <div className="flex items-center gap-2"><MapPin className="h-4 w-4" /> {owner.address}</div>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" asChild>
+            <a href={`tel:${owner.phone}`}><Phone className="mr-2 h-4 w-4" /> Call</a>
+          </Button>
+          <Button variant="outline" size="sm" asChild>
+            <a href={`mailto:${owner.email}`}><Mail className="mr-2 h-4 w-4" /> Email</a>
+          </Button>
+        </div>
       </div>
     </div>
   );

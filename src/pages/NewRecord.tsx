@@ -8,12 +8,13 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, FileText, Calendar as CalendarIcon, User, Stethoscope, Pill, Download, X, ArrowLeft, Plus, Paperclip, Upload, History, AlertTriangle, Syringe, Scissors, Heart, MoreVertical, Bed, TestTube, ChevronLeft, ChevronRight } from "lucide-react";
+import { Search, FileText, Calendar as CalendarIcon, User, Stethoscope, Pill, Download, X, ArrowLeft, Plus, Paperclip, Upload, History, AlertTriangle, Syringe, Scissors, Heart, MoreVertical, Bed, TestTube, ChevronLeft, ChevronRight, DollarSign } from "lucide-react";
 import { LabOrderDialog } from "@/components/LabOrderDialog";
 import { AdmissionRequestDialog } from "@/components/AdmissionRequestDialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { EncounterSidebar } from "@/components/EncounterSidebar";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
+import { TreatmentSelector, EncounterItem } from "@/components/TreatmentSelector";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import jsPDF from 'jspdf';
@@ -394,21 +395,26 @@ export default function NewRecord() {
 
   // State for assessment form
   
-  // Encounter items state
-  const [encounterItems, setEncounterItems] = useState<any[]>([]);
+  // Encounter items state (treatments linked to SOAP notes)
+  const [encounterItems, setEncounterItems] = useState<EncounterItem[]>([]);
   
   // Add item to encounter when lab order is created
   const handleLabOrderCreated = (orderData: any) => {
-    const newItem = {
+    const newItem: EncounterItem = {
       id: Date.now().toString(),
       type: "lab",
       title: orderData.testName || "Lab Test",
+      category: "lab-tests",
+      price: 0,
+      cost: 0,
+      quantity: 1,
+      discount: 0,
+      total: 0,
       status: "pending",
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      details: {
-        priority: orderData.priority,
-        estimatedTime: orderData.priority === "stat" ? "30 minutes" : orderData.priority === "urgent" ? "1 hour" : "2-3 hours"
-      }
+      notes: undefined,
+      performedBy: selectedVeterinarian,
+      linkedToSection: 'objective',
     };
     setEncounterItems(prev => [...prev, newItem]);
   };
@@ -850,6 +856,23 @@ const [newDifferentialDiagnosis, setNewDifferentialDiagnosis] = useState("");
               </div>
             </CardContent>
           </Card>
+          {/* Add Treatment Selector */}
+                  <TreatmentSelector
+                    onTreatmentAdded={(treatment) => {
+                      const normalized: EncounterItem = {
+                        ...treatment,
+                        status: treatment.status || 'pending',
+                        quantity: treatment.quantity ?? 1,
+                        discount: treatment.discount ?? 0,
+                        total: (treatment.price ?? 0) * (treatment.quantity ?? 1) - (treatment.discount ?? 0),
+                        linkedToSection: 'plan',
+                        performedBy: selectedVeterinarian,
+                      } as EncounterItem;
+                      setEncounterItems([...encounterItems, normalized]);
+                    }}
+                    linkedSection="plan"
+                    performedBy={selectedVeterinarian}
+                  />
           </div>
         </ResizablePanel>
 
@@ -893,11 +916,10 @@ const [newDifferentialDiagnosis, setNewDifferentialDiagnosis] = useState("");
               >
                 <TabsList className="inline-flex h-10 items-center justify-start rounded-md bg-muted p-1 text-muted-foreground min-w-max">
                   <TabsTrigger value="soap">SOAP Notes</TabsTrigger>
-                  <TabsTrigger value="vitals">Vitals</TabsTrigger>
-                  <TabsTrigger value="assessment">Assessment</TabsTrigger>
-                  <TabsTrigger value="treatment">Treatment Plan</TabsTrigger>
+                  <TabsTrigger value="treatment">Treatments</TabsTrigger>
                   <TabsTrigger value="vaccination">Vaccination</TabsTrigger>
                   <TabsTrigger value="medications">Medications</TabsTrigger>
+                  <TabsTrigger value="summary">Summary & Billing</TabsTrigger>
                   <TabsTrigger value="attachments">Attachments</TabsTrigger>
                 </TabsList>
               </div>
@@ -905,6 +927,7 @@ const [newDifferentialDiagnosis, setNewDifferentialDiagnosis] = useState("");
 
             {/* SOAP Notes Tab */}
             <TabsContent value="soap" className="space-y-6">
+              {/* Subjective Section */}
               <Card>
                 <CardHeader>
                   <CardTitle>Subjective</CardTitle>
@@ -995,23 +1018,16 @@ const [newDifferentialDiagnosis, setNewDifferentialDiagnosis] = useState("");
                         />
                       </div>
                     </div>
-                    
-                    
-                    {/* Assessment section removed from SOAP tab as requested */}
-                    
-                    {/* Plan (Treatment) section removed from SOAP tab as requested */}
                   </div>
                 </CardContent>
               </Card>
-            </TabsContent>
 
-            {/* Vitals Tab */}
-            <TabsContent value="vitals" className="space-y-6">
+              {/* Objective Section - Vitals */}
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Stethoscope className="h-5 w-5" />
-                    Vital Signs & Physical Parameters
+                    Objective - Vital Signs & Physical Parameters
                   </CardTitle>
                   <CardDescription>Record detailed vital signs and measurements</CardDescription>
                 </CardHeader>
@@ -1111,14 +1127,12 @@ const [newDifferentialDiagnosis, setNewDifferentialDiagnosis] = useState("");
                   </div>
                 </CardContent>
               </Card>
-            </TabsContent>
 
-            {/* Assessment Tab */}
-            <TabsContent value="assessment" className="space-y-6">
+              {/* Assessment Section */}
               <Card>
                 <CardHeader>
-                  <CardTitle>Clinical Assessment</CardTitle>
-                  <CardDescription>Detailed clinical interpretation and diagnostic assessment</CardDescription>
+                  <CardTitle>Assessment</CardTitle>
+                  <CardDescription>Clinical interpretation and diagnostic assessment</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
                   {/* Primary Diagnosis */}
@@ -1258,16 +1272,14 @@ const [newDifferentialDiagnosis, setNewDifferentialDiagnosis] = useState("");
                   </div>
                 </CardContent>
               </Card>
-            </TabsContent>
 
-            {/* Treatment Plan Tab */}
-            <TabsContent value="treatment" className="space-y-6">
+              {/* Plan Section */}
               <Card>
                 <CardHeader>
-                  <CardTitle>Treatment Plan</CardTitle>
-                  <CardDescription>Comprehensive treatment strategy and recommendations</CardDescription>
+                  <CardTitle>Plan</CardTitle>
+                  <CardDescription>Treatment plan and recommendations</CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-6">
+                <CardContent>
                   {/* Treatment Goals */}
                   <div className="space-y-2">
                     <Label htmlFor="treatmentGoals" className="text-sm font-medium text-muted-foreground">Treatment Goals</Label>
@@ -1277,7 +1289,6 @@ const [newDifferentialDiagnosis, setNewDifferentialDiagnosis] = useState("");
                       className="min-h-[80px]"
                     />
                   </div>
-
                   {/* Immediate Treatment */}
                   <div className="space-y-2">
                     <Label htmlFor="immediateTreatment" className="text-sm font-medium text-muted-foreground">Immediate Treatment</Label>
@@ -1339,8 +1350,73 @@ const [newDifferentialDiagnosis, setNewDifferentialDiagnosis] = useState("");
                       className="min-h-[80px]"
                     />
                   </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="plan">Treatment Plan</Label>
+                    <Textarea
+                      id="plan"
+                      value={formData.plan}
+                      onChange={(e) => setFormData(prev => ({ ...prev, plan: e.target.value }))}
+                      placeholder="Describe the treatment plan, medications, follow-up care, and owner instructions"
+                      className="min-h-[120px]"
+                    />
+                  </div>
                 </CardContent>
               </Card>
+            </TabsContent>
+
+
+            {/* Treatment Plan Tab */}
+            <TabsContent value="treatment" className="space-y-6">
+              <div className="grid grid-cols-1 gap-6">
+                {/* Applied Treatments */}
+                <div>
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-sm">Applied Treatments</CardTitle>
+                      <CardDescription>Treatments added to this encounter</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-2">
+                        {encounterItems.filter(item => item.type === 'treatment').length > 0 ? (
+                          encounterItems
+                            .filter(item => item.type === 'treatment')
+                            .map((item) => (
+                              <div key={item.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg border">
+                                <div className="flex-1">
+                                  <div className="font-medium text-sm">{item.title}</div>
+                                  <div className="text-xs text-muted-foreground space-x-2">
+                                    <span className="font-mono">{item.treatmentCode}</span>
+                                    <span>• Qty: {item.quantity}</span>
+                                    <span>• {item.status}</span>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <div className="flex items-center space-x-1 font-semibold text-sm">
+                                    <DollarSign className="h-3 w-3 text-muted-foreground" />
+                                    <span>{item.total.toFixed(2)}</span>
+                                  </div>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => {
+                                      setEncounterItems(encounterItems.filter(i => i.id !== item.id));
+                                    }}
+                                  >
+                                    <X className="h-3 w-3" />
+                                  </Button>
+                                </div>
+                              </div>
+                            ))
+                        ) : (
+                          <div className="text-center text-muted-foreground text-sm py-8">
+                            No treatments added yet. Use "Add Treatment" in the left panel to add items.
+                          </div>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              </div>
             </TabsContent>
 
             {/* Vaccination Tab */}
@@ -1668,6 +1744,167 @@ const [newDifferentialDiagnosis, setNewDifferentialDiagnosis] = useState("");
               </Card>
             </TabsContent>
 
+            {/* Summary & Billing Tab */}
+            <TabsContent value="summary" className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center space-x-2">
+                    <FileText className="h-5 w-5" />
+                    <span>Encounter Summary & Billing</span>
+                  </CardTitle>
+                  <CardDescription>
+                    Complete overview of all treatments, procedures, and charges for this encounter
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {encounterItems.length > 0 ? (
+                    <div className="space-y-4">
+                      {/* Encounter Items Table */}
+                      <div className="rounded-md border">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead className="w-[100px]">Code</TableHead>
+                              <TableHead className="w-[250px]">Treatment/Service</TableHead>
+                              <TableHead className="w-[150px]">Category</TableHead>
+                              <TableHead className="w-[80px] text-center">Qty</TableHead>
+                              <TableHead className="w-[100px] text-right">Unit Price</TableHead>
+                              <TableHead className="w-[100px] text-right">Total</TableHead>
+                              <TableHead className="w-[120px]">Status</TableHead>
+                              <TableHead className="w-[50px]"></TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {encounterItems.map((item) => (
+                              <TableRow key={item.id}>
+                                <TableCell className="font-mono text-xs">{item.treatmentCode}</TableCell>
+                                <TableCell className="font-medium">{item.title}</TableCell>
+                                <TableCell>
+                                  <Badge variant="outline" className="text-xs">
+                                    {item.category}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell className="text-center">
+                                  <Input
+                                    type="number"
+                                    value={item.quantity}
+                                    onChange={(e) => {
+                                      const newQty = parseInt(e.target.value) || 1;
+                                      const updated = encounterItems.map(i =>
+                                        i.id === item.id
+                                          ? {...i, quantity: newQty, total: i.price * newQty - i.discount}
+                                          : i
+                                      );
+                                      setEncounterItems(updated);
+                                    }}
+                                    className="w-16 text-center h-8"
+                                  />
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  <div className="flex items-center justify-end space-x-1">
+                                    <DollarSign className="h-3 w-3 text-muted-foreground" />
+                                    <span className="text-sm">{item.price.toFixed(2)}</span>
+                                  </div>
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  <div className="flex items-center justify-end space-x-1">
+                                    <DollarSign className="h-3 w-3 text-muted-foreground" />
+                                    <span className="font-semibold">{item.total.toFixed(2)}</span>
+                                  </div>
+                                </TableCell>
+                                <TableCell>
+                                  <Select
+                                    value={item.status}
+                                    onValueChange={(status: 'pending' | 'completed' | 'cancelled') => {
+                                      const updated = encounterItems.map(i =>
+                                        i.id === item.id ? {...i, status} : i
+                                      );
+                                      setEncounterItems(updated);
+                                    }}
+                                  >
+                                    <SelectTrigger className="w-[110px] h-8">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="pending">Pending</SelectItem>
+                                      <SelectItem value="completed">Completed</SelectItem>
+                                      <SelectItem value="cancelled">Cancelled</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </TableCell>
+                                <TableCell>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => setEncounterItems(encounterItems.filter(i => i.id !== item.id))}
+                                  >
+                                    <X className="h-3 w-3" />
+                                  </Button>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+
+                            {/* Totals Row */}
+                            <TableRow className="bg-muted/50 font-semibold">
+                              <TableCell colSpan={5} className="text-right">Subtotal:</TableCell>
+                              <TableCell className="text-right">
+                                <div className="flex items-center justify-end space-x-1">
+                                  <DollarSign className="h-3 w-3" />
+                                  <span>{encounterItems.reduce((sum, item) => sum + item.total, 0).toFixed(2)}</span>
+                                </div>
+                              </TableCell>
+                              <TableCell colSpan={2}></TableCell>
+                            </TableRow>
+                            <TableRow className="bg-muted/50">
+                              <TableCell colSpan={5} className="text-right font-medium">Tax (0%):</TableCell>
+                              <TableCell className="text-right">
+                                <div className="flex items-center justify-end space-x-1">
+                                  <DollarSign className="h-3 w-3 text-muted-foreground" />
+                                  <span className="text-sm">0.00</span>
+                                </div>
+                              </TableCell>
+                              <TableCell colSpan={2}></TableCell>
+                            </TableRow>
+                            <TableRow className="bg-primary/10 font-bold text-lg">
+                              <TableCell colSpan={5} className="text-right">Total:</TableCell>
+                              <TableCell className="text-right">
+                                <div className="flex items-center justify-end space-x-1">
+                                  <DollarSign className="h-4 w-4" />
+                                  <span>{encounterItems.reduce((sum, item) => sum + item.total, 0).toFixed(2)}</span>
+                                </div>
+                              </TableCell>
+                              <TableCell colSpan={2}></TableCell>
+                            </TableRow>
+                          </TableBody>
+                        </Table>
+                      </div>
+
+                      {/* Billing Notes */}
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="text-sm">Billing Notes</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <Textarea
+                            placeholder="Add any billing notes, payment arrangements, or special instructions..."
+                            className="min-h-[80px]"
+                          />
+                        </CardContent>
+                      </Card>
+                    </div>
+                  ) : (
+                    <div className="text-center text-muted-foreground py-12">
+                      <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                      <p className="text-lg font-medium mb-2">No Treatments Added</p>
+                      <p className="text-sm">
+                        Go to the Treatment Plan tab to add treatments and services to this encounter.
+                      </p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
             {/* Attachments Tab */}
             <TabsContent value="attachments" className="space-y-6">
               <Card>
@@ -1798,7 +2035,7 @@ const [newDifferentialDiagnosis, setNewDifferentialDiagnosis] = useState("");
       
       {/* Right Sidebar */}
       <EncounterSidebar 
-        encounterItems={encounterItems}
+        encounterItems={encounterItems as any}
         onItemClick={(item) => {
           console.log("Clicked item:", item);
           // Handle item click - could open details dialog, etc.

@@ -20,6 +20,7 @@ import Postmortem from "./pages/Postmortem";
 import NewPostMortem from "./pages/NewPostMortem";
 import PostmortemDetails from "./pages/PostmortemDetails";
 import Hospitalization from "./pages/Hospitalization";
+import Treatments from "./pages/Treatments";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -47,6 +48,7 @@ const App = () => (
             <Route path="/postmortem/new" element={<NewPostMortem />} />
             <Route path="/postmortem/:id" element={<PostmortemDetails />} />
             <Route path="/hospitalization" element={<Hospitalization />} />
+            <Route path="/treatments" element={<Treatments />} />
             <Route path="/reports" element={<Reports />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
