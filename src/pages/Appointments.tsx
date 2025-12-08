@@ -1,50 +1,145 @@
 import { useState } from "react";
-import { format, addDays, startOfWeek } from "date-fns";
+import { format, addDays, setHours, setMinutes } from "date-fns";
 import { Calendar, Clock, Plus, Search, Filter } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { AppointmentCalendar } from "@/components/AppointmentCalendar";
+import { MultiColumnCalendar, Appointment } from "@/components/MultiColumnCalendar";
 import { AppointmentList } from "@/components/AppointmentList";
 import { BookAppointmentDialog } from "@/components/BookAppointmentDialog";
 
+// Mock resources (doctors, exam rooms, etc.)
+const mockResources = [
+  { id: "dr-johnson", name: "Dr. Sarah Johnson", type: "doctor" as const, color: "#3b82f6" },
+  { id: "dr-smith", name: "Dr. Michael Smith", type: "doctor" as const, color: "#10b981" },
+  { id: "dr-wilson", name: "Dr. Emily Wilson", type: "doctor" as const, color: "#8b5cf6" },
+  { id: "exam-room-1", name: "Exam Room 1", type: "exam-room" as const, color: "#f59e0b" },
+  { id: "exam-room-2", name: "Exam Room 2", type: "exam-room" as const, color: "#ef4444" },
+  { id: "surgery-suite", name: "Surgery Suite", type: "resource" as const, color: "#ec4899" },
+];
+
 // Mock data for appointments
-const mockAppointments = [
+const mockAppointments: Appointment[] = [
   {
     id: "1",
     petName: "Buddy",
     ownerName: "John Smith",
-    date: new Date(),
+    date: setMinutes(setHours(new Date(), 9), 0),
     time: "09:00",
     duration: 30,
     type: "Checkup",
-    vet: "Dr. Johnson",
-    status: "confirmed"
+    vet: "dr-johnson",
+    status: "confirmed",
+    examRoom: "exam-room-1",
+    location: "Main Clinic"
   },
   {
     id: "2",
     petName: "Luna",
     ownerName: "Sarah Wilson",
-    date: addDays(new Date(), 1),
-    time: "14:30",
+    date: setMinutes(setHours(new Date(), 10), 30),
+    time: "10:30",
     duration: 45,
     type: "Vaccination",
-    vet: "Dr. Smith",
-    status: "pending"
+    vet: "dr-smith",
+    status: "confirmed",
+    examRoom: "exam-room-2",
+    location: "Main Clinic"
   },
   {
     id: "3",
     petName: "Max",
     ownerName: "Mike Brown",
-    date: new Date(),
+    date: setMinutes(setHours(new Date(), 11), 15),
     time: "11:15",
     duration: 60,
     type: "Surgery",
-    vet: "Dr. Johnson",
-    status: "confirmed"
-  }
+    vet: "dr-johnson",
+    status: "confirmed",
+    examRoom: "surgery-suite",
+    location: "Main Clinic"
+  },
+  {
+    id: "4",
+    petName: "Charlie",
+    ownerName: "Lisa Anderson",
+    date: setMinutes(setHours(new Date(), 13), 0),
+    time: "13:00",
+    duration: 30,
+    type: "Checkup",
+    vet: "dr-wilson",
+    status: "pending",
+    examRoom: "exam-room-1",
+    location: "Main Clinic"
+  },
+  {
+    id: "5",
+    petName: "Milo",
+    ownerName: "David Lee",
+    date: setMinutes(setHours(new Date(), 14), 0),
+    time: "14:00",
+    duration: 30,
+    type: "Followup",
+    vet: "dr-smith",
+    status: "confirmed",
+    examRoom: "exam-room-2",
+    location: "Main Clinic"
+  },
+  {
+    id: "6",
+    petName: "Bella",
+    ownerName: "Jennifer Martinez",
+    date: setMinutes(setHours(new Date(), 15), 30),
+    time: "15:30",
+    duration: 45,
+    type: "Emergency",
+    vet: "dr-johnson",
+    status: "confirmed",
+    examRoom: "exam-room-1",
+    location: "Main Clinic"
+  },
+  {
+    id: "7",
+    petName: "Rocky",
+    ownerName: "Robert Taylor",
+    date: setMinutes(setHours(new Date(), 16), 0),
+    time: "16:00",
+    duration: 30,
+    type: "Vaccination",
+    vet: "dr-wilson",
+    status: "confirmed",
+    examRoom: "exam-room-2",
+    location: "Main Clinic"
+  },
+  // Tomorrow's appointments
+  {
+    id: "8",
+    petName: "Daisy",
+    ownerName: "Amanda White",
+    date: setMinutes(setHours(addDays(new Date(), 1), 9), 0),
+    time: "09:00",
+    duration: 30,
+    type: "Checkup",
+    vet: "dr-smith",
+    status: "confirmed",
+    examRoom: "exam-room-1",
+    location: "Main Clinic"
+  },
+  {
+    id: "9",
+    petName: "Zeus",
+    ownerName: "Christopher Brown",
+    date: setMinutes(setHours(addDays(new Date(), 1), 10), 30),
+    time: "10:30",
+    duration: 60,
+    type: "Surgery",
+    vet: "dr-johnson",
+    status: "confirmed",
+    examRoom: "surgery-suite",
+    location: "Main Clinic"
+  },
 ];
 
 export default function Appointments() {
@@ -146,16 +241,30 @@ export default function Appointments() {
         </TabsList>
 
         <TabsContent value="calendar" className="space-y-6">
-          <AppointmentCalendar 
+          <MultiColumnCalendar
             appointments={mockAppointments}
-            selectedDate={selectedDate}
-            onDateSelect={setSelectedDate}
+            resources={mockResources}
+            timeSlotInterval={30}
+            startHour={8}
+            endHour={18}
+            onAppointmentClick={(appointment) => {
+              console.log("Appointment clicked:", appointment);
+              // You can open a dialog here to view/edit appointment
+            }}
+            onTimeSlotClick={(date, resourceId, time) => {
+              console.log("Time slot clicked:", { date, resourceId, time });
+              // You can open booking dialog here
+              setIsBookingDialogOpen(true);
+            }}
           />
         </TabsContent>
 
         <TabsContent value="list" className="space-y-6">
           <AppointmentList 
-            appointments={mockAppointments}
+            appointments={mockAppointments.map(apt => ({
+              ...apt,
+              vet: mockResources.find(r => r.id === apt.vet)?.name || apt.vet
+            }))}
             searchTerm={searchTerm}
           />
         </TabsContent>

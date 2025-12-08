@@ -11,6 +11,12 @@ export const treatmentCategories = {
 
 export type TreatmentCategory = keyof typeof treatmentCategories;
 
+export interface LinkedInventoryItem {
+  inventoryId: string; // ID of the inventory item
+  quantity: number; // Quantity to deduct per treatment
+  required: boolean; // Whether this item is required for the treatment
+}
+
 export interface TreatmentItem {
   id: string;
   code: string;
@@ -26,6 +32,7 @@ export interface TreatmentItem {
   requiresPrescription: boolean;
   tags: string[];
   includes?: string[]; // For packages - list of treatment codes
+  linkedInventory?: LinkedInventoryItem[]; // Inventory items to deduct when treatment is applied
 }
 
 // Master Treatment Catalog
@@ -74,7 +81,12 @@ export const treatmentItems: TreatmentItem[] = [
     requiresAppointment: true,
     taxable: true,
     requiresPrescription: false,
-    tags: ["surgery", "spay", "canine"]
+    tags: ["surgery", "spay", "canine"],
+    linkedInventory: [
+      { inventoryId: "3", quantity: 1, required: true }, // Suture Pack
+      { inventoryId: "8", quantity: 1, required: true }, // Surgical Gloves
+      { inventoryId: "4", quantity: 1, required: false } // Syringe (optional)
+    ]
   },
   {
     id: "T-004",
@@ -136,7 +148,10 @@ export const treatmentItems: TreatmentItem[] = [
     requiresAppointment: true,
     taxable: false,
     requiresPrescription: false,
-    tags: ["vaccination", "preventive", "annual", "rabies"]
+    tags: ["vaccination", "preventive", "annual", "rabies"],
+    linkedInventory: [
+      { inventoryId: "2", quantity: 1, required: true } // Rabies Vaccine vial
+    ]
   },
   {
     id: "T-008",
@@ -151,7 +166,10 @@ export const treatmentItems: TreatmentItem[] = [
     requiresAppointment: true,
     taxable: false,
     requiresPrescription: false,
-    tags: ["vaccination", "preventive", "canine", "dhpp"]
+    tags: ["vaccination", "preventive", "canine", "dhpp"],
+    linkedInventory: [
+      { inventoryId: "6", quantity: 1, required: true } // DHPP Vaccine vial
+    ]
   },
   {
     id: "T-009",
@@ -290,7 +308,10 @@ export const treatmentItems: TreatmentItem[] = [
     requiresAppointment: false,
     taxable: true,
     requiresPrescription: true,
-    tags: ["medication", "antibiotic", "treatment"]
+    tags: ["medication", "antibiotic", "treatment"],
+    linkedInventory: [
+      { inventoryId: "1", quantity: 7, required: true } // Amoxicillin 250mg tablets
+    ]
   },
   {
     id: "T-018",

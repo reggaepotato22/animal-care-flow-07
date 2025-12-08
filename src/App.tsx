@@ -9,10 +9,12 @@ import Patients from "./pages/Patients";
 import AddPatient from "./pages/AddPatient";
 import PatientDetails from "./pages/PatientDetails";
 import Appointments from "./pages/Appointments";
+import AppointmentDetails from "./pages/AppointmentDetails";
 import Records from "./pages/Records";
 import NewRecord from "./pages/NewRecord";
 import ClinicalRecordDetails from "./pages/ClinicalRecordDetails";
 import Staff from "./pages/Staff";
+import Users from "./pages/Users";
 import Reports from "./pages/Reports";
 import Labs from "./pages/Labs";
 import AddLabResults from "./pages/AddLabResults";
@@ -21,6 +23,7 @@ import NewPostMortem from "./pages/NewPostMortem";
 import PostmortemDetails from "./pages/PostmortemDetails";
 import Hospitalization from "./pages/Hospitalization";
 import Treatments from "./pages/Treatments";
+import Inventory from "./pages/Inventory";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -38,10 +41,12 @@ const App = () => (
             <Route path="/patients/add" element={<AddPatient />} />
             <Route path="/patients/:id" element={<PatientDetails />} />
             <Route path="/appointments" element={<Appointments />} />
+            <Route path="/appointments/:id" element={<AppointmentDetails />} />
             <Route path="/records" element={<Records />} />
             <Route path="/records/new" element={<NewRecord />} />
             <Route path="/records/:id" element={<ClinicalRecordDetails />} />
             <Route path="/staff" element={<Staff />} />
+            <Route path="/users" element={<Users />} />
             <Route path="/labs" element={<Labs />} />
             <Route path="/labs/results/add/:orderId" element={<AddLabResults />} />
             <Route path="/postmortem" element={<Postmortem />} />
@@ -49,6 +54,7 @@ const App = () => (
             <Route path="/postmortem/:id" element={<PostmortemDetails />} />
             <Route path="/hospitalization" element={<Hospitalization />} />
             <Route path="/treatments" element={<Treatments />} />
+            <Route path="/inventory" element={<Inventory />} />
             <Route path="/reports" element={<Reports />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />

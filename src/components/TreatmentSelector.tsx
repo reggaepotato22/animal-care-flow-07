@@ -4,9 +4,12 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, Plus, DollarSign, Clock } from "lucide-react";
+import { Search, Plus, DollarSign, Clock, AlertTriangle, Package } from "lucide-react";
 import { treatmentItems, treatmentCategories, TreatmentItem } from "@/data/treatments";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { canApplyTreatment, deductInventoryForTreatment } from "@/utils/inventory";
+import { inventoryItems } from "@/data/inventory";
+import { useToast } from "@/hooks/use-toast";
 
 export interface EncounterItem {
   id: string;
@@ -36,6 +39,7 @@ interface TreatmentSelectorProps {
 export function TreatmentSelector({ onTreatmentAdded, linkedSection, performedBy }: TreatmentSelectorProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
+  const { toast } = useToast();
 
   // Filter treatments from master catalog
   const filteredTreatments = treatmentItems.filter(item => 
@@ -47,6 +51,46 @@ export function TreatmentSelector({ onTreatmentAdded, linkedSection, performedBy
   );
 
   const handleAddTreatment = (treatment: TreatmentItem) => {
+    // Check if treatment can be applied (inventory availability)
+    const availabilityCheck = canApplyTreatment(treatment, 1);
+    
+    if (!availabilityCheck.canApply) {
+      toast({
+        title: "Cannot apply treatment",
+        description: availabilityCheck.errors.join(", "),
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Deduct inventory
+    const deductionResults = deductInventoryForTreatment(treatment, 1);
+    
+    // Check for any failures in required items
+    const failedRequired = deductionResults.filter(
+      r => !r.success && treatment.linkedInventory?.find(li => li.inventoryId === r.inventoryId && li.required)
+    );
+
+    if (failedRequired.length > 0) {
+      toast({
+        title: "Inventory deduction failed",
+        description: failedRequired.map(r => r.error).join(", "),
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Show success message if inventory was deducted
+    if (deductionResults.length > 0) {
+      const deductedItems = deductionResults.filter(r => r.success && r.deductedQuantity > 0);
+      if (deductedItems.length > 0) {
+        toast({
+          title: "Inventory updated",
+          description: `Deducted ${deductedItems.length} inventory item(s)`,
+        });
+      }
+    }
+
     const encounterItem: EncounterItem = {
       id: `ENC-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       type: 'treatment',
@@ -146,6 +190,28 @@ export function TreatmentSelector({ onTreatmentAdded, linkedSection, performedBy
                       </div>
                     )}
                   </div>
+                  
+                  {/* Show linked inventory */}
+                  {treatment.linkedInventory && treatment.linkedInventory.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      {treatment.linkedInventory.map((linkedItem, idx) => {
+                        const invItem = inventoryItems.find(i => i.id === linkedItem.inventoryId);
+                        if (!invItem) return null;
+                        const hasStock = invItem.quantity >= linkedItem.quantity;
+                        return (
+                          <div key={idx} className="flex items-center gap-1 text-xs">
+                            <Package className={`h-3 w-3 ${hasStock ? 'text-muted-foreground' : 'text-orange-500'}`} />
+                            <span className={hasStock ? 'text-muted-foreground' : 'text-orange-600 font-medium'}>
+                              {invItem.name} × {linkedItem.quantity}
+                            </span>
+                            {!hasStock && (
+                              <AlertTriangle className="h-3 w-3 text-orange-500" />
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                   
                   {treatment.description && (
                     <p className="text-xs text-muted-foreground mt-2 line-clamp-2">

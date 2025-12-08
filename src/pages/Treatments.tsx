@@ -7,6 +7,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Search, Plus, Edit, Copy, Power, DollarSign, Clock, FileText } from "lucide-react";
 import { treatmentItems, treatmentCategories, TreatmentItem } from "@/data/treatments";
+import { inventoryItems } from "@/data/inventory";
+import { Package } from "lucide-react";
 import { TreatmentItemDialog } from "@/components/TreatmentItemDialog";
 
 export default function Treatments() {
@@ -179,6 +181,7 @@ export default function Treatments() {
                   <TableHead className="w-[80px] text-right">Price</TableHead>
                   <TableHead className="w-[80px] text-right">Cost</TableHead>
                   <TableHead className="w-[80px] text-center">Duration</TableHead>
+                  <TableHead className="w-[200px]">Linked Inventory</TableHead>
                   <TableHead className="w-[80px] text-center">Status</TableHead>
                   <TableHead className="w-[150px] text-center">Actions</TableHead>
                 </TableRow>
@@ -218,6 +221,28 @@ export default function Treatments() {
                           <div className="flex items-center justify-center space-x-1">
                             <Clock className="h-3 w-3 text-muted-foreground" />
                             <span className="text-sm">{treatment.duration}m</span>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">-</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {treatment.linkedInventory && treatment.linkedInventory.length > 0 ? (
+                          <div className="space-y-1">
+                            {treatment.linkedInventory.map((linkedItem, idx) => {
+                              const invItem = inventoryItems.find(i => i.id === linkedItem.inventoryId);
+                              if (!invItem) return null;
+                              return (
+                                <div key={idx} className="flex items-center gap-2 text-xs">
+                                  <Package className="h-3 w-3 text-muted-foreground" />
+                                  <span className="font-medium">{invItem.name}</span>
+                                  <span className="text-muted-foreground">× {linkedItem.quantity}</span>
+                                  {linkedItem.required && (
+                                    <Badge variant="outline" className="text-xs h-4">Required</Badge>
+                                  )}
+                                </div>
+                              );
+                            })}
                           </div>
                         ) : (
                           <span className="text-xs text-muted-foreground">-</span>
@@ -266,7 +291,7 @@ export default function Treatments() {
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
                       No treatments found matching your criteria
                     </TableCell>
                   </TableRow>

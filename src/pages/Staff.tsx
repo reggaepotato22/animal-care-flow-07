@@ -6,7 +6,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { StaffCard } from "@/components/StaffCard";
 import { AddStaffDialog } from "@/components/AddStaffDialog";
-import { RoleManagement } from "@/components/RoleManagement";
 import { ScheduleManagement } from "@/components/ScheduleManagement";
 
 // Mock data for demonstration
@@ -132,10 +131,6 @@ export default function Staff() {
             <Users className="h-4 w-4" />
             Staff Directory
           </TabsTrigger>
-          <TabsTrigger value="roles" className="flex items-center gap-2">
-            <UserCheck className="h-4 w-4" />
-            Role Management
-          </TabsTrigger>
           <TabsTrigger value="schedule" className="flex items-center gap-2">
             <Calendar className="h-4 w-4" />
             Scheduling
@@ -183,10 +178,6 @@ export default function Staff() {
               </p>
             </div>
           )}
-        </TabsContent>
-
-        <TabsContent value="roles">
-          <RoleManagement />
         </TabsContent>
 
         <TabsContent value="schedule">

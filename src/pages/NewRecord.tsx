@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, FileText, Calendar as CalendarIcon, User, Stethoscope, Pill, Download, X, ArrowLeft, Plus, Paperclip, Upload, History, AlertTriangle, Syringe, Scissors, Heart, MoreVertical, Bed, TestTube, ChevronLeft, ChevronRight, DollarSign } from "lucide-react";
+import { Search, FileText, Calendar as CalendarIcon, User, Stethoscope, Pill, Download, X, ArrowLeft, Plus, Paperclip, Upload, History, AlertTriangle, Syringe, Scissors, Heart, MoreVertical, Bed, TestTube, ChevronLeft, ChevronRight, DollarSign, ChevronDown } from "lucide-react";
 import { LabOrderDialog } from "@/components/LabOrderDialog";
 import { AdmissionRequestDialog } from "@/components/AdmissionRequestDialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -306,6 +306,249 @@ export default function NewRecord() {
   const navigate = useNavigate();
   const location = useLocation();
   const [templateSearch, setTemplateSearch] = useState("");
+  // Bottom panel state
+  const [isBottomOpen, setIsBottomOpen] = useState(false);
+  const [bottomTab, setBottomTab] = useState<'history' | 'labs' | 'notes'>('history');
+  const [bottomHeight, setBottomHeight] = useState<number>(Math.round(window.innerHeight * 0.3));
+  const [isResizingBottom, setIsResizingBottom] = useState(false);
+  const resizeStateRef = useRef<{ startY: number; startHeight: number } | null>(null);
+  // Right content bounds for bottom panel width alignment
+  const rightPanelRef = useRef<HTMLDivElement>(null);
+  const groupRef = useRef<HTMLDivElement>(null);
+  const [bottomPanelRect, setBottomPanelRect] = useState<{ left: number; width: number }>({ left: 0, width: 0 });
+  // History filters
+  const [historyType, setHistoryType] = useState<'all' | 'visit' | 'vaccination' | 'surgery'>('all');
+  const [historyClinician, setHistoryClinician] = useState("");
+  const [historyFrom, setHistoryFrom] = useState("");
+  const [historyTo, setHistoryTo] = useState("");
+  const [historyPage, setHistoryPage] = useState(1);
+  const [historyPageSize, setHistoryPageSize] = useState(10);
+
+  type HistoryRow = {
+    id: string;
+    date: string; // ISO or YYYY-MM-DD
+    type: 'Visit' | 'Vaccination' | 'Surgery';
+    clinician: string;
+    title: string;
+    subtitle?: string;
+    notes?: string;
+  };
+
+  const historyRows = React.useMemo<HistoryRow[]>(() => {
+    const visits = mockMedicalHistory.previousVisits.map(v => ({
+      id: `visit-${v.id}`,
+      date: v.date,
+      type: 'Visit' as const,
+      clinician: v.veterinarian,
+      title: v.complaint,
+      subtitle: v.diagnosis,
+      notes: v.treatment,
+    }));
+    const vax = mockMedicalHistory.vaccinations.map(v => ({
+      id: `vax-${v.id}`,
+      date: v.date,
+      type: 'Vaccination' as const,
+      clinician: v.veterinarian,
+      title: v.vaccine,
+      subtitle: `Next due: ${new Date(v.nextDue).toLocaleDateString()}`,
+      notes: '—',
+    }));
+    const surgeries = mockMedicalHistory.surgeries.map(s => ({
+      id: `sx-${s.id}`,
+      date: s.date,
+      type: 'Surgery' as const,
+      clinician: s.veterinarian,
+      title: s.procedure,
+      subtitle: undefined,
+      notes: s.outcome,
+    }));
+    return [...visits, ...vax, ...surgeries]
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, []);
+
+  // Bottom panel resize handlers
+  useEffect(() => {
+    const onMouseMove = (e: MouseEvent) => {
+      if (!isResizingBottom || !resizeStateRef.current) return;
+      const { startY, startHeight } = resizeStateRef.current;
+      const delta = startY - e.clientY; // dragging up increases height
+      const next = Math.max(160, Math.min(window.innerHeight * 0.9, startHeight + delta));
+      setBottomHeight(next);
+    };
+    const onMouseUp = () => {
+      if (isResizingBottom) {
+        setIsResizingBottom(false);
+        resizeStateRef.current = null;
+      }
+    };
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    };
+  }, [isResizingBottom]);
+
+  const filteredHistory = React.useMemo(() => {
+    return historyRows.filter(r => {
+      if (historyType !== 'all') {
+        if (historyType === 'visit' && r.type !== 'Visit') return false;
+        if (historyType === 'vaccination' && r.type !== 'Vaccination') return false;
+        if (historyType === 'surgery' && r.type !== 'Surgery') return false;
+      }
+      if (historyClinician.trim()) {
+        const q = historyClinician.toLowerCase();
+        if (!r.clinician.toLowerCase().includes(q)) return false;
+      }
+      if (historyFrom) {
+        if (new Date(r.date).getTime() < new Date(historyFrom).getTime()) return false;
+      }
+      if (historyTo) {
+        if (new Date(r.date).getTime() > new Date(historyTo).getTime()) return false;
+      }
+      return true;
+    });
+  }, [historyRows, historyType, historyClinician, historyFrom, historyTo]);
+
+  const totalHistoryPages = Math.max(1, Math.ceil(filteredHistory.length / historyPageSize));
+  const paginatedHistory = React.useMemo(() => {
+    const start = (historyPage - 1) * historyPageSize;
+    return filteredHistory.slice(start, start + historyPageSize);
+  }, [filteredHistory, historyPage, historyPageSize]);
+
+  const exportHistoryCsv = () => {
+    const headers = ['Date','Type','Clinician','Title','Subtitle','Notes'];
+    const rows = filteredHistory.map(r => [
+      new Date(r.date).toLocaleDateString(),
+      r.type,
+      r.clinician,
+      r.title,
+      r.subtitle || '',
+      r.notes || ''
+    ]);
+    const csv = [headers, ...rows]
+      .map(cols => cols.map(c => `"${String(c).replace(/"/g, '""')}"`).join(','))
+      .join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `medical-history-${new Date().toISOString().split('T')[0]}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const exportHistoryPdf = () => {
+    const doc = new jsPDF({ orientation: 'p', unit: 'pt', format: 'a4' });
+    const marginX = 40;
+    const marginY = 50;
+    const lineHeight = 16;
+    const rowGap = 6;
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const usableWidth = pageWidth - marginX * 2;
+
+    // Header
+    doc.setFontSize(16);
+    doc.text('Medical History', marginX, marginY);
+    doc.setFontSize(10);
+    doc.text(`Exported: ${new Date().toLocaleString()}`, marginX, marginY + 14);
+
+    // Column headers
+    const headers = ['Date', 'Type', 'Clinician', 'Description', 'Notes'];
+    const colWidths = [70, 80, 120, 220, usableWidth - (70 + 80 + 120 + 220)];
+    let y = marginY + 36;
+    doc.setFontSize(11);
+    doc.setFont(undefined, 'bold');
+    let x = marginX;
+    headers.forEach((h, i) => {
+      doc.text(h, x, y);
+      x += colWidths[i];
+    });
+    doc.setLineWidth(0.5);
+    doc.line(marginX, y + 4, marginX + usableWidth, y + 4);
+    y += 14;
+    doc.setFont(undefined, 'normal');
+
+    const addPageIfNeeded = (heightNeeded: number) => {
+      const pageHeight = doc.internal.pageSize.getHeight();
+      if (y + heightNeeded > pageHeight - marginY) {
+        doc.addPage();
+        y = marginY;
+      }
+    };
+
+    // Rows
+    filteredHistory.forEach((r) => {
+      const dateStr = new Date(r.date).toLocaleDateString();
+      const cells = [
+        dateStr,
+        r.type,
+        r.clinician,
+        r.title + (r.subtitle ? `\n${r.subtitle}` : ''),
+        r.notes || '—',
+      ];
+
+      // Calculate wrapped text for Description and Notes
+      const wrap = (text: string, width: number) => doc.splitTextToSize(text, width);
+      const wrappedCells = cells.map((c, i) => {
+        const width = colWidths[i];
+        return i >= 3 ? wrap(String(c), width) : [String(c)];
+      });
+      const rowHeight = Math.max(
+        ...wrappedCells.map(lines => lines.length * lineHeight)
+      );
+
+      addPageIfNeeded(rowHeight + rowGap);
+
+      // Draw text
+      let cx = marginX;
+      wrappedCells.forEach((lines, i) => {
+        let cy = y;
+        lines.forEach((line) => {
+          doc.text(String(line), cx, cy);
+          cy += lineHeight;
+        });
+        cx += colWidths[i];
+      });
+
+      // Row divider
+      doc.setDrawColor(230);
+      doc.line(marginX, y + rowHeight + 2, marginX + usableWidth, y + rowHeight + 2);
+      y += rowHeight + rowGap;
+    });
+
+    doc.save(`medical-history-${new Date().toISOString().split('T')[0]}.pdf`);
+  };
+
+  useEffect(() => {
+    const updateBounds = () => {
+      // Align to the ResizablePanelGroup width
+      if (groupRef.current) {
+        const rect = groupRef.current.getBoundingClientRect();
+        setBottomPanelRect({ left: rect.left, width: rect.width });
+        return;
+      }
+      // Fallback: align to the right content panel
+      const el = rightPanelRef.current;
+      if (el) {
+        const rect = el.getBoundingClientRect();
+        setBottomPanelRect({ left: rect.left, width: rect.width });
+      }
+    };
+
+    updateBounds();
+
+    const ro = new ResizeObserver(updateBounds);
+    if (groupRef.current) ro.observe(groupRef.current);
+    if (rightPanelRef.current) ro.observe(rightPanelRef.current);
+    window.addEventListener("resize", updateBounds);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", updateBounds);
+    };
+  }, []);
   
   // Extract pre-filled data from navigation state
   const visitData = location.state as {
@@ -456,6 +699,17 @@ const [attachments, setAttachments] = useState<File[]>([]);
 
 const [newDifferentialDiagnosis, setNewDifferentialDiagnosis] = useState("");
   const [newRiskFactor, setNewRiskFactor] = useState("");
+
+  // Collapsible state for SOAP sections
+  const [soapCollapsed, setSoapCollapsed] = useState({
+    subjective: false,
+    objective: true,
+    assessment: true,
+    plan: true,
+  });
+  const toggleSoapSection = (key: keyof typeof soapCollapsed) => {
+    setSoapCollapsed(prev => ({ ...prev, [key]: !prev[key] }));
+  };
 
   const applyTemplate = (templateName: string) => {
     const template = examinationTemplates[templateName as keyof typeof examinationTemplates];
@@ -726,11 +980,85 @@ const [newDifferentialDiagnosis, setNewDifferentialDiagnosis] = useState("");
         </CardContent>
       </Card>
 
-      <ResizablePanelGroup direction="horizontal" className="min-h-[600px] rounded-lg border">
+      {/* Global tabs menu bar spanning full width */}
+      <Tabs defaultValue="soap" className="w-full">
+        <div className="relative">
+          {/* Left Arrow */}
+          {showLeftArrow && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="absolute left-0 top-1/2 -translate-y-1/2 z-10 h-8 w-8 p-0 bg-background/80 backdrop-blur-sm border border-border/50"
+              onClick={() => scrollTabs('left')}
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+          )}
+          {/* Right Arrow */}
+          {showRightArrow && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="absolute right-0 top-1/2 -translate-y-1/2 z-10 h-8 w-8 p-0 bg-background/80 backdrop-blur-sm border border-border/50"
+              onClick={() => scrollTabs('right')}
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          )}
+          {/* Scrollable TabsList */}
+          <div 
+            ref={tabsScrollRef}
+            className="overflow-x-auto scrollbar-hide px-8"
+            onScroll={checkScrollPosition}
+          >
+            <TabsList className="flex w-full h-11 items-center justify-start gap-2 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+              <TabsTrigger 
+                value="soap"
+                className="h-11 px-4 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-foreground hover:bg-muted/50"
+              >
+                SOAP Notes
+              </TabsTrigger>
+              <TabsTrigger 
+                value="treatment"
+                className="h-11 px-4 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-foreground hover:bg-muted/50"
+              >
+                Treatments
+              </TabsTrigger>
+              <TabsTrigger 
+                value="vaccination"
+                className="h-11 px-4 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-foreground hover:bg-muted/50"
+              >
+                Vaccination
+              </TabsTrigger>
+              <TabsTrigger 
+                value="medications"
+                className="h-11 px-4 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-foreground hover:bg-muted/50"
+              >
+                Medications
+              </TabsTrigger>
+              <TabsTrigger 
+                value="summary"
+                className="h-11 px-4 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-foreground hover:bg-muted/50"
+              >
+                Summary & Billing
+              </TabsTrigger>
+              <TabsTrigger 
+                value="attachments"
+                className="h-11 px-4 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-foreground hover:bg-muted/50"
+              >
+                Attachments
+              </TabsTrigger>
+            </TabsList>
+          </div>
+        </div>
+
+      <div ref={groupRef}>
+      <ResizablePanelGroup direction="horizontal" className="min-h-[600px] rounded-lg border mt-4">
         {/* Left Panel - Quick Templates and Medical History */}
         <ResizablePanel defaultSize={35} minSize={25}>
           <div className="h-full p-6 space-y-6 overflow-y-auto">
-            {/* Quick Templates Section */}
+            {/* Quick Templates Section - visible only on SOAP Notes */}
+            <TabsContent value="soap" className="space-y-6">
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -778,101 +1106,38 @@ const [newDifferentialDiagnosis, setNewDifferentialDiagnosis] = useState("");
                 </div>
               </CardContent>
             </Card>
-
-            {/* Patient Medical History Section */}
+            </TabsContent>
+            
+          {/* Add Treatment - visible only on Treatments tab */}
+          <TabsContent value="treatment" className="space-y-6">
             <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <History className="h-5 w-5" />
-                Patient Medical History
-              </CardTitle>
-              <CardDescription>
-                Review patient's medical history before creating new record
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {/* Medical History Content */}
-              <div className="space-y-4">
-                {/* Previous Visits */}
-                <div className="space-y-3">
-                  <h4 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">Previous Visits</h4>
-                  <div className="space-y-2 max-h-40 overflow-y-auto">
-                    {mockMedicalHistory.previousVisits.map((visit) => (
-                      <div key={visit.id} className="p-3 border rounded bg-muted/20">
-                        <div className="flex items-center gap-2 mb-2">
-                          <CalendarIcon className="h-4 w-4 text-muted-foreground" />
-                          <span className="text-sm text-muted-foreground">{new Date(visit.date).toLocaleDateString()}</span>
-                          <span className="text-sm text-muted-foreground">• {visit.veterinarian}</span>
-                        </div>
-                        <p className="text-sm font-medium mb-1">{visit.complaint}</p>
-                        <p className="text-sm text-muted-foreground">{visit.diagnosis}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Allergies */}
-                <div className="space-y-3">
-                  <h4 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">Known Allergies</h4>
-                  <div className="space-y-2">
-                    {mockMedicalHistory.allergies.map((allergy) => (
-                      <div key={allergy.id} className="p-3 border rounded bg-muted/20">
-                        <div className="flex items-center gap-2">
-                          <AlertTriangle className="h-4 w-4 text-destructive" />
-                          <span className="text-sm font-medium">{allergy.allergen}</span>
-                          <Badge 
-                            variant="outline" 
-                            className={`text-xs ${
-                              allergy.severity === 'severe' ? 'border-destructive text-destructive' :
-                              allergy.severity === 'moderate' ? 'border-warning text-warning' :
-                              'border-muted-foreground text-muted-foreground'
-                            }`}
-                          >
-                            {allergy.severity}
-                          </Badge>
-                        </div>
-                        <p className="text-sm text-muted-foreground mt-1">{allergy.reaction}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Current Medications */}
-                <div className="space-y-3">
-                  <h4 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">Current Medications</h4>
-                  <div className="space-y-2">
-                    {mockMedicalHistory.currentMedications.map((med) => (
-                      <div key={med.id} className="p-3 border rounded bg-muted/20">
-                        <div className="flex items-center gap-2">
-                          <Pill className="h-4 w-4 text-muted-foreground" />
-                          <span className="text-sm font-medium">{med.name}</span>
-                        </div>
-                        <p className="text-sm text-muted-foreground mt-1">{med.dosage} - {med.frequency}</p>
-                        <p className="text-xs text-muted-foreground">Prescribed by {med.prescribedBy} on {new Date(med.startDate).toLocaleDateString()}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          {/* Add Treatment Selector */}
-                  <TreatmentSelector
-                    onTreatmentAdded={(treatment) => {
-                      const normalized: EncounterItem = {
-                        ...treatment,
-                        status: treatment.status || 'pending',
-                        quantity: treatment.quantity ?? 1,
-                        discount: treatment.discount ?? 0,
-                        total: (treatment.price ?? 0) * (treatment.quantity ?? 1) - (treatment.discount ?? 0),
-                        linkedToSection: 'plan',
-                        performedBy: selectedVeterinarian,
-                      } as EncounterItem;
-                      setEncounterItems([...encounterItems, normalized]);
-                    }}
-                    linkedSection="plan"
-                    performedBy={selectedVeterinarian}
-                  />
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Syringe className="h-5 w-5" />
+                  Add Treatment
+                </CardTitle>
+                <CardDescription>Select services and procedures from the catalog</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <TreatmentSelector
+                  onTreatmentAdded={(treatment) => {
+                    const normalized: EncounterItem = {
+                      ...treatment,
+                      status: treatment.status || 'pending',
+                      quantity: treatment.quantity ?? 1,
+                      discount: treatment.discount ?? 0,
+                      total: (treatment.price ?? 0) * (treatment.quantity ?? 1) - (treatment.discount ?? 0),
+                      linkedToSection: 'plan',
+                      performedBy: selectedVeterinarian,
+                    } as EncounterItem;
+                    setEncounterItems([...encounterItems, normalized]);
+                  }}
+                  linkedSection="plan"
+                  performedBy={selectedVeterinarian}
+                />
+              </CardContent>
+            </Card>
+          </TabsContent>
           </div>
         </ResizablePanel>
 
@@ -880,59 +1145,21 @@ const [newDifferentialDiagnosis, setNewDifferentialDiagnosis] = useState("");
 
         {/* Right Panel - SOAP Notes */}
         <ResizablePanel defaultSize={65} minSize={40}>
-          <div className="h-full p-6 overflow-y-auto">
-            {/* Main Form */}
-            <Tabs defaultValue="soap" className="w-full">
-            <div className="relative">
-              {/* Left Arrow */}
-              {showLeftArrow && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="absolute left-0 top-1/2 -translate-y-1/2 z-10 h-8 w-8 p-0 bg-background/80 backdrop-blur-sm border border-border/50"
-                  onClick={() => scrollTabs('left')}
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </Button>
-              )}
-              
-              {/* Right Arrow */}
-              {showRightArrow && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="absolute right-0 top-1/2 -translate-y-1/2 z-10 h-8 w-8 p-0 bg-background/80 backdrop-blur-sm border border-border/50"
-                  onClick={() => scrollTabs('right')}
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-              )}
-
-              {/* Scrollable TabsList */}
-              <div 
-                ref={tabsScrollRef}
-                className="overflow-x-auto scrollbar-hide px-8"
-                onScroll={checkScrollPosition}
-              >
-                <TabsList className="inline-flex h-10 items-center justify-start rounded-md bg-muted p-1 text-muted-foreground min-w-max">
-                  <TabsTrigger value="soap">SOAP Notes</TabsTrigger>
-                  <TabsTrigger value="treatment">Treatments</TabsTrigger>
-                  <TabsTrigger value="vaccination">Vaccination</TabsTrigger>
-                  <TabsTrigger value="medications">Medications</TabsTrigger>
-                  <TabsTrigger value="summary">Summary & Billing</TabsTrigger>
-                  <TabsTrigger value="attachments">Attachments</TabsTrigger>
-                </TabsList>
-              </div>
-            </div>
-
+          <div ref={rightPanelRef} className="h-full p-6 overflow-y-auto">
             {/* SOAP Notes Tab */}
             <TabsContent value="soap" className="space-y-6">
               {/* Subjective Section */}
               <Card>
-                <CardHeader>
-                  <CardTitle>Subjective</CardTitle>
-                  <CardDescription>Chief complaint and owner's observations</CardDescription>
+                <CardHeader className="cursor-pointer" onClick={() => toggleSoapSection('subjective')}>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle>Subjective</CardTitle>
+                      <CardDescription>Chief complaint and owner's observations</CardDescription>
+                    </div>
+                    <ChevronDown className={cn("h-5 w-5 transition-transform", soapCollapsed.subjective ? "-rotate-90" : "rotate-0")} />
+                  </div>
                 </CardHeader>
+                {!soapCollapsed.subjective && (
                 <CardContent className="space-y-6">
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
@@ -1020,17 +1247,22 @@ const [newDifferentialDiagnosis, setNewDifferentialDiagnosis] = useState("");
                     </div>
                   </div>
                 </CardContent>
+                )}
               </Card>
 
               {/* Objective Section - Vitals */}
               <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Stethoscope className="h-5 w-5" />
-                    Objective - Vital Signs & Physical Parameters
-                  </CardTitle>
+                <CardHeader className="cursor-pointer" onClick={() => toggleSoapSection('objective')}>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Stethoscope className="h-5 w-5" />
+                      <CardTitle>Objective - Vital Signs & Physical Parameters</CardTitle>
+                    </div>
+                    <ChevronDown className={cn("h-5 w-5 transition-transform", soapCollapsed.objective ? "-rotate-90" : "rotate-0")} />
+                  </div>
                   <CardDescription>Record detailed vital signs and measurements</CardDescription>
                 </CardHeader>
+                {!soapCollapsed.objective && (
                 <CardContent>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {/* Vital Signs */}
@@ -1126,14 +1358,21 @@ const [newDifferentialDiagnosis, setNewDifferentialDiagnosis] = useState("");
                     />
                   </div>
                 </CardContent>
+                )}
               </Card>
 
               {/* Assessment Section */}
               <Card>
-                <CardHeader>
-                  <CardTitle>Assessment</CardTitle>
-                  <CardDescription>Clinical interpretation and diagnostic assessment</CardDescription>
+                <CardHeader className="cursor-pointer" onClick={() => toggleSoapSection('assessment')}>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle>Assessment</CardTitle>
+                      <CardDescription>Clinical interpretation and diagnostic assessment</CardDescription>
+                    </div>
+                    <ChevronDown className={cn("h-5 w-5 transition-transform", soapCollapsed.assessment ? "-rotate-90" : "rotate-0")} />
+                  </div>
                 </CardHeader>
+                {!soapCollapsed.assessment && (
                 <CardContent className="space-y-6">
                   {/* Primary Diagnosis */}
                   <div className="space-y-2">
@@ -1271,14 +1510,21 @@ const [newDifferentialDiagnosis, setNewDifferentialDiagnosis] = useState("");
                     />
                   </div>
                 </CardContent>
+                )}
               </Card>
 
               {/* Plan Section */}
               <Card>
-                <CardHeader>
-                  <CardTitle>Plan</CardTitle>
-                  <CardDescription>Treatment plan and recommendations</CardDescription>
+                <CardHeader className="cursor-pointer" onClick={() => toggleSoapSection('plan')}>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle>Plan</CardTitle>
+                      <CardDescription>Treatment plan and recommendations</CardDescription>
+                    </div>
+                    <ChevronDown className={cn("h-5 w-5 transition-transform", soapCollapsed.plan ? "-rotate-90" : "rotate-0")} />
+                  </div>
                 </CardHeader>
+                {!soapCollapsed.plan && (
                 <CardContent>
                   {/* Treatment Goals */}
                   <div className="space-y-2">
@@ -1361,6 +1607,7 @@ const [newDifferentialDiagnosis, setNewDifferentialDiagnosis] = useState("");
                     />
                   </div>
                 </CardContent>
+                )}
               </Card>
             </TabsContent>
 
@@ -2004,10 +2251,9 @@ const [newDifferentialDiagnosis, setNewDifferentialDiagnosis] = useState("");
                 </CardContent>
               </Card>
             </TabsContent>
-          </Tabs>
 
           {/* Action Buttons */}
-          <Card>
+          <Card className="mt-6">
             <CardContent className="pt-6">
               <div className="flex justify-between">
                 <Button 
@@ -2030,6 +2276,153 @@ const [newDifferentialDiagnosis, setNewDifferentialDiagnosis] = useState("");
           </div>
         </ResizablePanel>
       </ResizablePanelGroup>
+      </div>
+      </Tabs>
+
+      {/* Bottom Panel (collapsible, overlays content when expanded) */}
+      <div
+        className={cn(
+          "fixed bottom-0 z-40 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/75 shadow-lg",
+          isBottomOpen ? "" : "h-[44px]"
+        )}
+        style={{ left: bottomPanelRect.left, width: bottomPanelRect.width, height: isBottomOpen ? bottomHeight : 44 }}
+      >
+        {/* Resize handle */}
+        {isBottomOpen && (
+          <div
+            className="absolute -top-2 left-0 right-0 h-2 cursor-ns-resize"
+            onMouseDown={(e) => {
+              setIsResizingBottom(true);
+              resizeStateRef.current = { startY: e.clientY, startHeight: bottomHeight };
+            }}
+          />
+        )}
+        <Tabs value={bottomTab} onValueChange={(v) => setBottomTab(v as any)} className="h-full">
+          {/* Tabs bar */}
+          <div className="relative h-[44px]">
+            <div className="absolute inset-0 flex items-center justify-between px-3">
+              <TabsList className="flex h-9 items-center gap-1 bg-transparent p-0">
+                <TabsTrigger value="history" className="h-9 px-3 rounded-none border-b-2 border-transparent data-[state=active]:border-primary">
+                  History
+                </TabsTrigger>
+                <TabsTrigger value="labs" className="h-9 px-3 rounded-none border-b-2 border-transparent data-[state=active]:border-primary">
+                  Labs
+                </TabsTrigger>
+                <TabsTrigger value="notes" className="h-9 px-3 rounded-none border-b-2 border-transparent data-[state=active]:border-primary">
+                  Notes
+                </TabsTrigger>
+              </TabsList>
+              <Button size="sm" variant="outline" onClick={() => setIsBottomOpen(!isBottomOpen)}>
+                {isBottomOpen ? 'Collapse' : 'Expand'}
+              </Button>
+            </div>
+          </div>
+
+          {/* Panel content area (only visible when expanded) */}
+          {isBottomOpen && (
+            <div className="h-[calc(100%-44px)] overflow-auto p-3">
+              <TabsContent value="history" className="m-0 space-y-3">
+                {/* Filter bar */}
+                <div className="flex flex-wrap items-end gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Type</Label>
+                    <Select value={historyType} onValueChange={(v) => setHistoryType(v as any)}>
+                      <SelectTrigger className="h-8 w-[160px]">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All</SelectItem>
+                        <SelectItem value="visit">Visits</SelectItem>
+                        <SelectItem value="vaccination">Vaccinations</SelectItem>
+                        <SelectItem value="surgery">Surgeries</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Clinician</Label>
+                    <Input value={historyClinician} onChange={(e) => setHistoryClinician(e.target.value)} placeholder="Search clinician" className="h-8 w-[200px]" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">From</Label>
+                    <Input type="date" value={historyFrom} onChange={(e) => setHistoryFrom(e.target.value)} className="h-8 w-[160px]" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">To</Label>
+                    <Input type="date" value={historyTo} onChange={(e) => setHistoryTo(e.target.value)} className="h-8 w-[160px]" />
+                  </div>
+                  <div className="ml-auto flex items-end gap-2">
+                    <div className="space-y-1">
+                      <Label className="text-xs">Rows</Label>
+                      <Select value={String(historyPageSize)} onValueChange={(v) => { setHistoryPage(1); setHistoryPageSize(Number(v)); }}>
+                        <SelectTrigger className="h-8 w-[90px]">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="10">10</SelectItem>
+                          <SelectItem value="20">20</SelectItem>
+                          <SelectItem value="50">50</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <Button variant="outline" size="sm" onClick={exportHistoryCsv}>Export CSV</Button>
+                    <Button variant="outline" size="sm" onClick={exportHistoryPdf}>Export PDF</Button>
+                    <Button variant="outline" size="sm" onClick={() => { setHistoryType('all'); setHistoryClinician(''); setHistoryFrom(''); setHistoryTo(''); setHistoryPage(1); }}>Clear</Button>
+                  </div>
+                </div>
+
+                <div className="rounded-md border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-[110px]">Date</TableHead>
+                        <TableHead className="w-[110px]">Type</TableHead>
+                        <TableHead className="w-[140px]">Clinician</TableHead>
+                        <TableHead>Description / Reason</TableHead>
+                        <TableHead className="w-[160px]">Notes</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {paginatedHistory.map((row) => (
+                        <TableRow key={row.id}>
+                          <TableCell className="text-sm text-muted-foreground">{new Date(row.date).toLocaleDateString()}</TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="text-xs">{row.type}</Badge>
+                          </TableCell>
+                          <TableCell className="text-sm">{row.clinician}</TableCell>
+                          <TableCell>
+                            <div className="text-sm font-medium">{row.title}</div>
+                            {row.subtitle && (
+                              <div className="text-xs text-muted-foreground">{row.subtitle}</div>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-sm text-muted-foreground">{row.notes || '—'}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+                {/* Pagination controls */}
+                <div className="flex items-center justify-between text-sm text-muted-foreground">
+                  <div>
+                    Page {historyPage} of {totalHistoryPages} • {filteredHistory.length} records
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" size="sm" disabled={historyPage <= 1} onClick={() => setHistoryPage(p => Math.max(1, p - 1))}>Previous</Button>
+                    <Button variant="outline" size="sm" disabled={historyPage >= totalHistoryPages} onClick={() => setHistoryPage(p => Math.min(totalHistoryPages, p + 1))}>Next</Button>
+                  </div>
+                </div>
+              </TabsContent>
+              <TabsContent value="labs" className="m-0">
+                <div className="text-sm text-muted-foreground">Lab requests/results (add content as needed)</div>
+              </TabsContent>
+              <TabsContent value="notes" className="m-0">
+                <div className="text-sm text-muted-foreground">Scratch pad / encounter notes (add content as needed)</div>
+              </TabsContent>
+            </div>
+          )}
+        </Tabs>
+      </div>
+
       </div> {/* End fixed-width container */}
       </div> {/* End main content area */}
       

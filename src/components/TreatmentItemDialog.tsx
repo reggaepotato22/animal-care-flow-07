@@ -6,7 +6,9 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { TreatmentItem, treatmentCategories, TreatmentCategory } from "@/data/treatments";
+import { TreatmentItem, treatmentCategories, TreatmentCategory, LinkedInventoryItem } from "@/data/treatments";
+import { inventoryItems, InventoryItem } from "@/data/inventory";
+import { X, Plus } from "lucide-react";
 
 interface TreatmentItemDialogProps {
   open: boolean;
@@ -32,11 +34,18 @@ export function TreatmentItemDialog({ open, onOpenChange, treatment, onSave }: T
   });
 
   const [tagsInput, setTagsInput] = useState("");
+  const [linkedInventory, setLinkedInventory] = useState<LinkedInventoryItem[]>([]);
+  const [newInventoryItem, setNewInventoryItem] = useState<{ inventoryId: string; quantity: number; required: boolean }>({
+    inventoryId: "",
+    quantity: 1,
+    required: true
+  });
 
   useEffect(() => {
     if (treatment) {
       setFormData(treatment);
       setTagsInput(treatment.tags.join(", "));
+      setLinkedInventory(treatment.linkedInventory || []);
     } else {
       setFormData({
         code: "",
@@ -53,8 +62,21 @@ export function TreatmentItemDialog({ open, onOpenChange, treatment, onSave }: T
         tags: []
       });
       setTagsInput("");
+      setLinkedInventory([]);
     }
+    setNewInventoryItem({ inventoryId: "", quantity: 1, required: true });
   }, [treatment, open]);
+
+  const handleAddLinkedInventory = () => {
+    if (newInventoryItem.inventoryId && newInventoryItem.quantity > 0) {
+      setLinkedInventory([...linkedInventory, { ...newInventoryItem }]);
+      setNewInventoryItem({ inventoryId: "", quantity: 1, required: true });
+    }
+  };
+
+  const handleRemoveLinkedInventory = (index: number) => {
+    setLinkedInventory(linkedInventory.filter((_, i) => i !== index));
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -72,10 +94,16 @@ export function TreatmentItemDialog({ open, onOpenChange, treatment, onSave }: T
       requiresAppointment: formData.requiresAppointment ?? false,
       taxable: formData.taxable ?? true,
       requiresPrescription: formData.requiresPrescription ?? false,
-      tags: tagsInput.split(",").map(tag => tag.trim()).filter(tag => tag.length > 0)
+      tags: tagsInput.split(",").map(tag => tag.trim()).filter(tag => tag.length > 0),
+      linkedInventory: linkedInventory.length > 0 ? linkedInventory : undefined
     };
 
     onSave(treatmentItem);
+  };
+
+  const getInventoryItemName = (inventoryId: string) => {
+    const item = inventoryItems.find(i => i.id === inventoryId);
+    return item ? `${item.name} (${item.sku})` : "Unknown Item";
   };
 
   return (
@@ -243,6 +271,101 @@ export function TreatmentItemDialog({ open, onOpenChange, treatment, onSave }: T
                 <Label htmlFor="requiresPrescription" className="font-normal cursor-pointer">
                   Requires Prescription
                 </Label>
+              </div>
+            </div>
+
+            {/* Linked Inventory */}
+            <div className="space-y-3 border-t pt-4">
+              <div className="flex items-center justify-between">
+                <Label className="text-base font-medium">Linked Inventory Items</Label>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Select inventory items that will be automatically deducted when this treatment is applied.
+              </p>
+
+              {/* Existing Linked Inventory Items */}
+              {linkedInventory.length > 0 && (
+                <div className="space-y-2">
+                  {linkedInventory.map((item, index) => {
+                    const invItem = inventoryItems.find(i => i.id === item.inventoryId);
+                    return (
+                      <div key={index} className="flex items-center gap-2 p-2 border rounded-md bg-muted/50">
+                        <div className="flex-1">
+                          <div className="text-sm font-medium">{getInventoryItemName(item.inventoryId)}</div>
+                          <div className="text-xs text-muted-foreground">
+                            Quantity: {item.quantity} {invItem?.unit || ""} • {item.required ? "Required" : "Optional"}
+                          </div>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleRemoveLinkedInventory(index)}
+                          className="h-8 w-8 p-0"
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Add New Linked Inventory Item */}
+              <div className="space-y-2 p-3 border rounded-md">
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Inventory Item</Label>
+                    <Select
+                      value={newInventoryItem.inventoryId}
+                      onValueChange={(value) => setNewInventoryItem({ ...newInventoryItem, inventoryId: value })}
+                    >
+                      <SelectTrigger className="h-9">
+                        <SelectValue placeholder="Select item" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {inventoryItems.filter(item => item.isActive).map((item) => (
+                          <SelectItem key={item.id} value={item.id}>
+                            {item.name} ({item.sku})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Quantity per Treatment</Label>
+                    <Input
+                      type="number"
+                      min="0.01"
+                      step="0.01"
+                      placeholder="1"
+                      value={newInventoryItem.quantity}
+                      onChange={(e) => setNewInventoryItem({ ...newInventoryItem, quantity: parseFloat(e.target.value) || 1 })}
+                      className="h-9"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Required</Label>
+                    <div className="flex items-center h-9">
+                      <Checkbox
+                        checked={newInventoryItem.required}
+                        onCheckedChange={(checked) => setNewInventoryItem({ ...newInventoryItem, required: checked as boolean })}
+                      />
+                      <Label className="text-xs ml-2 font-normal">Required</Label>
+                    </div>
+                  </div>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleAddLinkedInventory}
+                  disabled={!newInventoryItem.inventoryId || newInventoryItem.quantity <= 0}
+                  className="w-full"
+                >
+                  <Plus className="h-3 w-3 mr-2" />
+                  Add Inventory Item
+                </Button>
               </div>
             </div>
           </div>

@@ -8,12 +8,14 @@ import {
   CreditCard,
   Package,
   UserCog,
+  UserCheck,
   BarChart,
   Heart,
   ChevronLeft,
   ChevronRight,
   Hospital,
   Pill,
+  Warehouse,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -60,9 +62,19 @@ const navigationItems = [
     icon: Pill,
   },
   {
+    name: "Inventory",
+    href: "/inventory",
+    icon: Warehouse,
+  },
+  {
     name: "Staff",
     href: "/staff",
     icon: UserCog,
+  },
+  {
+    name: "Users",
+    href: "/users",
+    icon: UserCheck,
   },
   {
     name: "Reports",
