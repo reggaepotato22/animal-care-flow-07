@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, FileText, Calendar as CalendarIcon, User, Stethoscope, Pill, Download, X, ArrowLeft, Plus, Paperclip, Upload, History, AlertTriangle, Syringe, Scissors, Heart, MoreVertical, Bed, TestTube, ChevronLeft, ChevronRight, DollarSign, ChevronDown } from "lucide-react";
+import { Search, FileText, Calendar as CalendarIcon, User, Pill, Download, X, ArrowLeft, Plus, Paperclip, Upload, History, AlertTriangle, Syringe, Heart, MoreVertical, Bed, TestTube, ChevronLeft, ChevronRight, DollarSign, Trash2, ChevronDown } from "lucide-react";
 import { LabOrderDialog } from "@/components/LabOrderDialog";
 import { AdmissionRequestDialog } from "@/components/AdmissionRequestDialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -21,7 +21,343 @@ import jsPDF from 'jspdf';
 import { format } from "date-fns";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+
+const NOTE_TYPES = [
+  { value: "soap", label: "SOAP" },
+  { value: "procedure", label: "Procedure" },
+  { value: "anesthesia", label: "Anesthesia" },
+  { value: "discharge", label: "Discharge" },
+  { value: "follow-up", label: "Follow-up" },
+  { value: "progress", label: "Progress" },
+  { value: "general", label: "General" },
+] as const;
+
+type NoteType = typeof NOTE_TYPES[number]["value"];
+
+interface SoapData {
+  subjective: string;
+  objective: string;
+  assessment: string;
+  plan: string;
+  temperature: string;
+  heartRate: string;
+  respiratoryRate: string;
+  weight: string;
+  bloodPressure: string;
+  bodyConditionScore: string;
+  otherObservations: string;
+  primaryDiagnosis: string;
+  differentialDiagnoses: string[];
+  clinicalSummary: string;
+  prognosis: string;
+  prognosisReason: string;
+  riskFactors: string[];
+  notes: string;
+}
+
+interface ProcedureData {
+  // Patient & Provider Info
+  surgeonName: string;
+  assistants: string[];
+  // Date & Time
+  procedureDate: string;
+  procedureTime: string;
+  noteWrittenDate: string;
+  noteWrittenTime: string;
+  // Diagnosis
+  indication: string;
+  preProcedureDiagnosis: string;
+  postProcedureDiagnosis: string;
+  // Procedure Details
+  procedureType: string;
+  anesthesiaUsed: string;
+  techniques: string;
+  positioning: string;
+  findings: string;
+  estimatedBloodLoss: string;
+  // Materials
+  materials: string[];
+  implants: string[];
+  grafts: string[];
+  instruments: string[];
+  // Specimens
+  specimens: string[];
+  // Complications
+  complications: string;
+  // Informed Consent
+  informedConsent: string;
+  risksDiscussed: boolean;
+  benefitsDiscussed: boolean;
+  alternativesDiscussed: boolean;
+  // Post-Procedure Plan
+  medications: string;
+  instructions: string;
+  followUp: string;
+  disposition: string;
+}
+
+interface AnesthesiaData {
+  // Anesthetist & Provider Info
+  anesthetistName: string;
+  supervisingVeterinarian: string;
+  // Date & Time
+  anesthesiaDate: string;
+  anesthesiaStartTime: string;
+  anesthesiaEndTime: string;
+  duration: string;
+  noteWrittenDate: string;
+  noteWrittenTime: string;
+  // Pre-Anesthesia Assessment
+  asaStatus: string; // ASA Physical Status Classification
+  preAnesthesiaAssessment: string;
+  riskFactors: string[];
+  allergies: string[];
+  currentMedications: string[];
+  // Anesthesia Protocol
+  premedication: string;
+  inductionAgent: string;
+  inductionDose: string;
+  maintenanceAgent: string;
+  maintenanceMethod: string; // e.g., "Isoflurane via endotracheal tube"
+  reversalAgent: string;
+  reversalDose: string;
+  // Airway Management
+  airwayType: string; // e.g., "Endotracheal tube", "Laryngeal mask", "Face mask"
+  airwaySize: string;
+  intubationDifficulty: string;
+  // Monitoring
+  monitoringEquipment: string[];
+  // Vital Signs (Baseline)
+  baselineHeartRate: string;
+  baselineRespiratoryRate: string;
+  baselineBloodPressure: string;
+  baselineTemperature: string;
+  baselineSpO2: string;
+  // Vital Signs (During Procedure)
+  intraopHeartRate: string;
+  intraopRespiratoryRate: string;
+  intraopBloodPressure: string;
+  intraopTemperature: string;
+  intraopSpO2: string;
+  // Fluid Management
+  fluidsAdministered: string;
+  fluidType: string;
+  fluidRate: string;
+  // Complications & Adverse Events
+  complications: string;
+  adverseEvents: string[];
+  // Recovery
+  recoveryTime: string;
+  recoveryQuality: string; // e.g., "Smooth", "Prolonged", "Agitated"
+  recoveryMonitoring: string;
+  extubationTime: string;
+  postAnesthesiaVitalSigns: string;
+  // Post-Anesthesia Plan
+  postAnesthesiaInstructions: string;
+  monitoringRequirements: string;
+  followUp: string;
+  // Notes
+  additionalNotes: string;
+}
+
+interface DischargeData {
+  // Provider & Patient Info
+  dischargingVeterinarian: string;
+  patientName: string;
+  ownerName: string;
+  // Date & Time
+  dischargeDate: string;
+  dischargeTime: string;
+  admissionDate: string;
+  admissionTime: string;
+  lengthOfStay: string;
+  // Visit/Admission Information
+  reasonForVisit: string;
+  chiefComplaint: string;
+  // Diagnosis
+  primaryDiagnosis: string;
+  secondaryDiagnoses: string[];
+  // Treatment Summary
+  treatmentSummary: string;
+  proceduresPerformed: string[];
+  // Medications Prescribed
+  medications: Array<{
+    name: string;
+    dosage: string;
+    frequency: string;
+    duration: string;
+    instructions: string;
+  }>;
+  // Instructions for Owner
+  homeCareInstructions: string;
+  activityRestrictions: string;
+  dietInstructions: string;
+  // Follow-up Care
+  followUpAppointments: string;
+  followUpInstructions: string;
+  recheckDate: string;
+  // Warning Signs
+  warningSigns: string[];
+  whenToSeekEmergencyCare: string;
+  // Discharge Condition
+  dischargeCondition: string; // e.g., "Stable", "Improved", "Guarded"
+  dischargeStatus: string; // e.g., "Discharged to owner", "Transferred", etc.
+  // Owner Education
+  ownerEducation: string;
+  questionsAnswered: boolean;
+  instructionsUnderstood: boolean;
+  // Additional Information
+  additionalNotes: string;
+}
+
+interface FollowUpData {
+  // Provider & Patient Info
+  veterinarianName: string;
+  patientName: string;
+  ownerName: string;
+  // Date & Time
+  followUpDate: string;
+  followUpTime: string;
+  originalVisitDate: string;
+  daysSinceLastVisit: string;
+  // Visit Information
+  visitType: string; // e.g., "Recheck", "Progress check", "Post-operative", "Routine follow-up"
+  reasonForFollowUp: string;
+  chiefComplaint: string;
+  // Previous Visit Summary
+  previousDiagnosis: string;
+  previousTreatment: string;
+  // Current Assessment
+  currentStatus: string;
+  improvement: string; // e.g., "Improved", "No change", "Worse", "Resolved"
+  currentSymptoms: string[];
+  // Physical Examination
+  physicalExamFindings: string;
+  vitalSigns: {
+    temperature: string;
+    heartRate: string;
+    respiratoryRate: string;
+    weight: string;
+    bodyConditionScore: string;
+  };
+  // Assessment
+  currentAssessment: string;
+  diagnosis: string;
+  differentialDiagnoses: string[];
+  // Treatment Plan
+  treatmentPlan: string;
+  medications: Array<{
+    name: string;
+    dosage: string;
+    frequency: string;
+    duration: string;
+    instructions: string;
+  }>;
+  // Recommendations
+  recommendations: string;
+  activityRestrictions: string;
+  dietRecommendations: string;
+  // Follow-up Plan
+  nextFollowUpDate: string;
+  nextFollowUpInstructions: string;
+  followUpInterval: string;
+  // Owner Communication
+  ownerConcerns: string;
+  ownerQuestions: string;
+  ownerEducation: string;
+  // Additional Notes
+  additionalNotes: string;
+}
+
+interface ProgressData {
+  // Provider & Patient Info
+  veterinarianName: string;
+  patientName: string;
+  ownerName: string;
+  // Date & Time
+  progressDate: string;
+  progressTime: string;
+  admissionDate: string;
+  daysSinceAdmission: string;
+  // Visit Information
+  visitType: string; // e.g., "Daily progress", "Post-operative day X", "Hospitalization day X"
+  reasonForNote: string;
+  // Clinical Status
+  clinicalStatus: string; // e.g., "Stable", "Improving", "Deteriorating", "Critical"
+  overallProgress: string; // e.g., "Significant improvement", "No change", "Worsening"
+  // Subjective
+  ownerReport: string;
+  patientBehavior: string;
+  appetite: string;
+  urination: string;
+  defecation: string;
+  // Objective
+  physicalExamFindings: string;
+  vitalSigns: {
+    temperature: string;
+    heartRate: string;
+    respiratoryRate: string;
+    bloodPressure: string;
+    weight: string;
+    bodyConditionScore: string;
+  };
+  diagnosticResults: string;
+  labResults: string;
+  imagingResults: string;
+  // Assessment
+  assessment: string;
+  currentDiagnosis: string;
+  progressNotes: string;
+  complications: string[];
+  // Plan
+  plan: string;
+  medications: Array<{
+    name: string;
+    dosage: string;
+    frequency: string;
+    duration: string;
+    instructions: string;
+    changes: string; // e.g., "Increased", "Decreased", "Discontinued", "New"
+  }>;
+  treatments: string[];
+  procedures: string[];
+  // Monitoring
+  monitoringPlan: string;
+  parametersToWatch: string[];
+  // Discharge Planning
+  dischargeReadiness: string; // e.g., "Ready", "Not ready", "Pending"
+  dischargeCriteria: string[];
+  estimatedDischargeDate: string;
+  // Communication
+  ownerCommunication: string;
+  ownerUpdates: string;
+  // Additional Notes
+  additionalNotes: string;
+}
+
+interface ClinicalNote {
+  id: string;
+  type: NoteType;
+  title: string;
+  content: string;
+  createdAt: string;
+  author?: string;
+  soapData?: SoapData;
+  procedureData?: ProcedureData;
+  anesthesiaData?: AnesthesiaData;
+  dischargeData?: DischargeData;
+  followUpData?: FollowUpData;
+  progressData?: ProgressData;
+}
 
 interface Medication {
   id: string;
@@ -81,8 +417,14 @@ interface MedicalHistory {
   vaccinations: Vaccination[];
 }
 
-const examinationTemplates = {
+const examinationTemplates: Record<string, {
+  noteType: NoteType;
+  category: string;
+  [key: string]: any;
+}> = {
+  // SOAP Note Templates
   "Wellness Examination": {
+    noteType: "soap",
     category: "exams",
     subjective: "Annual wellness examination requested by owner. No specific concerns reported.",
     objective: "Physical examination findings:\n- Weight: [weight] kg\n- Temperature: [temp]°F\n- Heart rate: [HR] bpm\n- Respiratory rate: [RR] rpm\n- Body condition score: [BCS]/9\n- General appearance: Alert and responsive\n- Eyes, ears, nose: Normal\n- Oral examination: [findings]\n- Cardiovascular: [findings]\n- Respiratory: [findings]\n- Abdomen: [findings]\n- Musculoskeletal: [findings]\n- Skin and coat: [findings]",
@@ -90,6 +432,7 @@ const examinationTemplates = {
     plan: "- Continue current diet and exercise routine\n- Maintain current vaccination schedule\n- Annual follow-up recommended\n- Dental cleaning recommended in [timeframe]\n- [Additional recommendations]"
   },
   "Vaccination": {
+    noteType: "soap",
     category: "exams",
     subjective: "Patient presented for routine vaccination appointment. Owner reports no current health concerns.",
     objective: "Pre-vaccination examination:\n- Temperature: [temp]°F\n- Weight: [weight] kg\n- General appearance: Bright, alert, responsive\n- Physical examination: Normal\n- No contraindications to vaccination identified",
@@ -97,6 +440,7 @@ const examinationTemplates = {
     plan: "Vaccinations administered:\n- [Vaccine 1]\n- [Vaccine 2]\n- [Vaccine 3]\n\nPost-vaccination monitoring:\n- Observe for 15 minutes post-vaccination\n- Next vaccination due: [date]\n- Contact clinic if any adverse reactions"
   },
   "Dental Cleaning": {
+    noteType: "soap",
     category: "exams",
     subjective: "Patient scheduled for dental prophylaxis. Owner reports [halitosis/tartar buildup/dental concerns].",
     objective: "Pre-anesthetic examination:\n- Weight: [weight] kg\n- Physical examination: [findings]\n- Oral examination: [tartar grade], [gingivitis grade]\n- Pre-anesthetic bloodwork: [results]\n- Anesthetic protocol: [medications and doses]",
@@ -104,6 +448,7 @@ const examinationTemplates = {
     plan: "Dental prophylaxis performed:\n- Supragingival scaling completed\n- Subgingival scaling completed\n- Polishing completed\n- [Number] extractions performed: [teeth]\n- Post-operative care instructions provided\n- Pain management: [medications]\n- Recheck in [timeframe]"
   },
   "Spay/Neuter": {
+    noteType: "soap",
     category: "exams",
     subjective: "Patient presented for elective spay/neuter procedure.",
     objective: "Pre-surgical examination:\n- Weight: [weight] kg\n- Physical examination: Normal\n- Pre-anesthetic bloodwork: [results]\n- Anesthetic protocol: [medications]\n- Surgical site prepared and draped",
@@ -111,27 +456,43 @@ const examinationTemplates = {
     plan: "Surgical procedure completed:\n- [Ovariohysterectomy/Castration] performed\n- No complications noted\n- Recovery uneventful\n- Post-operative care:\n  - Pain management: [medications]\n  - Activity restriction for 10-14 days\n  - E-collar until suture removal\n  - Suture removal in [date]\n  - Monitor incision site daily"
   },
   "Post-Surgical Follow-up": {
+    noteType: "follow-up",
     category: "follow-ups",
-    subjective: "Patient returning for post-surgical examination. Owner reports [recovery progress/concerns].",
-    objective: "Post-surgical examination:\n- Incision site: [appearance]\n- Swelling: [assessment]\n- Discharge: [present/absent]\n- Pain level: [assessment]\n- Activity level: [assessment]\n- Appetite: [normal/decreased]\n- Weight: [weight] kg",
-    assessment: "Post-surgical healing [progressing normally/complications noted].",
-    plan: "Continue post-operative care:\n- [Medication adjustments]\n- [Activity modifications]\n- [Next recheck date]\n- [Suture removal if indicated]\n- Owner education reinforced"
+    reasonForFollowUp: "Post-surgical recheck examination",
+    previousDiagnosis: "[Previous surgical diagnosis]",
+    previousTreatment: "[Previous surgical procedure and post-op care]",
+    currentStatus: "Owner reports [recovery progress/concerns]. Patient showing [behavioral observations].",
+    improvement: "[Improved/Stable/Worse]",
+    physicalExamFindings: "Post-surgical examination:\n- Incision site: [appearance]\n- Swelling: [assessment]\n- Discharge: [present/absent]\n- Pain level: [assessment]\n- Activity level: [assessment]\n- Appetite: [normal/decreased]\n- Weight: [weight] kg",
+    currentAssessment: "Post-surgical healing [progressing normally/complications noted].",
+    treatmentPlan: "Continue post-operative care:\n- [Medication adjustments]\n- [Activity modifications]\n- [Next recheck date]\n- [Suture removal if indicated]\n- Owner education reinforced"
   },
   "Recheck Examination": {
+    noteType: "follow-up",
     category: "follow-ups",
-    subjective: "Patient returning for recheck of [previous condition]. Owner reports [current status/changes].",
-    objective: "Follow-up examination:\n- Previous findings: [comparison]\n- Current condition: [assessment]\n- Response to treatment: [evaluation]\n- Vital signs: T=[temp] HR=[rate] RR=[rate]\n- Focused examination: [relevant areas]",
-    assessment: "Response to treatment: [improved/stable/declined]. [Condition] showing [progress description].",
-    plan: "Treatment plan adjustment:\n- [Continue/modify/discontinue] current medications\n- [Additional diagnostics if needed]\n- [Next follow-up timing]\n- [Home care modifications]"
+    reasonForFollowUp: "Recheck of [previous condition]",
+    previousDiagnosis: "[Previous diagnosis]",
+    previousTreatment: "[Previous treatment plan]",
+    currentStatus: "Owner reports [current status/changes]. Patient showing [symptoms/behavior].",
+    improvement: "[Improved/Stable/Worse/Resolved]",
+    physicalExamFindings: "Follow-up examination:\n- Previous findings: [comparison]\n- Current condition: [assessment]\n- Response to treatment: [evaluation]\n- Vital signs: T=[temp] HR=[rate] RR=[rate]\n- Focused examination: [relevant areas]",
+    currentAssessment: "Response to treatment: [improved/stable/declined]. [Condition] showing [progress description].",
+    treatmentPlan: "Treatment plan adjustment:\n- [Continue/modify/discontinue] current medications\n- [Additional diagnostics if needed]\n- [Next follow-up timing]\n- [Home care modifications]"
   },
   "Medication Recheck": {
+    noteType: "follow-up",
     category: "follow-ups",
-    subjective: "Patient returning to assess response to [medication]. Owner reports [observed effects/side effects].",
-    objective: "Medication assessment:\n- Clinical response: [improvement/no change/decline]\n- Side effects: [present/absent]\n- Compliance: [good/poor]\n- Physical examination: [relevant findings]\n- [Laboratory values if applicable]",
-    assessment: "Response to [medication]: [assessment]. [Side effects status].",
-    plan: "Medication management:\n- [Continue/adjust/change] current dose\n- [Monitor for specific parameters]\n- [Laboratory monitoring if needed]\n- [Next recheck interval]"
+    reasonForFollowUp: "Medication response assessment",
+    previousDiagnosis: "[Condition being treated]",
+    previousTreatment: "[Medication name and dosage]",
+    currentStatus: "Owner reports [observed effects/side effects]. Patient showing [clinical response].",
+    improvement: "[Improved/Stable/Worse]",
+    physicalExamFindings: "Medication assessment:\n- Clinical response: [improvement/no change/decline]\n- Side effects: [present/absent]\n- Compliance: [good/poor]\n- Physical examination: [relevant findings]\n- [Laboratory values if applicable]",
+    currentAssessment: "Response to [medication]: [assessment]. [Side effects status].",
+    treatmentPlan: "Medication management:\n- [Continue/adjust/change] current dose\n- [Monitor for specific parameters]\n- [Laboratory monitoring if needed]\n- [Next recheck interval]"
   },
   "Skin Condition": {
+    noteType: "soap",
     category: "common-diagnoses",
     subjective: "Owner reports [itching/scratching/hair loss/skin lesions] for [duration]. [Additional history]",
     objective: "Dermatological examination:\n- Distribution of lesions: [areas affected]\n- Type of lesions: [primary/secondary lesions]\n- Skin scraping: [results]\n- Cytology: [results]\n- Overall skin condition: [findings]",
@@ -139,6 +500,7 @@ const examinationTemplates = {
     plan: "Treatment plan:\n- Topical therapy: [medications]\n- Systemic therapy: [medications]\n- Dietary recommendations: [if applicable]\n- Follow-up in [timeframe]\n- Monitor response to treatment\n- [Additional diagnostics if needed]"
   },
   "Digestive Issues": {
+    noteType: "soap",
     category: "common-diagnoses",
     subjective: "Owner reports [vomiting/diarrhea/appetite changes/weight loss] for [duration]. [Diet history and additional details]",
     objective: "Physical examination:\n- Hydration status: [assessment]\n- Abdominal palpation: [findings]\n- Body condition: [BCS]/9\n- Temperature: [temp]°F\n- Mucous membranes: [color and CRT]",
@@ -146,6 +508,7 @@ const examinationTemplates = {
     plan: "Treatment approach:\n- Dietary management: [recommendations]\n- Medications: [prescribed]\n- Diagnostic testing: [if indicated]\n- Monitoring parameters: [what to watch]\n- Follow-up: [timeframe]\n- Emergency instructions provided"
   },
   "Respiratory Infection": {
+    noteType: "soap",
     category: "common-diagnoses",
     subjective: "Owner reports [coughing/sneezing/nasal discharge/difficulty breathing] for [duration]. [Exposure history]",
     objective: "Respiratory examination:\n- Respiratory rate: [RR] rpm\n- Respiratory effort: [assessment]\n- Lung auscultation: [findings]\n- Nasal examination: [discharge type/amount]\n- Throat examination: [findings]\n- Temperature: [temp]°F",
@@ -153,24 +516,203 @@ const examinationTemplates = {
     plan: "Treatment protocol:\n- Antimicrobial therapy: [medications]\n- Supportive care: [humidification/rest]\n- Symptomatic treatment: [cough suppressants/etc]\n- Isolation recommendations: [if applicable]\n- Monitor for: [warning signs]\n- Recheck in [timeframe]"
   },
   "Injury/Trauma": {
+    noteType: "soap",
     category: "common-diagnoses",
     subjective: "Owner reports [mechanism of injury] occurring [when]. Patient showing [symptoms observed].",
     objective: "Trauma assessment:\n- Primary survey: [ABC assessment]\n- Vital signs: T=[temp] HR=[rate] RR=[rate]\n- Neurological status: [findings]\n- Musculoskeletal examination: [findings]\n- [Affected area] examination: [detailed findings]\n- Pain assessment: [scale/behavior]",
     assessment: "[Injury description] with [severity assessment]. [Complications if any].",
     plan: "Treatment plan:\n- Pain management: [medications and doses]\n- [Surgical/Medical] intervention: [details]\n- Diagnostic imaging: [if performed]\n- Monitoring: [parameters and frequency]\n- Home care instructions: [restrictions/medications]\n- Follow-up: [schedule]"
+  },
+  // Procedure Note Templates
+  "Spay Procedure": {
+    noteType: "procedure",
+    category: "procedures",
+    indication: "Elective sterilization",
+    preProcedureDiagnosis: "Healthy patient for elective spay",
+    postProcedureDiagnosis: "Ovariohysterectomy completed successfully",
+    procedureType: "Ovariohysterectomy",
+    anesthesiaUsed: "[Anesthetic protocol]",
+    techniques: "Standard midline celiotomy approach. Ovaries and uterus identified and removed. Ligatures placed on ovarian pedicles and uterine body.",
+    positioning: "Dorsal recumbency",
+    findings: "Normal reproductive tract. No abnormalities noted.",
+    estimatedBloodLoss: "Minimal",
+    complications: "None",
+    medications: "Post-operative pain management: [medications and doses]",
+    instructions: "Activity restriction for 10-14 days. E-collar until suture removal. Monitor incision site daily.",
+    followUp: "Suture removal in [date]. Recheck if any concerns.",
+    disposition: "Recovery uneventful. Discharged to owner."
+  },
+  "Neuter Procedure": {
+    noteType: "procedure",
+    category: "procedures",
+    indication: "Elective sterilization",
+    preProcedureDiagnosis: "Healthy patient for elective neuter",
+    postProcedureDiagnosis: "Castration completed successfully",
+    procedureType: "Castration",
+    anesthesiaUsed: "[Anesthetic protocol]",
+    techniques: "Standard prescrotal approach. Testicles removed via closed technique. Ligatures placed on spermatic cords.",
+    positioning: "Dorsal recumbency",
+    findings: "Normal testicles. No abnormalities noted.",
+    estimatedBloodLoss: "Minimal",
+    complications: "None",
+    medications: "Post-operative pain management: [medications and doses]",
+    instructions: "Activity restriction for 10-14 days. E-collar until suture removal. Monitor incision site daily.",
+    followUp: "Suture removal in [date]. Recheck if any concerns.",
+    disposition: "Recovery uneventful. Discharged to owner."
+  },
+  "Dental Procedure": {
+    noteType: "procedure",
+    category: "procedures",
+    indication: "Dental prophylaxis and treatment",
+    preProcedureDiagnosis: "Grade [X] dental disease",
+    postProcedureDiagnosis: "Dental prophylaxis completed. [Number] extractions performed.",
+    procedureType: "Dental prophylaxis with extractions",
+    anesthesiaUsed: "[Anesthetic protocol]",
+    techniques: "Supragingival and subgingival scaling. Polishing. Extractions performed as indicated.",
+    positioning: "Dorsal recumbency with head elevated",
+    findings: "Tartar grade: [grade]. Gingivitis grade: [grade]. [Number] teeth extracted: [teeth numbers].",
+    estimatedBloodLoss: "Minimal",
+    complications: "None",
+    medications: "Post-operative pain management: [medications and doses]",
+    instructions: "Soft food for [duration]. Monitor for bleeding or discomfort.",
+    followUp: "Recheck in [timeframe] to assess healing.",
+    disposition: "Recovery uneventful. Discharged to owner."
+  },
+  // Anesthesia Note Templates
+  "Routine Anesthesia": {
+    noteType: "anesthesia",
+    category: "anesthesia",
+    asaStatus: "ASA I or II",
+    preAnesthesiaAssessment: "Healthy patient. No significant risk factors identified. Pre-anesthetic bloodwork: [results]",
+    riskFactors: [],
+    premedication: "[Premedication agent and dose]",
+    inductionAgent: "[Induction agent]",
+    inductionDose: "[Dose]",
+    maintenanceAgent: "[Maintenance agent]",
+    maintenanceMethod: "Isoflurane via endotracheal tube",
+    airwayType: "Endotracheal tube",
+    airwaySize: "[Size]",
+    monitoringEquipment: ["ECG", "Pulse oximetry", "Blood pressure", "Temperature probe"],
+    complications: "None",
+    recoveryQuality: "Smooth",
+    recoveryMonitoring: "Standard post-anesthetic monitoring. Patient recovered uneventfully.",
+    postAnesthesiaInstructions: "Monitor for normal recovery. Contact clinic if any concerns.",
+    monitoringRequirements: "Standard post-anesthetic monitoring"
+  },
+  "High-Risk Anesthesia": {
+    noteType: "anesthesia",
+    category: "anesthesia",
+    asaStatus: "ASA III or IV",
+    preAnesthesiaAssessment: "Patient with [risk factors]. Pre-anesthetic assessment completed. Additional monitoring required.",
+    riskFactors: ["[Risk factor 1]", "[Risk factor 2]"],
+    premedication: "[Premedication agent and dose]",
+    inductionAgent: "[Induction agent]",
+    inductionDose: "[Dose]",
+    maintenanceAgent: "[Maintenance agent]",
+    maintenanceMethod: "Isoflurane via endotracheal tube with additional monitoring",
+    airwayType: "Endotracheal tube",
+    airwaySize: "[Size]",
+    monitoringEquipment: ["ECG", "Pulse oximetry", "Blood pressure", "Temperature probe", "Capnography", "Arterial line"],
+    complications: "[Any complications or none]",
+    recoveryQuality: "[Smooth/Prolonged/Agitated]",
+    recoveryMonitoring: "Extended monitoring period. [Specific monitoring requirements]",
+    postAnesthesiaInstructions: "Extended monitoring required. [Specific instructions]",
+    monitoringRequirements: "Extended monitoring for [duration]. Watch for [specific parameters]"
+  },
+  // Discharge Note Templates
+  "Routine Discharge": {
+    noteType: "discharge",
+    category: "discharge",
+    reasonForVisit: "[Visit reason]",
+    primaryDiagnosis: "[Primary diagnosis]",
+    treatmentSummary: "[Summary of treatments provided]",
+    homeCareInstructions: "[Specific home care instructions]",
+    activityRestrictions: "[Activity restrictions if any]",
+    dietInstructions: "[Diet recommendations]",
+    followUpAppointments: "Recheck in [timeframe]",
+    warningSigns: ["[Warning sign 1]", "[Warning sign 2]"],
+    whenToSeekEmergencyCare: "[When to seek emergency care]",
+    dischargeCondition: "Stable",
+    ownerEducation: "[Owner education provided]"
+  },
+  "Post-Surgical Discharge": {
+    noteType: "discharge",
+    category: "discharge",
+    reasonForVisit: "Post-surgical care",
+    primaryDiagnosis: "[Surgical diagnosis]",
+    proceduresPerformed: ["[Procedure performed]"],
+    treatmentSummary: "[Summary of surgical procedure and post-op care]",
+    homeCareInstructions: "Monitor incision site daily. Keep clean and dry. E-collar to prevent licking.",
+    activityRestrictions: "Strict rest for [duration]. No running, jumping, or strenuous activity.",
+    dietInstructions: "[Diet recommendations]",
+    followUpAppointments: "Suture removal in [date]. Recheck if any concerns.",
+    warningSigns: ["Excessive swelling", "Discharge from incision", "Redness or heat", "Lethargy", "Loss of appetite"],
+    whenToSeekEmergencyCare: "If incision opens, excessive bleeding, or signs of infection",
+    dischargeCondition: "Stable",
+    ownerEducation: "Post-surgical care instructions reviewed. Activity restrictions and medication schedule discussed."
+  },
+  // Progress Note Templates
+  "Daily Progress": {
+    noteType: "progress",
+    category: "progress",
+    visitType: "Daily progress note",
+    reasonForNote: "Routine daily assessment",
+    clinicalStatus: "[Stable/Improving/Deteriorating]",
+    overallProgress: "[Progress description]",
+    ownerReport: "[Owner updates if any]",
+    patientBehavior: "[Patient behavior observations]",
+    appetite: "[Appetite status]",
+    urination: "[Urination status]",
+    defecation: "[Defecation status]",
+    physicalExamFindings: "[Current physical examination findings]",
+    assessment: "[Current assessment]",
+    plan: "[Plan for next 24 hours]",
+    monitoringPlan: "[Monitoring requirements]"
+  },
+  "Post-Operative Progress": {
+    noteType: "progress",
+    category: "progress",
+    visitType: "Post-operative progress note",
+    reasonForNote: "Post-surgical monitoring",
+    clinicalStatus: "[Stable/Improving]",
+    overallProgress: "[Recovery progress]",
+    patientBehavior: "[Patient behavior and comfort level]",
+    appetite: "[Appetite status]",
+    physicalExamFindings: "Incision site: [appearance]. Pain assessment: [level]. Vital signs: [status].",
+    assessment: "Post-operative recovery [progressing normally/complications noted]",
+    plan: "[Post-operative care plan]",
+    monitoringPlan: "Monitor incision site, pain level, and vital signs. [Specific parameters]"
+  },
+  // General Note Templates
+  "General Consultation": {
+    noteType: "general",
+    category: "general",
+    content: "Consultation regarding [topic].\n\nOwner concerns: [concerns]\n\nDiscussion: [discussion points]\n\nRecommendations: [recommendations]\n\nFollow-up: [follow-up plan]"
+  },
+  "Owner Communication": {
+    noteType: "general",
+    category: "general",
+    content: "Owner communication note:\n\nDate: [date]\n\nTopic: [topic]\n\nDiscussion: [discussion]\n\nOwner questions: [questions]\n\nResponse: [response]\n\nAction items: [action items]"
   }
 };
 
 const templateCategories = {
   exams: "Examinations",
   "follow-ups": "Follow-ups", 
-  "common-diagnoses": "Common Diagnoses"
+  "common-diagnoses": "Common Diagnoses",
+  procedures: "Procedures",
+  anesthesia: "Anesthesia",
+  discharge: "Discharge",
+  progress: "Progress",
+  general: "General"
 };
 
-const getTemplatesByCategory = (searchQuery: string = "") => {
-  const filtered = Object.entries(examinationTemplates).filter(([name]) => 
-    name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+const getTemplatesByCategory = (searchQuery: string = "", noteType?: NoteType) => {
+  const filtered = Object.entries(examinationTemplates).filter(([name, template]) => {
+    const matchesSearch = name.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesNoteType = !noteType || template.noteType === noteType;
+    return matchesSearch && matchesNoteType;
+  });
   
   return Object.keys(templateCategories).reduce((acc, category) => {
     acc[category] = filtered.filter(([, template]) => template.category === category);
@@ -306,6 +848,7 @@ export default function NewRecord() {
   const navigate = useNavigate();
   const location = useLocation();
   const [templateSearch, setTemplateSearch] = useState("");
+  const [activeTab, setActiveTab] = useState("soap");
   // Bottom panel state
   const [isBottomOpen, setIsBottomOpen] = useState(false);
   const [bottomTab, setBottomTab] = useState<'history' | 'labs' | 'notes'>('history');
@@ -602,29 +1145,95 @@ export default function NewRecord() {
   }, []);
   
   
-  // Form state for SOAP notes
-  const [formData, setFormData] = useState({
-    subjective: visitData?.chiefComplaint ? `Patient presented for ${visitData.visitReason}. Chief complaint: ${visitData.chiefComplaint}` : "",
-    objective: "",
-    assessment: "",
-    plan: "",
-    // Individual vital fields
-    temperature: "",
-    heartRate: "",
-    respiratoryRate: "",
-    weight: "",
-    bloodPressure: "",
-    bodyConditionScore: "",
-    otherObservations: "",
-    // Assessment fields
-    primaryDiagnosis: "",
-    differentialDiagnoses: [] as string[],
-    clinicalSummary: "[Patient name], a [age]-year-old [species/breed], presents with [symptoms]. Findings suggest [suspected condition], supported by [lab/imaging findings].",
-    prognosis: "",
-    prognosisReason: "",
-    riskFactors: [] as string[],
-    notes: ""
+
+  // Structured and unstructured clinical notes (e.g., procedure, discharge)
+  const [clinicalNotes, setClinicalNotes] = useState<ClinicalNote[]>([]);
+  const [noteDraft, setNoteDraft] = useState<{ type: NoteType; title: string; content: string }>({
+    type: "soap",
+    title: "",
+    content: ""
   });
+  const [isAddNoteOpen, setIsAddNoteOpen] = useState(false);
+  
+  // Collapsed notes state - tracks which notes are collapsed
+  // When a note is expanded, all others are automatically collapsed
+  const [collapsedNotes, setCollapsedNotes] = useState<Set<string>>(new Set());
+  
+  // Toggle note collapse - accordion behavior: only one note expanded at a time
+  const toggleNoteCollapse = (noteId: string) => {
+    setCollapsedNotes(prev => {
+      const isCurrentlyCollapsed = prev.has(noteId);
+      
+      if (isCurrentlyCollapsed) {
+        // Expanding this note - collapse all others
+        const allNoteIds = new Set(clinicalNotes.map(n => n.id));
+        allNoteIds.delete(noteId); // Remove the note being expanded
+        return allNoteIds; // All other notes are now collapsed
+      } else {
+        // Collapsing this note - add it to collapsed set
+        // All notes should be collapsed now
+        return new Set(clinicalNotes.map(n => n.id));
+      }
+    });
+  };
+  
+  // Get note preview text
+  const getNotePreview = (note: ClinicalNote): string => {
+    if (note.type === "soap" && note.soapData) {
+      const parts = [
+        note.soapData.subjective?.trim() && `Subjective: ${note.soapData.subjective.trim().substring(0, 60)}${note.soapData.subjective.length > 60 ? '...' : ''}`,
+        note.soapData.objective?.trim() && `Objective: ${note.soapData.objective.trim().substring(0, 60)}${note.soapData.objective.length > 60 ? '...' : ''}`,
+        note.soapData.assessment?.trim() && `Assessment: ${note.soapData.assessment.trim().substring(0, 60)}${note.soapData.assessment.length > 60 ? '...' : ''}`,
+        note.soapData.plan?.trim() && `Plan: ${note.soapData.plan.trim().substring(0, 60)}${note.soapData.plan.length > 60 ? '...' : ''}`
+      ].filter(Boolean);
+      return parts.length > 0 ? parts.join(" • ") : "SOAP note (no content yet)";
+    }
+    if (note.type === "procedure" && note.procedureData) {
+      const parts = [
+        note.procedureData.procedureType?.trim() && `Procedure: ${note.procedureData.procedureType.trim()}`,
+        note.procedureData.indication?.trim() && `Indication: ${note.procedureData.indication.trim().substring(0, 50)}${note.procedureData.indication.length > 50 ? '...' : ''}`,
+        note.procedureData.findings?.trim() && `Findings: ${note.procedureData.findings.trim().substring(0, 50)}${note.procedureData.findings.length > 50 ? '...' : ''}`
+      ].filter(Boolean);
+      return parts.length > 0 ? parts.join(" • ") : "Procedure note (no content yet)";
+    }
+    if (note.type === "anesthesia" && note.anesthesiaData) {
+      const parts = [
+        note.anesthesiaData.inductionAgent?.trim() && `Induction: ${note.anesthesiaData.inductionAgent.trim()}`,
+        note.anesthesiaData.maintenanceAgent?.trim() && `Maintenance: ${note.anesthesiaData.maintenanceAgent.trim()}`,
+        note.anesthesiaData.asaStatus?.trim() && `ASA: ${note.anesthesiaData.asaStatus.trim()}`,
+        note.anesthesiaData.duration?.trim() && `Duration: ${note.anesthesiaData.duration.trim()}`
+      ].filter(Boolean);
+      return parts.length > 0 ? parts.join(" • ") : "Anesthesia note (no content yet)";
+    }
+    if (note.type === "discharge" && note.dischargeData) {
+      const parts = [
+        note.dischargeData.primaryDiagnosis?.trim() && `Diagnosis: ${note.dischargeData.primaryDiagnosis.trim()}`,
+        note.dischargeData.dischargeCondition?.trim() && `Condition: ${note.dischargeData.dischargeCondition.trim()}`,
+        note.dischargeData.recheckDate?.trim() && `Recheck: ${note.dischargeData.recheckDate.trim()}`,
+        note.dischargeData.medications.length > 0 && `${note.dischargeData.medications.length} medication(s)`
+      ].filter(Boolean);
+      return parts.length > 0 ? parts.join(" • ") : "Discharge note (no content yet)";
+    }
+    if (note.type === "follow-up" && note.followUpData) {
+      const parts = [
+        note.followUpData.visitType?.trim() && `Type: ${note.followUpData.visitType.trim()}`,
+        note.followUpData.improvement?.trim() && `Status: ${note.followUpData.improvement.trim()}`,
+        note.followUpData.diagnosis?.trim() && `Diagnosis: ${note.followUpData.diagnosis.trim()}`,
+        note.followUpData.nextFollowUpDate?.trim() && `Next: ${note.followUpData.nextFollowUpDate.trim()}`
+      ].filter(Boolean);
+      return parts.length > 0 ? parts.join(" • ") : "Follow-up note (no content yet)";
+    }
+    if (note.type === "progress" && note.progressData) {
+      const parts = [
+        note.progressData.visitType?.trim() && `Type: ${note.progressData.visitType.trim()}`,
+        note.progressData.clinicalStatus?.trim() && `Status: ${note.progressData.clinicalStatus.trim()}`,
+        note.progressData.overallProgress?.trim() && `Progress: ${note.progressData.overallProgress.trim()}`,
+        note.progressData.daysSinceAdmission?.trim() && `Day ${note.progressData.daysSinceAdmission.trim()}`
+      ].filter(Boolean);
+      return parts.length > 0 ? parts.join(" • ") : "Progress note (no content yet)";
+    }
+    return note.content?.trim() ? (note.content.trim().substring(0, 150) + (note.content.length > 150 ? '...' : '')) : "Empty note";
+  };
 
   // Medications state
   const [medications, setMedications] = useState<Medication[]>([]);
@@ -697,66 +1306,141 @@ const [vaccination, setVaccination] = useState({
 // Attachments state
 const [attachments, setAttachments] = useState<File[]>([]);
 
-const [newDifferentialDiagnosis, setNewDifferentialDiagnosis] = useState("");
-  const [newRiskFactor, setNewRiskFactor] = useState("");
-
-  // Collapsible state for SOAP sections
-  const [soapCollapsed, setSoapCollapsed] = useState({
-    subjective: false,
-    objective: true,
-    assessment: true,
-    plan: true,
-  });
-  const toggleSoapSection = (key: keyof typeof soapCollapsed) => {
-    setSoapCollapsed(prev => ({ ...prev, [key]: !prev[key] }));
-  };
-
-  const applyTemplate = (templateName: string) => {
+const applyTemplate = (templateName: string, noteId?: string) => {
     const template = examinationTemplates[templateName as keyof typeof examinationTemplates];
-    if (template) {
-      setFormData(prev => ({
-        ...prev,
-        subjective: template.subjective,
-        objective: template.objective,
-        assessment: template.assessment,
-        plan: template.plan
-      }));
+    if (!template) return;
+    
+    const noteType = template.noteType;
+    let targetNoteId = noteId;
+    
+    // If no noteId provided, find or create a note of the template's type
+    if (!targetNoteId) {
+      const mostRecentNote = clinicalNotes
+        .filter(n => n.type === noteType)
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
+      
+      if (mostRecentNote) {
+        targetNoteId = mostRecentNote.id;
+      } else {
+        // Create a new note of the appropriate type
+        handleAddClinicalNoteDirectly(noteType);
+        // Wait for state update and then apply template
+        setTimeout(() => {
+          const latestNote = clinicalNotes
+            .filter(n => n.type === noteType)
+            .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
+          if (latestNote) {
+            applyTemplateToNote(latestNote.id, template);
+          }
+        }, 100);
+        return;
+      }
     }
+    
+    // Apply template to the note
+    applyTemplateToNote(targetNoteId, template);
   };
 
-  const addDifferentialDiagnosis = () => {
-    if (newDifferentialDiagnosis.trim()) {
-      setFormData(prev => ({
-        ...prev,
-        differentialDiagnoses: [...prev.differentialDiagnoses, newDifferentialDiagnosis.trim()]
-      }));
-      setNewDifferentialDiagnosis("");
-    }
-  };
-
-  const removeDifferentialDiagnosis = (index: number) => {
-    setFormData(prev => ({
-      ...prev,
-      differentialDiagnoses: prev.differentialDiagnoses.filter((_, i) => i !== index)
-    }));
-  };
-
-  const toggleRiskFactor = (factor: string) => {
-    setFormData(prev => ({
-      ...prev,
-      riskFactors: prev.riskFactors.includes(factor)
-        ? prev.riskFactors.filter(f => f !== factor)
-        : [...prev.riskFactors, factor]
-    }));
-  };
-
-  const addCustomRiskFactor = () => {
-    if (newRiskFactor.trim()) {
-      setFormData(prev => ({
-        ...prev,
-        riskFactors: [...prev.riskFactors, newRiskFactor.trim()]
-      }));
-      setNewRiskFactor("");
+  const applyTemplateToNote = (noteId: string, template: any) => {
+    const note = clinicalNotes.find(n => n.id === noteId);
+    if (!note) return;
+    
+    const noteType = template.noteType;
+    
+    // Apply template based on note type
+    if (noteType === "soap" && note.soapData) {
+      handleUpdateSoapData(noteId, {
+        ...note.soapData,
+        ...(template.subjective && { subjective: template.subjective }),
+        ...(template.objective && { objective: template.objective }),
+        ...(template.assessment && { assessment: template.assessment }),
+        ...(template.plan && { plan: template.plan })
+      });
+    } else if (noteType === "procedure" && note.procedureData) {
+      handleUpdateProcedureData(noteId, {
+        ...note.procedureData,
+        ...(template.indication && { indication: template.indication }),
+        ...(template.preProcedureDiagnosis && { preProcedureDiagnosis: template.preProcedureDiagnosis }),
+        ...(template.postProcedureDiagnosis && { postProcedureDiagnosis: template.postProcedureDiagnosis }),
+        ...(template.procedureType && { procedureType: template.procedureType }),
+        ...(template.anesthesiaUsed && { anesthesiaUsed: template.anesthesiaUsed }),
+        ...(template.techniques && { techniques: template.techniques }),
+        ...(template.positioning && { positioning: template.positioning }),
+        ...(template.findings && { findings: template.findings }),
+        ...(template.estimatedBloodLoss && { estimatedBloodLoss: template.estimatedBloodLoss }),
+        ...(template.complications && { complications: template.complications }),
+        ...(template.medications && { medications: template.medications }),
+        ...(template.instructions && { instructions: template.instructions }),
+        ...(template.followUp && { followUp: template.followUp }),
+        ...(template.disposition && { disposition: template.disposition })
+      });
+    } else if (noteType === "anesthesia" && note.anesthesiaData) {
+      handleUpdateAnesthesiaData(noteId, {
+        ...note.anesthesiaData,
+        ...(template.asaStatus && { asaStatus: template.asaStatus }),
+        ...(template.preAnesthesiaAssessment && { preAnesthesiaAssessment: template.preAnesthesiaAssessment }),
+        ...(template.riskFactors && { riskFactors: template.riskFactors }),
+        ...(template.premedication && { premedication: template.premedication }),
+        ...(template.inductionAgent && { inductionAgent: template.inductionAgent }),
+        ...(template.inductionDose && { inductionDose: template.inductionDose }),
+        ...(template.maintenanceAgent && { maintenanceAgent: template.maintenanceAgent }),
+        ...(template.maintenanceMethod && { maintenanceMethod: template.maintenanceMethod }),
+        ...(template.airwayType && { airwayType: template.airwayType }),
+        ...(template.airwaySize && { airwaySize: template.airwaySize }),
+        ...(template.monitoringEquipment && { monitoringEquipment: template.monitoringEquipment }),
+        ...(template.complications && { complications: template.complications }),
+        ...(template.recoveryQuality && { recoveryQuality: template.recoveryQuality }),
+        ...(template.recoveryMonitoring && { recoveryMonitoring: template.recoveryMonitoring }),
+        ...(template.postAnesthesiaInstructions && { postAnesthesiaInstructions: template.postAnesthesiaInstructions }),
+        ...(template.monitoringRequirements && { monitoringRequirements: template.monitoringRequirements })
+      });
+    } else if (noteType === "discharge" && note.dischargeData) {
+      handleUpdateDischargeData(noteId, {
+        ...note.dischargeData,
+        ...(template.reasonForVisit && { reasonForVisit: template.reasonForVisit }),
+        ...(template.primaryDiagnosis && { primaryDiagnosis: template.primaryDiagnosis }),
+        ...(template.treatmentSummary && { treatmentSummary: template.treatmentSummary }),
+        ...(template.proceduresPerformed && { proceduresPerformed: template.proceduresPerformed }),
+        ...(template.homeCareInstructions && { homeCareInstructions: template.homeCareInstructions }),
+        ...(template.activityRestrictions && { activityRestrictions: template.activityRestrictions }),
+        ...(template.dietInstructions && { dietInstructions: template.dietInstructions }),
+        ...(template.followUpAppointments && { followUpAppointments: template.followUpAppointments }),
+        ...(template.warningSigns && { warningSigns: template.warningSigns }),
+        ...(template.whenToSeekEmergencyCare && { whenToSeekEmergencyCare: template.whenToSeekEmergencyCare }),
+        ...(template.dischargeCondition && { dischargeCondition: template.dischargeCondition }),
+        ...(template.ownerEducation && { ownerEducation: template.ownerEducation })
+      });
+    } else if (noteType === "follow-up" && note.followUpData) {
+      handleUpdateFollowUpData(noteId, {
+        ...note.followUpData,
+        ...(template.reasonForFollowUp && { reasonForFollowUp: template.reasonForFollowUp }),
+        ...(template.previousDiagnosis && { previousDiagnosis: template.previousDiagnosis }),
+        ...(template.previousTreatment && { previousTreatment: template.previousTreatment }),
+        ...(template.currentStatus && { currentStatus: template.currentStatus }),
+        ...(template.improvement && { improvement: template.improvement }),
+        ...(template.physicalExamFindings && { physicalExamFindings: template.physicalExamFindings }),
+        ...(template.currentAssessment && { currentAssessment: template.currentAssessment }),
+        ...(template.treatmentPlan && { treatmentPlan: template.treatmentPlan })
+      });
+    } else if (noteType === "progress" && note.progressData) {
+      handleUpdateProgressData(noteId, {
+        ...note.progressData,
+        ...(template.visitType && { visitType: template.visitType }),
+        ...(template.reasonForNote && { reasonForNote: template.reasonForNote }),
+        ...(template.clinicalStatus && { clinicalStatus: template.clinicalStatus }),
+        ...(template.overallProgress && { overallProgress: template.overallProgress }),
+        ...(template.ownerReport && { ownerReport: template.ownerReport }),
+        ...(template.patientBehavior && { patientBehavior: template.patientBehavior }),
+        ...(template.appetite && { appetite: template.appetite }),
+        ...(template.urination && { urination: template.urination }),
+        ...(template.defecation && { defecation: template.defecation }),
+        ...(template.physicalExamFindings && { physicalExamFindings: template.physicalExamFindings }),
+        ...(template.assessment && { assessment: template.assessment }),
+        ...(template.plan && { plan: template.plan }),
+        ...(template.monitoringPlan && { monitoringPlan: template.monitoringPlan })
+      });
+    } else if (noteType === "general") {
+      handleUpdateClinicalNote(noteId, template.content || "");
     }
   };
 
@@ -851,11 +1535,632 @@ const [newDifferentialDiagnosis, setNewDifferentialDiagnosis] = useState("");
 
   const handleSaveRecord = () => {
     // Here you would typically save the record to your backend
-    console.log("Saving record:", { formData, medications, vaccination, attachments });
+    console.log("Saving record:", { medications, vaccination, attachments, clinicalNotes });
     navigate("/records");
   };
 
-  const templatesByCategory = getTemplatesByCategory(templateSearch);
+  const handleAddClinicalNote = () => {
+    if (!noteDraft.content.trim()) return;
+    const typeLabel = NOTE_TYPES.find((t) => t.value === noteDraft.type)?.label ?? "Note";
+    const title = noteDraft.title.trim() || `${typeLabel} Note`;
+    const newNote: ClinicalNote = {
+      id: `note-${Date.now()}`,
+      type: noteDraft.type,
+      title,
+      content: noteDraft.content.trim(),
+      createdAt: new Date().toISOString(),
+      author: selectedVeterinarian || "Unassigned"
+    };
+    setClinicalNotes((prev) => {
+      const updated = [...prev, newNote];
+      // Auto-expand the new note and collapse all others
+      setCollapsedNotes(new Set(prev.map(n => n.id)));
+      return updated;
+    });
+    setNoteDraft((prev) => ({ ...prev, title: "", content: "" }));
+    setIsAddNoteOpen(false);
+  };
+
+  const handleAddClinicalNoteDirectly = (type: NoteType) => {
+    const typeLabel = NOTE_TYPES.find((t) => t.value === type)?.label ?? "Note";
+    const now = new Date();
+    const newNote: ClinicalNote = {
+      id: `note-${Date.now()}`,
+      type,
+      title: `${typeLabel} Note`,
+      content: "",
+      createdAt: now.toISOString(),
+      author: selectedVeterinarian || "Unassigned",
+      // Initialize SOAP data structure if it's a SOAP note
+      ...(type === "soap" ? {
+        soapData: {
+          subjective: visitData?.chiefComplaint ? `Patient presented for ${visitData.visitReason}. Chief complaint: ${visitData.chiefComplaint}` : "",
+          objective: "",
+          assessment: "",
+          plan: "",
+          temperature: "",
+          heartRate: "",
+          respiratoryRate: "",
+          weight: "",
+          bloodPressure: "",
+          bodyConditionScore: "",
+          otherObservations: "",
+          primaryDiagnosis: "",
+          differentialDiagnoses: [],
+          clinicalSummary: "[Patient name], a [age]-year-old [species/breed], presents with [symptoms]. Findings suggest [suspected condition], supported by [lab/imaging findings].",
+          prognosis: "",
+          prognosisReason: "",
+          riskFactors: [],
+          notes: ""
+        }
+      } : {}),
+      // Initialize Procedure data structure if it's a procedure note
+      ...(type === "procedure" ? {
+        procedureData: {
+          surgeonName: selectedVeterinarian || "",
+          assistants: [],
+          procedureDate: now.toISOString().split('T')[0],
+          procedureTime: now.toTimeString().slice(0, 5),
+          noteWrittenDate: now.toISOString().split('T')[0],
+          noteWrittenTime: now.toTimeString().slice(0, 5),
+          indication: "",
+          preProcedureDiagnosis: "",
+          postProcedureDiagnosis: "",
+          procedureType: "",
+          anesthesiaUsed: "",
+          techniques: "",
+          positioning: "",
+          findings: "",
+          estimatedBloodLoss: "",
+          materials: [],
+          implants: [],
+          grafts: [],
+          instruments: [],
+          specimens: [],
+          complications: "",
+          informedConsent: "",
+          risksDiscussed: false,
+          benefitsDiscussed: false,
+          alternativesDiscussed: false,
+          medications: "",
+          instructions: "",
+          followUp: "",
+          disposition: ""
+        }
+      } : {}),
+      // Initialize Anesthesia data structure if it's an anesthesia note
+      ...(type === "anesthesia" ? {
+        anesthesiaData: {
+          anesthetistName: selectedVeterinarian || "",
+          supervisingVeterinarian: "",
+          anesthesiaDate: now.toISOString().split('T')[0],
+          anesthesiaStartTime: now.toTimeString().slice(0, 5),
+          anesthesiaEndTime: "",
+          duration: "",
+          noteWrittenDate: now.toISOString().split('T')[0],
+          noteWrittenTime: now.toTimeString().slice(0, 5),
+          asaStatus: "",
+          preAnesthesiaAssessment: "",
+          riskFactors: [],
+          allergies: [],
+          currentMedications: [],
+          premedication: "",
+          inductionAgent: "",
+          inductionDose: "",
+          maintenanceAgent: "",
+          maintenanceMethod: "",
+          reversalAgent: "",
+          reversalDose: "",
+          airwayType: "",
+          airwaySize: "",
+          intubationDifficulty: "",
+          monitoringEquipment: [],
+          baselineHeartRate: "",
+          baselineRespiratoryRate: "",
+          baselineBloodPressure: "",
+          baselineTemperature: "",
+          baselineSpO2: "",
+          intraopHeartRate: "",
+          intraopRespiratoryRate: "",
+          intraopBloodPressure: "",
+          intraopTemperature: "",
+          intraopSpO2: "",
+          fluidsAdministered: "",
+          fluidType: "",
+          fluidRate: "",
+          complications: "",
+          adverseEvents: [],
+          recoveryTime: "",
+          recoveryQuality: "",
+          recoveryMonitoring: "",
+          extubationTime: "",
+          postAnesthesiaVitalSigns: "",
+          postAnesthesiaInstructions: "",
+          monitoringRequirements: "",
+          followUp: "",
+          additionalNotes: ""
+        }
+      } : {}),
+      // Initialize Discharge data structure if it's a discharge note
+      ...(type === "discharge" ? {
+        dischargeData: {
+          dischargingVeterinarian: selectedVeterinarian || "",
+          patientName: mockPatientData?.name || "",
+          ownerName: mockPatientData?.owner?.name || "",
+          dischargeDate: now.toISOString().split('T')[0],
+          dischargeTime: now.toTimeString().slice(0, 5),
+          admissionDate: "",
+          admissionTime: "",
+          lengthOfStay: "",
+          reasonForVisit: visitData?.visitReason || "",
+          chiefComplaint: visitData?.chiefComplaint || "",
+          primaryDiagnosis: "",
+          secondaryDiagnoses: [],
+          treatmentSummary: "",
+          proceduresPerformed: [],
+          medications: [],
+          homeCareInstructions: "",
+          activityRestrictions: "",
+          dietInstructions: "",
+          followUpAppointments: "",
+          followUpInstructions: "",
+          recheckDate: "",
+          warningSigns: [],
+          whenToSeekEmergencyCare: "",
+          dischargeCondition: "",
+          dischargeStatus: "",
+          ownerEducation: "",
+          questionsAnswered: false,
+          instructionsUnderstood: false,
+          additionalNotes: ""
+        }
+      } : {}),
+      // Initialize Follow-up data structure if it's a follow-up note
+      ...(type === "follow-up" ? {
+        followUpData: {
+          veterinarianName: selectedVeterinarian || "",
+          patientName: mockPatientData?.name || "",
+          ownerName: mockPatientData?.owner?.name || "",
+          followUpDate: now.toISOString().split('T')[0],
+          followUpTime: now.toTimeString().slice(0, 5),
+          originalVisitDate: "",
+          daysSinceLastVisit: "",
+          visitType: "",
+          reasonForFollowUp: "",
+          chiefComplaint: visitData?.chiefComplaint || "",
+          previousDiagnosis: "",
+          previousTreatment: "",
+          currentStatus: "",
+          improvement: "",
+          currentSymptoms: [],
+          physicalExamFindings: "",
+          vitalSigns: {
+            temperature: "",
+            heartRate: "",
+            respiratoryRate: "",
+            weight: "",
+            bodyConditionScore: ""
+          },
+          currentAssessment: "",
+          diagnosis: "",
+          differentialDiagnoses: [],
+          treatmentPlan: "",
+          medications: [],
+          recommendations: "",
+          activityRestrictions: "",
+          dietRecommendations: "",
+          nextFollowUpDate: "",
+          nextFollowUpInstructions: "",
+          followUpInterval: "",
+          ownerConcerns: "",
+          ownerQuestions: "",
+          ownerEducation: "",
+          additionalNotes: ""
+        }
+      } : {}),
+      // Initialize Progress data structure if it's a progress note
+      ...(type === "progress" ? {
+        progressData: {
+          veterinarianName: selectedVeterinarian || "",
+          patientName: mockPatientData?.name || "",
+          ownerName: mockPatientData?.owner?.name || "",
+          progressDate: now.toISOString().split('T')[0],
+          progressTime: now.toTimeString().slice(0, 5),
+          admissionDate: "",
+          daysSinceAdmission: "",
+          visitType: "",
+          reasonForNote: "",
+          clinicalStatus: "",
+          overallProgress: "",
+          ownerReport: "",
+          patientBehavior: "",
+          appetite: "",
+          urination: "",
+          defecation: "",
+          physicalExamFindings: "",
+          vitalSigns: {
+            temperature: "",
+            heartRate: "",
+            respiratoryRate: "",
+            bloodPressure: "",
+            weight: "",
+            bodyConditionScore: ""
+          },
+          diagnosticResults: "",
+          labResults: "",
+          imagingResults: "",
+          assessment: "",
+          currentDiagnosis: "",
+          progressNotes: "",
+          complications: [],
+          plan: "",
+          medications: [],
+          treatments: [],
+          procedures: [],
+          monitoringPlan: "",
+          parametersToWatch: [],
+          dischargeReadiness: "",
+          dischargeCriteria: [],
+          estimatedDischargeDate: "",
+          ownerCommunication: "",
+          ownerUpdates: "",
+          additionalNotes: ""
+        }
+      } : {})
+    };
+    setClinicalNotes((prev) => {
+      const updated = [...prev, newNote];
+      // Auto-expand the new note and collapse all others
+      setCollapsedNotes(new Set(prev.map(n => n.id)));
+      return updated;
+    });
+  };
+
+  const handleUpdateClinicalNote = (id: string, content: string) => {
+    setClinicalNotes((prev) => prev.map((note) => (note.id === id ? { ...note, content } : note)));
+  };
+
+  const handleUpdateClinicalNoteTitle = (id: string, title: string) => {
+    setClinicalNotes((prev) => prev.map((note) => (note.id === id ? { ...note, title } : note)));
+  };
+
+  const handleUpdateSoapData = (id: string, soapData: SoapData) => {
+    setClinicalNotes((prev) => prev.map((note) => (note.id === id ? { ...note, soapData } : note)));
+  };
+
+  const handleUpdateSoapField = (id: string, field: keyof SoapData, value: string | string[]) => {
+    setClinicalNotes((prev) => prev.map((note) => {
+      if (note.id === id && note.soapData) {
+        return { ...note, soapData: { ...note.soapData, [field]: value } };
+      }
+      return note;
+    }));
+  };
+
+  const handleAddDifferentialDiagnosisToNote = (noteId: string, diagnosis: string) => {
+    const note = clinicalNotes.find(n => n.id === noteId);
+    if (note && note.soapData) {
+      const updatedDiagnoses = [...note.soapData.differentialDiagnoses, diagnosis.trim()];
+      handleUpdateSoapField(noteId, "differentialDiagnoses", updatedDiagnoses);
+    }
+  };
+
+  const handleRemoveDifferentialDiagnosisFromNote = (noteId: string, index: number) => {
+    const note = clinicalNotes.find(n => n.id === noteId);
+    if (note && note.soapData) {
+      const updatedDiagnoses = note.soapData.differentialDiagnoses.filter((_, i) => i !== index);
+      handleUpdateSoapField(noteId, "differentialDiagnoses", updatedDiagnoses);
+    }
+  };
+
+  const handleToggleRiskFactorInNote = (noteId: string, factor: string) => {
+    const note = clinicalNotes.find(n => n.id === noteId);
+    if (note && note.soapData) {
+      const updatedRiskFactors = note.soapData.riskFactors.includes(factor)
+        ? note.soapData.riskFactors.filter(f => f !== factor)
+        : [...note.soapData.riskFactors, factor];
+      handleUpdateSoapField(noteId, "riskFactors", updatedRiskFactors);
+    }
+  };
+
+  const handleAddCustomRiskFactorToNote = (noteId: string, factor: string) => {
+    const note = clinicalNotes.find(n => n.id === noteId);
+    if (note && note.soapData) {
+      const updatedRiskFactors = [...note.soapData.riskFactors, factor.trim()];
+      handleUpdateSoapField(noteId, "riskFactors", updatedRiskFactors);
+    }
+  };
+
+  const handleUpdateProcedureData = (id: string, procedureData: ProcedureData) => {
+    setClinicalNotes((prev) => prev.map((note) => (note.id === id ? { ...note, procedureData } : note)));
+  };
+
+  const handleUpdateProcedureField = (id: string, field: keyof ProcedureData, value: string | string[] | boolean) => {
+    setClinicalNotes((prev) => prev.map((note) => {
+      if (note.id === id && note.procedureData) {
+        return { ...note, procedureData: { ...note.procedureData, [field]: value } };
+      }
+      return note;
+    }));
+  };
+
+  const handleAddAssistantToNote = (noteId: string, assistant: string) => {
+    const note = clinicalNotes.find(n => n.id === noteId);
+    if (note && note.procedureData) {
+      const updatedAssistants = [...note.procedureData.assistants, assistant.trim()];
+      handleUpdateProcedureField(noteId, "assistants", updatedAssistants);
+    }
+  };
+
+  const handleRemoveAssistantFromNote = (noteId: string, index: number) => {
+    const note = clinicalNotes.find(n => n.id === noteId);
+    if (note && note.procedureData) {
+      const updatedAssistants = note.procedureData.assistants.filter((_, i) => i !== index);
+      handleUpdateProcedureField(noteId, "assistants", updatedAssistants);
+    }
+  };
+
+  const handleAddItemToProcedureList = (noteId: string, listField: "materials" | "implants" | "grafts" | "instruments" | "specimens", item: string) => {
+    const note = clinicalNotes.find(n => n.id === noteId);
+    if (note && note.procedureData) {
+      const currentList = note.procedureData[listField];
+      const updatedList = [...currentList, item.trim()];
+      handleUpdateProcedureField(noteId, listField, updatedList);
+    }
+  };
+
+  const handleRemoveItemFromProcedureList = (noteId: string, listField: "materials" | "implants" | "grafts" | "instruments" | "specimens", index: number) => {
+    const note = clinicalNotes.find(n => n.id === noteId);
+    if (note && note.procedureData) {
+      const currentList = note.procedureData[listField];
+      const updatedList = currentList.filter((_, i) => i !== index);
+      handleUpdateProcedureField(noteId, listField, updatedList);
+    }
+  };
+
+  const handleUpdateAnesthesiaData = (id: string, anesthesiaData: AnesthesiaData) => {
+    setClinicalNotes((prev) => prev.map((note) => (note.id === id ? { ...note, anesthesiaData } : note)));
+  };
+
+  const handleUpdateAnesthesiaField = (id: string, field: keyof AnesthesiaData, value: string | string[] | boolean) => {
+    setClinicalNotes((prev) => prev.map((note) => {
+      if (note.id === id && note.anesthesiaData) {
+        return { ...note, anesthesiaData: { ...note.anesthesiaData, [field]: value } };
+      }
+      return note;
+    }));
+  };
+
+  const handleAddItemToAnesthesiaList = (noteId: string, listField: "riskFactors" | "allergies" | "currentMedications" | "monitoringEquipment" | "adverseEvents", item: string) => {
+    const note = clinicalNotes.find(n => n.id === noteId);
+    if (note && note.anesthesiaData) {
+      const currentList = note.anesthesiaData[listField];
+      const updatedList = [...currentList, item.trim()];
+      handleUpdateAnesthesiaField(noteId, listField, updatedList);
+    }
+  };
+
+  const handleRemoveItemFromAnesthesiaList = (noteId: string, listField: "riskFactors" | "allergies" | "currentMedications" | "monitoringEquipment" | "adverseEvents", index: number) => {
+    const note = clinicalNotes.find(n => n.id === noteId);
+    if (note && note.anesthesiaData) {
+      const currentList = note.anesthesiaData[listField];
+      const updatedList = currentList.filter((_, i) => i !== index);
+      handleUpdateAnesthesiaField(noteId, listField, updatedList);
+    }
+  };
+
+  const handleUpdateDischargeData = (id: string, dischargeData: DischargeData) => {
+    setClinicalNotes((prev) => prev.map((note) => (note.id === id ? { ...note, dischargeData } : note)));
+  };
+
+  const handleUpdateDischargeField = (id: string, field: keyof DischargeData, value: string | string[] | boolean | Array<{name: string; dosage: string; frequency: string; duration: string; instructions: string}>) => {
+    setClinicalNotes((prev) => prev.map((note) => {
+      if (note.id === id && note.dischargeData) {
+        return { ...note, dischargeData: { ...note.dischargeData, [field]: value } };
+      }
+      return note;
+    }));
+  };
+
+  const handleAddItemToDischargeList = (noteId: string, listField: "secondaryDiagnoses" | "proceduresPerformed" | "warningSigns", item: string) => {
+    const note = clinicalNotes.find(n => n.id === noteId);
+    if (note && note.dischargeData) {
+      const currentList = note.dischargeData[listField];
+      const updatedList = [...currentList, item.trim()];
+      handleUpdateDischargeField(noteId, listField, updatedList);
+    }
+  };
+
+  const handleRemoveItemFromDischargeList = (noteId: string, listField: "secondaryDiagnoses" | "proceduresPerformed" | "warningSigns", index: number) => {
+    const note = clinicalNotes.find(n => n.id === noteId);
+    if (note && note.dischargeData) {
+      const currentList = note.dischargeData[listField];
+      const updatedList = currentList.filter((_, i) => i !== index);
+      handleUpdateDischargeField(noteId, listField, updatedList);
+    }
+  };
+
+  const handleAddDischargeMedication = (noteId: string, medication: {name: string; dosage: string; frequency: string; duration: string; instructions: string}) => {
+    const note = clinicalNotes.find(n => n.id === noteId);
+    if (note && note.dischargeData) {
+      const updatedMedications = [...note.dischargeData.medications, medication];
+      handleUpdateDischargeField(noteId, "medications", updatedMedications);
+    }
+  };
+
+  const handleRemoveDischargeMedication = (noteId: string, index: number) => {
+    const note = clinicalNotes.find(n => n.id === noteId);
+    if (note && note.dischargeData) {
+      const updatedMedications = note.dischargeData.medications.filter((_, i) => i !== index);
+      handleUpdateDischargeField(noteId, "medications", updatedMedications);
+    }
+  };
+
+  const handleUpdateDischargeMedication = (noteId: string, index: number, field: keyof {name: string; dosage: string; frequency: string; duration: string; instructions: string}, value: string) => {
+    const note = clinicalNotes.find(n => n.id === noteId);
+    if (note && note.dischargeData) {
+      const updatedMedications = note.dischargeData.medications.map((med, i) => 
+        i === index ? { ...med, [field]: value } : med
+      );
+      handleUpdateDischargeField(noteId, "medications", updatedMedications);
+    }
+  };
+
+  const handleUpdateFollowUpData = (id: string, followUpData: FollowUpData) => {
+    setClinicalNotes((prev) => prev.map((note) => (note.id === id ? { ...note, followUpData } : note)));
+  };
+
+  const handleUpdateFollowUpField = (id: string, field: keyof FollowUpData, value: string | string[] | Array<{name: string; dosage: string; frequency: string; duration: string; instructions: string}> | {temperature: string; heartRate: string; respiratoryRate: string; weight: string; bodyConditionScore: string}) => {
+    setClinicalNotes((prev) => prev.map((note) => {
+      if (note.id === id && note.followUpData) {
+        return { ...note, followUpData: { ...note.followUpData, [field]: value } };
+      }
+      return note;
+    }));
+  };
+
+  const handleUpdateFollowUpVitalSign = (id: string, vitalSign: keyof {temperature: string; heartRate: string; respiratoryRate: string; weight: string; bodyConditionScore: string}, value: string) => {
+    setClinicalNotes((prev) => prev.map((note) => {
+      if (note.id === id && note.followUpData) {
+        return { 
+          ...note, 
+          followUpData: { 
+            ...note.followUpData, 
+            vitalSigns: { 
+              ...note.followUpData.vitalSigns, 
+              [vitalSign]: value 
+            } 
+          } 
+        };
+      }
+      return note;
+    }));
+  };
+
+  const handleAddItemToFollowUpList = (noteId: string, listField: "currentSymptoms" | "differentialDiagnoses", item: string) => {
+    const note = clinicalNotes.find(n => n.id === noteId);
+    if (note && note.followUpData) {
+      const currentList = note.followUpData[listField];
+      const updatedList = [...currentList, item.trim()];
+      handleUpdateFollowUpField(noteId, listField, updatedList);
+    }
+  };
+
+  const handleRemoveItemFromFollowUpList = (noteId: string, listField: "currentSymptoms" | "differentialDiagnoses", index: number) => {
+    const note = clinicalNotes.find(n => n.id === noteId);
+    if (note && note.followUpData) {
+      const currentList = note.followUpData[listField];
+      const updatedList = currentList.filter((_, i) => i !== index);
+      handleUpdateFollowUpField(noteId, listField, updatedList);
+    }
+  };
+
+  const handleAddFollowUpMedication = (noteId: string, medication: {name: string; dosage: string; frequency: string; duration: string; instructions: string}) => {
+    const note = clinicalNotes.find(n => n.id === noteId);
+    if (note && note.followUpData) {
+      const updatedMedications = [...note.followUpData.medications, medication];
+      handleUpdateFollowUpField(noteId, "medications", updatedMedications);
+    }
+  };
+
+  const handleRemoveFollowUpMedication = (noteId: string, index: number) => {
+    const note = clinicalNotes.find(n => n.id === noteId);
+    if (note && note.followUpData) {
+      const updatedMedications = note.followUpData.medications.filter((_, i) => i !== index);
+      handleUpdateFollowUpField(noteId, "medications", updatedMedications);
+    }
+  };
+
+  const handleUpdateFollowUpMedication = (noteId: string, index: number, field: keyof {name: string; dosage: string; frequency: string; duration: string; instructions: string}, value: string) => {
+    const note = clinicalNotes.find(n => n.id === noteId);
+    if (note && note.followUpData) {
+      const updatedMedications = note.followUpData.medications.map((med, i) => 
+        i === index ? { ...med, [field]: value } : med
+      );
+      handleUpdateFollowUpField(noteId, "medications", updatedMedications);
+    }
+  };
+
+  const handleUpdateProgressData = (id: string, progressData: ProgressData) => {
+    setClinicalNotes((prev) => prev.map((note) => (note.id === id ? { ...note, progressData } : note)));
+  };
+
+  const handleUpdateProgressField = (id: string, field: keyof ProgressData, value: string | string[] | Array<{name: string; dosage: string; frequency: string; duration: string; instructions: string; changes: string}> | {temperature: string; heartRate: string; respiratoryRate: string; bloodPressure: string; weight: string; bodyConditionScore: string}) => {
+    setClinicalNotes((prev) => prev.map((note) => {
+      if (note.id === id && note.progressData) {
+        return { ...note, progressData: { ...note.progressData, [field]: value } };
+      }
+      return note;
+    }));
+  };
+
+  const handleUpdateProgressVitalSign = (id: string, vitalSign: keyof {temperature: string; heartRate: string; respiratoryRate: string; bloodPressure: string; weight: string; bodyConditionScore: string}, value: string) => {
+    setClinicalNotes((prev) => prev.map((note) => {
+      if (note.id === id && note.progressData) {
+        return { 
+          ...note, 
+          progressData: { 
+            ...note.progressData, 
+            vitalSigns: { 
+              ...note.progressData.vitalSigns, 
+              [vitalSign]: value 
+            } 
+          } 
+        };
+      }
+      return note;
+    }));
+  };
+
+  const handleAddItemToProgressList = (noteId: string, listField: "complications" | "treatments" | "procedures" | "parametersToWatch" | "dischargeCriteria", item: string) => {
+    const note = clinicalNotes.find(n => n.id === noteId);
+    if (note && note.progressData) {
+      const currentList = note.progressData[listField];
+      const updatedList = [...currentList, item.trim()];
+      handleUpdateProgressField(noteId, listField, updatedList);
+    }
+  };
+
+  const handleRemoveItemFromProgressList = (noteId: string, listField: "complications" | "treatments" | "procedures" | "parametersToWatch" | "dischargeCriteria", index: number) => {
+    const note = clinicalNotes.find(n => n.id === noteId);
+    if (note && note.progressData) {
+      const currentList = note.progressData[listField];
+      const updatedList = currentList.filter((_, i) => i !== index);
+      handleUpdateProgressField(noteId, listField, updatedList);
+    }
+  };
+
+  const handleAddProgressMedication = (noteId: string, medication: {name: string; dosage: string; frequency: string; duration: string; instructions: string; changes: string}) => {
+    const note = clinicalNotes.find(n => n.id === noteId);
+    if (note && note.progressData) {
+      const updatedMedications = [...note.progressData.medications, medication];
+      handleUpdateProgressField(noteId, "medications", updatedMedications);
+    }
+  };
+
+  const handleRemoveProgressMedication = (noteId: string, index: number) => {
+    const note = clinicalNotes.find(n => n.id === noteId);
+    if (note && note.progressData) {
+      const updatedMedications = note.progressData.medications.filter((_, i) => i !== index);
+      handleUpdateProgressField(noteId, "medications", updatedMedications);
+    }
+  };
+
+  const handleUpdateProgressMedication = (noteId: string, index: number, field: keyof {name: string; dosage: string; frequency: string; duration: string; instructions: string; changes: string}, value: string) => {
+    const note = clinicalNotes.find(n => n.id === noteId);
+    if (note && note.progressData) {
+      const updatedMedications = note.progressData.medications.map((med, i) => 
+        i === index ? { ...med, [field]: value } : med
+      );
+      handleUpdateProgressField(noteId, "medications", updatedMedications);
+    }
+  };
+
+  const handleDeleteClinicalNote = (id: string) => {
+    setClinicalNotes((prev) => prev.filter((note) => note.id !== id));
+  };
+
+  const templatesByCategory = getTemplatesByCategory(templateSearch); // Show all templates, not filtered by note type
 
   return (
     <div className="relative min-h-screen">
@@ -893,7 +2198,10 @@ const [newDifferentialDiagnosis, setNewDifferentialDiagnosis] = useState("");
                 petName: mockPatientData.name,
                 species: mockPatientData.species + " (" + mockPatientData.breed + ")",
                 veterinarian: selectedVeterinarian,
-                diagnosis: formData.primaryDiagnosis || formData.assessment
+                diagnosis: (() => {
+                  const soapNote = clinicalNotes.find(n => n.type === "soap" && n.soapData);
+                  return soapNote?.soapData?.primaryDiagnosis || soapNote?.soapData?.assessment || "";
+                })()
               }}
             >
               <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
@@ -905,7 +2213,10 @@ const [newDifferentialDiagnosis, setNewDifferentialDiagnosis] = useState("");
               prefillData={{
                 patientId: selectedPatient,
                 veterinarian: selectedVeterinarian,
-                diagnosis: formData.primaryDiagnosis || formData.assessment
+                diagnosis: (() => {
+                  const soapNote = clinicalNotes.find(n => n.type === "soap" && n.soapData);
+                  return soapNote?.soapData?.primaryDiagnosis || soapNote?.soapData?.assessment || "";
+                })()
               }}
               onLabOrderCreated={handleLabOrderCreated}
             >
@@ -981,7 +2292,7 @@ const [newDifferentialDiagnosis, setNewDifferentialDiagnosis] = useState("");
       </Card>
 
       {/* Global tabs menu bar spanning full width */}
-      <Tabs defaultValue="soap" className="w-full">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <div className="relative">
           {/* Left Arrow */}
           {showLeftArrow && (
@@ -1016,7 +2327,7 @@ const [newDifferentialDiagnosis, setNewDifferentialDiagnosis] = useState("");
                 value="soap"
                 className="h-11 px-4 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-foreground hover:bg-muted/50"
               >
-                SOAP Notes
+                Notes
               </TabsTrigger>
               <TabsTrigger 
                 value="treatment"
@@ -1057,7 +2368,7 @@ const [newDifferentialDiagnosis, setNewDifferentialDiagnosis] = useState("");
         {/* Left Panel - Quick Templates and Medical History */}
         <ResizablePanel defaultSize={35} minSize={25}>
           <div className="h-full p-6 space-y-6 overflow-y-auto">
-            {/* Quick Templates Section - visible only on SOAP Notes */}
+            {/* Quick Templates Section - visible on SOAP Notes tab where clinical notes are managed */}
             <TabsContent value="soap" className="space-y-6">
             <Card>
               <CardHeader>
@@ -1066,7 +2377,7 @@ const [newDifferentialDiagnosis, setNewDifferentialDiagnosis] = useState("");
                   Quick Templates
                 </CardTitle>
                 <CardDescription>
-                  Select a template to pre-fill common examination types
+                  Select a template to pre-fill notes. Templates work for SOAP, Procedure, Anesthesia, Discharge, Follow-up, Progress, and General notes.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -1088,17 +2399,25 @@ const [newDifferentialDiagnosis, setNewDifferentialDiagnosis] = useState("");
                           {templateCategories[category as keyof typeof templateCategories]}
                         </h4>
                         <div className="space-y-1">
-                          {templates.map(([templateName]) => (
-                            <Button
-                              key={templateName}
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => applyTemplate(templateName)}
-                              className="w-full justify-start text-left h-auto p-2 whitespace-normal"
-                            >
-                              {templateName}
-                            </Button>
-                          ))}
+                          {templates.map(([templateName, template]) => {
+                            const noteTypeLabel = NOTE_TYPES.find(t => t.value === template.noteType)?.label || template.noteType;
+                            return (
+                              <Button
+                                key={templateName}
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => applyTemplate(templateName)}
+                                className="w-full justify-start text-left h-auto p-2 whitespace-normal"
+                              >
+                                <div className="flex items-center justify-between w-full gap-2">
+                                  <span className="flex-1 text-left">{templateName}</span>
+                                  <Badge variant="outline" className="text-xs flex-shrink-0">
+                                    {noteTypeLabel}
+                                  </Badge>
+                                </div>
+                              </Button>
+                            );
+                          })}
                         </div>
                       </div>
                     )
@@ -1143,473 +2462,3579 @@ const [newDifferentialDiagnosis, setNewDifferentialDiagnosis] = useState("");
 
         <ResizableHandle withHandle />
 
-        {/* Right Panel - SOAP Notes */}
+        {/* Right Panel - Notes */}
         <ResizablePanel defaultSize={65} minSize={40}>
           <div ref={rightPanelRef} className="h-full p-6 overflow-y-auto">
             {/* SOAP Notes Tab */}
             <TabsContent value="soap" className="space-y-6">
-              {/* Subjective Section */}
+              {/* Additional Clinical Notes (dynamic) */}
               <Card>
-                <CardHeader className="cursor-pointer" onClick={() => toggleSoapSection('subjective')}>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <CardTitle>Subjective</CardTitle>
-                      <CardDescription>Chief complaint and owner's observations</CardDescription>
-                    </div>
-                    <ChevronDown className={cn("h-5 w-5 transition-transform", soapCollapsed.subjective ? "-rotate-90" : "rotate-0")} />
+                <CardHeader className="flex flex-row items-center justify-between space-y-0">
+                  <div className="space-y-1">
+                    <CardTitle className="flex items-center gap-2">
+                      <FileText className="h-5 w-5" />
+                      Clinical Notes
+                    </CardTitle>
+                    <CardDescription>
+                      Add SOAP notes, procedure notes, anesthesia records, discharge instructions, or other clinical notes.
+                    </CardDescription>
                   </div>
-                </CardHeader>
-                {!soapCollapsed.subjective && (
-                <CardContent className="space-y-6">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="patient">Patient</Label>
-                      <Select value={selectedPatient} onValueChange={setSelectedPatient}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select patient" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="1">Max (Golden Retriever) - Sarah Johnson</SelectItem>
-                          <SelectItem value="2">Whiskers (Persian Cat) - Mike Wilson</SelectItem>
-                          <SelectItem value="3">Bella (Labrador) - Emily Davis</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <Label htmlFor="veterinarian">Veterinarian</Label>
-                      <Select value={selectedVeterinarian} onValueChange={setSelectedVeterinarian}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select veterinarian" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Dr. Smith">Dr. Smith</SelectItem>
-                          <SelectItem value="Dr. Brown">Dr. Brown</SelectItem>
-                          <SelectItem value="Dr. Johnson">Dr. Johnson</SelectItem>
-                          <SelectItem value="Dr. Wilson">Dr. Wilson</SelectItem>
-                          <SelectItem value="Dr. Emergency">Dr. Emergency</SelectItem>
-                          <SelectItem value="Dr. Davis">Dr. Davis</SelectItem>
-                          <SelectItem value="Dr. Thompson">Dr. Thompson</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-
-                  <div className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="subjective">Subjective (Chief Complaint)</Label>
-                      <div className="space-y-2">
-                        <div className="flex flex-wrap gap-2">
-                          {[
-                            "Limping/Lameness",
-                            "Vomiting",
-                            "Diarrhea", 
-                            "Not eating",
-                            "Lethargy",
-                            "Coughing",
-                            "Sneezing",
-                            "Itching/Scratching",
-                            "Weight loss",
-                            "Seizures",
-                            "Difficulty breathing",
-                            "Excessive drinking/urination",
-                            "Eye discharge",
-                            "Ear infection",
-                            "Annual wellness exam",
-                            "Vaccination",
-                            "Dental cleaning",
-                            "Spay/Neuter consult"
-                          ].map((preset) => (
-                            <Button
-                              key={preset}
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              onClick={() => {
-                                const currentValue = formData.subjective;
-                                const newValue = currentValue ? `${currentValue}, ${preset}` : preset;
-                                setFormData(prev => ({ ...prev, subjective: newValue }));
-                              }}
-                              className="text-xs h-7"
-                            >
-                              {preset}
-                            </Button>
-                          ))}
-                        </div>
-                        <Textarea 
-                          id="subjective"
-                          value={formData.subjective}
-                          onChange={(e) => setFormData(prev => ({ ...prev, subjective: e.target.value }))}
-                          placeholder="What is the owner's concern? What symptoms have they observed?"
-                          className="min-h-[80px]"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-                )}
-              </Card>
-
-              {/* Objective Section - Vitals */}
-              <Card>
-                <CardHeader className="cursor-pointer" onClick={() => toggleSoapSection('objective')}>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Stethoscope className="h-5 w-5" />
-                      <CardTitle>Objective - Vital Signs & Physical Parameters</CardTitle>
-                    </div>
-                    <ChevronDown className={cn("h-5 w-5 transition-transform", soapCollapsed.objective ? "-rotate-90" : "rotate-0")} />
-                  </div>
-                  <CardDescription>Record detailed vital signs and measurements</CardDescription>
-                </CardHeader>
-                {!soapCollapsed.objective && (
-                <CardContent>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {/* Vital Signs */}
-                    <div className="space-y-4">
-                      <h4 className="text-sm font-medium text-muted-foreground">Vital Signs</h4>
-                      
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="temperature">Temperature (°F)</Label>
-                          <Input
-                            id="temperature"
-                            value={formData.temperature}
-                            onChange={(e) => setFormData(prev => ({ ...prev, temperature: e.target.value }))}
-                            placeholder="101.5"
-                          />
-                        </div>
-                        
-                        <div className="space-y-2">
-                          <Label htmlFor="heartRate">Heart Rate (bpm)</Label>
-                          <Input
-                            id="heartRate"
-                            value={formData.heartRate}
-                            onChange={(e) => setFormData(prev => ({ ...prev, heartRate: e.target.value }))}
-                            placeholder="120"
-                          />
-                        </div>
-                        
-                        <div className="space-y-2">
-                          <Label htmlFor="respiratoryRate">Respiratory Rate (rpm)</Label>
-                          <Input
-                            id="respiratoryRate"
-                            value={formData.respiratoryRate}
-                            onChange={(e) => setFormData(prev => ({ ...prev, respiratoryRate: e.target.value }))}
-                            placeholder="20"
-                          />
-                        </div>
-                        
-                        <div className="space-y-2">
-                          <Label htmlFor="weight">Weight (kg)</Label>
-                          <Input
-                            id="weight"
-                            value={formData.weight}
-                            onChange={(e) => setFormData(prev => ({ ...prev, weight: e.target.value }))}
-                            placeholder="25.5"
-                          />
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Additional Parameters */}
-                    <div className="space-y-4">
-                      <h4 className="text-sm font-medium text-muted-foreground">Additional Parameters</h4>
-                      
-                      <div className="space-y-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="bloodPressure">Blood Pressure (mmHg)</Label>
-                          <Input
-                            id="bloodPressure"
-                            value={formData.bloodPressure}
-                            onChange={(e) => setFormData(prev => ({ ...prev, bloodPressure: e.target.value }))}
-                            placeholder="120/80"
-                          />
-                        </div>
-                        
-                        <div className="space-y-2">
-                          <Label htmlFor="bodyConditionScore">Body Condition Score (/9)</Label>
-                          <Select onValueChange={(value) => setFormData(prev => ({ ...prev, bodyConditionScore: value }))}>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select BCS" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {[1,2,3,4,5,6,7,8,9].map(score => (
-                                <SelectItem key={score} value={score.toString()}>
-                                  {score}/9 - {score <= 3 ? 'Underweight' : score <= 6 ? 'Ideal' : 'Overweight'}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Other Observations */}
-                  <div className="mt-6 space-y-2">
-                    <Label htmlFor="otherObservations" className="text-sm font-medium text-muted-foreground">Other Observations</Label>
-                    <Textarea
-                      id="otherObservations"
-                      value={formData.otherObservations}
-                      onChange={(e) => setFormData(prev => ({ ...prev, otherObservations: e.target.value }))}
-                      placeholder="Additional physical examination findings, behavior observations, etc."
-                      className="min-h-[100px]"
-                    />
-                  </div>
-                </CardContent>
-                )}
-              </Card>
-
-              {/* Assessment Section */}
-              <Card>
-                <CardHeader className="cursor-pointer" onClick={() => toggleSoapSection('assessment')}>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <CardTitle>Assessment</CardTitle>
-                      <CardDescription>Clinical interpretation and diagnostic assessment</CardDescription>
-                    </div>
-                    <ChevronDown className={cn("h-5 w-5 transition-transform", soapCollapsed.assessment ? "-rotate-90" : "rotate-0")} />
-                  </div>
-                </CardHeader>
-                {!soapCollapsed.assessment && (
-                <CardContent className="space-y-6">
-                  {/* Primary Diagnosis */}
-                  <div className="space-y-2">
-                    <Label htmlFor="primaryDiagnosis" className="text-sm font-medium text-muted-foreground">Primary Diagnosis</Label>
-                    <Select onValueChange={(value) => setFormData(prev => ({ ...prev, primaryDiagnosis: value }))}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select primary diagnosis" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="respiratory-infection">Upper Respiratory Infection</SelectItem>
-                        <SelectItem value="gastroenteritis">Gastroenteritis</SelectItem>
-                        <SelectItem value="dermatitis">Allergic Dermatitis</SelectItem>
-                        <SelectItem value="dental-disease">Dental Disease</SelectItem>
-                        <SelectItem value="arthritis">Arthritis</SelectItem>
-                        <SelectItem value="healthy">Healthy - Routine Examination</SelectItem>
-                        <SelectItem value="other">Other (specify in notes)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {/* Differential Diagnoses */}
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-muted-foreground">Differential Diagnoses</Label>
-                    <div className="flex flex-wrap gap-2 min-h-[40px] p-3 border rounded-md bg-muted/5">
-                      {formData.differentialDiagnoses.map((diagnosis, index) => (
-                        <Badge key={index} variant="secondary" className="flex items-center gap-1">
-                          {diagnosis}
-                          <X 
-                            className="h-3 w-3 cursor-pointer" 
-                            onClick={() => removeDifferentialDiagnosis(index)}
-                          />
-                        </Badge>
-                      ))}
-                    </div>
-                    <div className="flex gap-2">
-                      <Input
-                        value={newDifferentialDiagnosis}
-                        onChange={(e) => setNewDifferentialDiagnosis(e.target.value)}
-                        placeholder="Add differential diagnosis"
-                        onKeyPress={(e) => e.key === 'Enter' && addDifferentialDiagnosis()}
-                      />
-                      <Button 
-                        onClick={addDifferentialDiagnosis}
-                        variant="outline"
-                        size="sm"
-                      >
-                        Add
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button size="sm">
+                        <Plus className="h-4 w-4 mr-1" />
+                        Add Note
                       </Button>
-                    </div>
-                  </div>
-
-                  {/* Clinical Summary */}
-                  <div className="space-y-2">
-                    <Label htmlFor="clinicalSummary" className="text-sm font-medium text-muted-foreground">Clinical Summary / Interpretation</Label>
-                    <Textarea
-                      id="clinicalSummary"
-                      value={formData.clinicalSummary}
-                      onChange={(e) => setFormData(prev => ({ ...prev, clinicalSummary: e.target.value }))}
-                      placeholder="Comprehensive clinical interpretation of findings"
-                      className="min-h-[100px]"
-                    />
-                  </div>
-
-                  {/* Prognosis */}
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-muted-foreground">Prognosis</Label>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Select onValueChange={(value) => setFormData(prev => ({ ...prev, prognosis: value }))}>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select prognosis" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="excellent">Excellent</SelectItem>
-                            <SelectItem value="good">Good</SelectItem>
-                            <SelectItem value="fair">Fair</SelectItem>
-                            <SelectItem value="guarded">Guarded</SelectItem>
-                            <SelectItem value="poor">Poor</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-2">
-                        <Input
-                          value={formData.prognosisReason}
-                          onChange={(e) => setFormData(prev => ({ ...prev, prognosisReason: e.target.value }))}
-                          placeholder="Reasoning (optional)"
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Risk Factors / Potential Complications */}
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-muted-foreground">Risk Factors / Potential Complications</Label>
-                    <div className="space-y-3 p-3 border rounded-md bg-muted/5">
-                      <div className="grid grid-cols-2 gap-2">
-                        {['Dehydration', 'Organ failure', 'Secondary infection', 'Anesthetic complications', 'Chronic pain', 'Medication side effects'].map((factor) => (
-                          <div key={factor} className="flex items-center space-x-2">
-                            <Checkbox
-                              id={factor}
-                              checked={formData.riskFactors.includes(factor)}
-                              onCheckedChange={() => toggleRiskFactor(factor)}
-                            />
-                            <Label htmlFor={factor} className="text-sm">{factor}</Label>
-                          </div>
-                        ))}
-                      </div>
-                      <div className="flex gap-2 mt-3">
-                        <Input
-                          value={newRiskFactor}
-                          onChange={(e) => setNewRiskFactor(e.target.value)}
-                          placeholder="Add custom risk factor"
-                          onKeyPress={(e) => e.key === 'Enter' && addCustomRiskFactor()}
-                        />
-                        <Button 
-                          onClick={addCustomRiskFactor}
-                          variant="outline"
-                          size="sm"
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      {NOTE_TYPES.map((type) => (
+                        <DropdownMenuItem
+                          key={type.value}
+                          onSelect={() => {
+                            handleAddClinicalNoteDirectly(type.value as NoteType);
+                          }}
                         >
-                          Add
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Notes / Additional Considerations */}
-                  <div className="space-y-2">
-                    <Label htmlFor="notes" className="text-sm font-medium text-muted-foreground">Notes / Additional Considerations</Label>
-                    <Textarea
-                      id="notes"
-                      value={formData.notes}
-                      onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
-                      placeholder="Additional notes, follow-up instructions, or special considerations"
-                      className="min-h-[100px]"
-                    />
-                  </div>
-                </CardContent>
-                )}
-              </Card>
-
-              {/* Plan Section */}
-              <Card>
-                <CardHeader className="cursor-pointer" onClick={() => toggleSoapSection('plan')}>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <CardTitle>Plan</CardTitle>
-                      <CardDescription>Treatment plan and recommendations</CardDescription>
-                    </div>
-                    <ChevronDown className={cn("h-5 w-5 transition-transform", soapCollapsed.plan ? "-rotate-90" : "rotate-0")} />
-                  </div>
+                          {type.label}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </CardHeader>
-                {!soapCollapsed.plan && (
-                <CardContent>
-                  {/* Treatment Goals */}
-                  <div className="space-y-2">
-                    <Label htmlFor="treatmentGoals" className="text-sm font-medium text-muted-foreground">Treatment Goals</Label>
-                    <Textarea
-                      id="treatmentGoals"
-                      placeholder="Primary and secondary treatment objectives..."
-                      className="min-h-[80px]"
-                    />
-                  </div>
-                  {/* Immediate Treatment */}
-                  <div className="space-y-2">
-                    <Label htmlFor="immediateTreatment" className="text-sm font-medium text-muted-foreground">Immediate Treatment</Label>
-                    <Textarea
-                      id="immediateTreatment"
-                      placeholder="Emergency care, stabilization measures, immediate interventions..."
-                      className="min-h-[80px]"
-                    />
-                  </div>
+                <CardContent className="space-y-4">
+                  {clinicalNotes.length > 0 ? (
+                    <div className="space-y-3">
+                      {clinicalNotes.map((note) => {
+                        const isSoapNote = note.type === "soap" && note.soapData;
+                        const isProcedureNote = note.type === "procedure" && note.procedureData;
+                        const isAnesthesiaNote = note.type === "anesthesia" && note.anesthesiaData;
+                        const isDischargeNote = note.type === "discharge" && note.dischargeData;
+                        const isFollowUpNote = note.type === "follow-up" && note.followUpData;
+                        const isProgressNote = note.type === "progress" && note.progressData;
+                        const isCollapsed = collapsedNotes.has(note.id);
+                        return (
+                          <Card key={note.id} className="border-dashed">
+                            <CardHeader 
+                              className={cn(
+                                "pb-2 cursor-pointer hover:bg-muted/50 transition-colors",
+                                isCollapsed && "border-b"
+                              )}
+                              onClick={() => toggleNoteCollapse(note.id)}
+                            >
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="space-y-1 flex-1">
+                                  <div className="flex items-center gap-2">
+                                    <ChevronDown 
+                                      className={cn(
+                                        "h-4 w-4 text-muted-foreground transition-transform flex-shrink-0",
+                                        isCollapsed ? "-rotate-90" : "rotate-0"
+                                      )} 
+                                    />
+                                    <Badge variant="secondary">
+                                      {NOTE_TYPES.find((t) => t.value === note.type)?.label ?? note.type}
+                                    </Badge>
+                                    <Input
+                                      value={note.title}
+                                      onChange={(e) => handleUpdateClinicalNoteTitle(note.id, e.target.value)}
+                                      onClick={(e) => e.stopPropagation()} // Prevent collapse when clicking input
+                                      onFocus={(e) => e.stopPropagation()} // Prevent collapse when focusing input
+                                      className="h-7 text-sm font-medium border-none shadow-none px-0 focus-visible:ring-0"
+                                      placeholder="Note title"
+                                    />
+                                  </div>
+                                  <p className="text-xs text-muted-foreground">
+                                    Added by {note.author || "Unknown"} on {format(new Date(note.createdAt), "PPp")}
+                                  </p>
+                                  {/* Show preview when collapsed */}
+                                  {isCollapsed && (
+                                    <p className="text-xs text-muted-foreground line-clamp-2 mt-2 pl-6">
+                                      {getNotePreview(note)}
+                                    </p>
+                                  )}
+                                </div>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={(e) => {
+                                    e.stopPropagation(); // Prevent collapse when clicking delete
+                                    handleDeleteClinicalNote(note.id);
+                                  }}
+                                  title="Remove note"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </CardHeader>
+                            {!isCollapsed && (
+                            <CardContent>
+                              {isSoapNote ? (
+                                // Render SOAP form
+                                <div className="space-y-8">
+                                  {/* Patient and Veterinarian Selection */}
+                                  <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                      <Label htmlFor={`patient-${note.id}`}>Patient</Label>
+                                      <Select value={selectedPatient} onValueChange={setSelectedPatient}>
+                                        <SelectTrigger>
+                                          <SelectValue placeholder="Select patient" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          <SelectItem value="1">Max (Golden Retriever) - Sarah Johnson</SelectItem>
+                                          <SelectItem value="2">Whiskers (Persian Cat) - Mike Wilson</SelectItem>
+                                          <SelectItem value="3">Bella (Labrador) - Emily Davis</SelectItem>
+                                        </SelectContent>
+                                      </Select>
+                                    </div>
+                                    
+                                    <div className="space-y-2">
+                                      <Label htmlFor={`veterinarian-${note.id}`}>Veterinarian</Label>
+                                      <Select value={selectedVeterinarian} onValueChange={setSelectedVeterinarian}>
+                                        <SelectTrigger>
+                                          <SelectValue placeholder="Select veterinarian" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          <SelectItem value="Dr. Smith">Dr. Smith</SelectItem>
+                                          <SelectItem value="Dr. Brown">Dr. Brown</SelectItem>
+                                          <SelectItem value="Dr. Johnson">Dr. Johnson</SelectItem>
+                                          <SelectItem value="Dr. Wilson">Dr. Wilson</SelectItem>
+                                          <SelectItem value="Dr. Emergency">Dr. Emergency</SelectItem>
+                                          <SelectItem value="Dr. Davis">Dr. Davis</SelectItem>
+                                          <SelectItem value="Dr. Thompson">Dr. Thompson</SelectItem>
+                                        </SelectContent>
+                                      </Select>
+                                    </div>
+                                  </div>
 
-                  {/* Long-term Management */}
-                  <div className="space-y-2">
-                    <Label htmlFor="longTermManagement" className="text-sm font-medium text-muted-foreground">Long-term Management</Label>
-                    <Textarea
-                      id="longTermManagement"
-                      placeholder="Ongoing care plan, maintenance therapy, lifestyle modifications..."
-                      className="min-h-[80px]"
-                    />
-                  </div>
+                                  {/* Subjective Section */}
+                                  <div className="space-y-4 border-t pt-6">
+                                    <div>
+                                      <h3 className="text-lg font-semibold mb-2">Subjective</h3>
+                                      <p className="text-sm text-muted-foreground mb-4">Chief complaint and owner's observations</p>
+                                    </div>
+                                    <div className="space-y-4">
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`subjective-${note.id}`}>Subjective (Chief Complaint)</Label>
+                                        <div className="space-y-2">
+                                          <div className="flex flex-wrap gap-2">
+                                            {[
+                                              "Limping/Lameness",
+                                              "Vomiting",
+                                              "Diarrhea", 
+                                              "Not eating",
+                                              "Lethargy",
+                                              "Coughing",
+                                              "Sneezing",
+                                              "Itching/Scratching",
+                                              "Weight loss",
+                                              "Seizures",
+                                              "Difficulty breathing",
+                                              "Excessive drinking/urination",
+                                              "Eye discharge",
+                                              "Ear infection",
+                                              "Annual wellness exam",
+                                              "Vaccination",
+                                              "Dental cleaning",
+                                              "Spay/Neuter consult"
+                                            ].map((preset) => (
+                                              <Button
+                                                key={preset}
+                                                type="button"
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => {
+                                                  const currentValue = note.soapData?.subjective || "";
+                                                  const newValue = currentValue ? `${currentValue}, ${preset}` : preset;
+                                                  handleUpdateSoapField(note.id, "subjective", newValue);
+                                                }}
+                                                className="text-xs h-7"
+                                              >
+                                                {preset}
+                                              </Button>
+                                            ))}
+                                          </div>
+                                          <Textarea 
+                                            id={`subjective-${note.id}`}
+                                            value={note.soapData.subjective}
+                                            onChange={(e) => handleUpdateSoapField(note.id, "subjective", e.target.value)}
+                                            placeholder="Owner's concerns, history, and observations..."
+                                            className="min-h-[100px]"
+                                          />
+                                        </div>
+                                      </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {/* Monitoring Parameters */}
-                    <div className="space-y-2">
-                      <Label htmlFor="monitoringParameters" className="text-sm font-medium text-muted-foreground">Monitoring Parameters</Label>
-                      <Textarea
-                        id="monitoringParameters"
-                        placeholder="What to monitor, frequency, warning signs..."
-                        className="min-h-[80px]"
-                      />
+                                      {/* Vital Signs */}
+                                      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                                        <div className="space-y-2">
+                                          <Label htmlFor={`temperature-${note.id}`}>Temperature</Label>
+                                          <Input 
+                                            id={`temperature-${note.id}`}
+                                            placeholder="°F" 
+                                            value={note.soapData.temperature}
+                                            onChange={(e) => handleUpdateSoapField(note.id, "temperature", e.target.value)}
+                                          />
+                                        </div>
+                                        <div className="space-y-2">
+                                          <Label htmlFor={`heartRate-${note.id}`}>Heart Rate</Label>
+                                          <Input 
+                                            id={`heartRate-${note.id}`}
+                                            placeholder="bpm" 
+                                            value={note.soapData.heartRate}
+                                            onChange={(e) => handleUpdateSoapField(note.id, "heartRate", e.target.value)}
+                                          />
+                                        </div>
+                                        <div className="space-y-2">
+                                          <Label htmlFor={`respiratoryRate-${note.id}`}>Respiratory Rate</Label>
+                                          <Input 
+                                            id={`respiratoryRate-${note.id}`}
+                                            placeholder="rpm" 
+                                            value={note.soapData.respiratoryRate}
+                                            onChange={(e) => handleUpdateSoapField(note.id, "respiratoryRate", e.target.value)}
+                                          />
+                                        </div>
+                                        <div className="space-y-2">
+                                          <Label htmlFor={`weight-${note.id}`}>Weight</Label>
+                                          <Input 
+                                            id={`weight-${note.id}`}
+                                            placeholder="kg" 
+                                            value={note.soapData.weight}
+                                            onChange={(e) => handleUpdateSoapField(note.id, "weight", e.target.value)}
+                                          />
+                                        </div>
+                                        <div className="space-y-2">
+                                          <Label htmlFor={`bodyConditionScore-${note.id}`}>Body Condition Score</Label>
+                                          <Input 
+                                            id={`bodyConditionScore-${note.id}`}
+                                            placeholder="1-9" 
+                                            value={note.soapData.bodyConditionScore}
+                                            onChange={(e) => handleUpdateSoapField(note.id, "bodyConditionScore", e.target.value)}
+                                          />
+                                        </div>
+                                        <div className="space-y-2">
+                                          <Label htmlFor={`bloodPressure-${note.id}`}>Blood Pressure</Label>
+                                          <Input 
+                                            id={`bloodPressure-${note.id}`}
+                                            placeholder="mmHg" 
+                                            value={note.soapData.bloodPressure}
+                                            onChange={(e) => handleUpdateSoapField(note.id, "bloodPressure", e.target.value)}
+                                          />
+                                        </div>
+                                      </div>
+
+                                      {/* Other Observations */}
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`otherObservations-${note.id}`}>Other Observations / Physical Exam Findings</Label>
+                                        <Textarea
+                                          id={`otherObservations-${note.id}`}
+                                          value={note.soapData.otherObservations}
+                                          onChange={(e) => handleUpdateSoapField(note.id, "otherObservations", e.target.value)}
+                                          placeholder="Physical exam findings, abnormalities, imaging results, lab data..."
+                                          className="min-h-[120px]"
+                                        />
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Objective Section */}
+                                  <div className="space-y-4 border-t pt-6">
+                                    <div>
+                                      <h3 className="text-lg font-semibold mb-2">Objective</h3>
+                                      <p className="text-sm text-muted-foreground mb-4">Physical examination and diagnostic findings</p>
+                                    </div>
+                                    <div className="space-y-2">
+                                      <Label htmlFor={`objective-${note.id}`}>Objective Findings</Label>
+                                      <Textarea
+                                        id={`objective-${note.id}`}
+                                        value={note.soapData.objective}
+                                        onChange={(e) => handleUpdateSoapField(note.id, "objective", e.target.value)}
+                                        placeholder="Physical examination findings, diagnostic test results, imaging findings..."
+                                        className="min-h-[120px]"
+                                      />
+                                    </div>
+                                  </div>
+
+                                  {/* Assessment Section */}
+                                  <div className="space-y-4 border-t pt-6">
+                                    <div>
+                                      <h3 className="text-lg font-semibold mb-2">Assessment</h3>
+                                      <p className="text-sm text-muted-foreground mb-4">Clinical interpretation and differential diagnoses</p>
+                                    </div>
+                                    <div className="space-y-6">
+                                      <div className="space-y-2">
+                                        <Label className="text-sm font-medium text-muted-foreground">Primary Diagnosis</Label>
+                                        <Input
+                                          value={note.soapData.primaryDiagnosis}
+                                          onChange={(e) => handleUpdateSoapField(note.id, "primaryDiagnosis", e.target.value)}
+                                          placeholder="e.g., Canine Osteoarthritis"
+                                        />
+                                      </div>
+
+                                      <div className="space-y-2">
+                                        <Label className="text-sm font-medium text-muted-foreground">Differential Diagnoses</Label>
+                                        <div className="flex flex-wrap gap-2">
+                                          {note.soapData.differentialDiagnoses.map((diagnosis, index) => (
+                                            <Badge key={index} variant="secondary" className="flex items-center gap-1">
+                                              {diagnosis}
+                                              <X 
+                                                className="h-3 w-3 cursor-pointer" 
+                                                onClick={() => handleRemoveDifferentialDiagnosisFromNote(note.id, index)}
+                                              />
+                                            </Badge>
+                                          ))}
+                                        </div>
+                                        <div className="flex gap-2">
+                                          <Input
+                                            placeholder="Add differential diagnosis"
+                                            onKeyPress={(e) => {
+                                              if (e.key === 'Enter' && (e.target as HTMLInputElement).value.trim()) {
+                                                handleAddDifferentialDiagnosisToNote(note.id, (e.target as HTMLInputElement).value);
+                                                (e.target as HTMLInputElement).value = "";
+                                              }
+                                            }}
+                                          />
+                                          <Button 
+                                            onClick={(e) => {
+                                              const input = e.currentTarget.previousElementSibling as HTMLInputElement;
+                                              if (input?.value.trim()) {
+                                                handleAddDifferentialDiagnosisToNote(note.id, input.value);
+                                                input.value = "";
+                                              }
+                                            }}
+                                            variant="outline"
+                                            size="sm"
+                                          >
+                                            Add
+                                          </Button>
+                                        </div>
+                                      </div>
+
+                                      {/* Clinical Summary */}
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`clinicalSummary-${note.id}`} className="text-sm font-medium text-muted-foreground">Clinical Summary / Interpretation</Label>
+                                        <Textarea
+                                          id={`clinicalSummary-${note.id}`}
+                                          value={note.soapData.clinicalSummary}
+                                          onChange={(e) => handleUpdateSoapField(note.id, "clinicalSummary", e.target.value)}
+                                          placeholder="Comprehensive clinical interpretation of findings"
+                                          className="min-h-[100px]"
+                                        />
+                                      </div>
+
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`assessment-${note.id}`}>Assessment</Label>
+                                        <Textarea
+                                          id={`assessment-${note.id}`}
+                                          value={note.soapData.assessment}
+                                          onChange={(e) => handleUpdateSoapField(note.id, "assessment", e.target.value)}
+                                          placeholder="Clinical interpretation, diagnosis, and evaluation..."
+                                          className="min-h-[120px]"
+                                        />
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Plan Section */}
+                                  <div className="space-y-4 border-t pt-6">
+                                    <div>
+                                      <h3 className="text-lg font-semibold mb-2">Plan</h3>
+                                      <p className="text-sm text-muted-foreground mb-4">Treatment plan and recommendations</p>
+                                    </div>
+                                    <div className="space-y-2">
+                                      <Label htmlFor={`plan-${note.id}`}>Treatment Plan</Label>
+                                      <Textarea
+                                        id={`plan-${note.id}`}
+                                        value={note.soapData.plan}
+                                        onChange={(e) => handleUpdateSoapField(note.id, "plan", e.target.value)}
+                                        placeholder="Describe the treatment plan, medications, follow-up care, and owner instructions"
+                                        className="min-h-[120px]"
+                                      />
+                                    </div>
+                                  </div>
+                                </div>
+                              ) : isProcedureNote ? (
+                                // Render Procedure form
+                                <div className="space-y-8">
+                                  {/* Patient & Provider Info */}
+                                  <div className="space-y-4 border-t pt-6">
+                                    <div>
+                                      <h3 className="text-lg font-semibold mb-2">Patient & Provider Information</h3>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4">
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`surgeon-${note.id}`}>Surgeon/Provider Name</Label>
+                                        <Input
+                                          id={`surgeon-${note.id}`}
+                                          value={note.procedureData!.surgeonName}
+                                          onChange={(e) => handleUpdateProcedureField(note.id, "surgeonName", e.target.value)}
+                                          placeholder="Enter surgeon/provider name"
+                                        />
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`assistants-${note.id}`}>Assistants</Label>
+                                        <div className="space-y-2">
+                                          <div className="flex flex-wrap gap-2">
+                                            {note.procedureData!.assistants.map((assistant, index) => (
+                                              <Badge key={index} variant="secondary" className="flex items-center gap-1">
+                                                {assistant}
+                                                <X 
+                                                  className="h-3 w-3 cursor-pointer" 
+                                                  onClick={() => handleRemoveAssistantFromNote(note.id, index)}
+                                                />
+                                              </Badge>
+                                            ))}
+                                          </div>
+                                          <div className="flex gap-2">
+                                            <Input
+                                              placeholder="Add assistant name"
+                                              onKeyPress={(e) => {
+                                                if (e.key === 'Enter' && (e.target as HTMLInputElement).value.trim()) {
+                                                  handleAddAssistantToNote(note.id, (e.target as HTMLInputElement).value);
+                                                  (e.target as HTMLInputElement).value = "";
+                                                }
+                                              }}
+                                            />
+                                            <Button 
+                                              onClick={(e) => {
+                                                const input = e.currentTarget.previousElementSibling as HTMLInputElement;
+                                                if (input?.value.trim()) {
+                                                  handleAddAssistantToNote(note.id, input.value);
+                                                  input.value = "";
+                                                }
+                                              }}
+                                              variant="outline"
+                                              size="sm"
+                                            >
+                                              Add
+                                            </Button>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Date & Time */}
+                                  <div className="space-y-4 border-t pt-6">
+                                    <div>
+                                      <h3 className="text-lg font-semibold mb-2">Date & Time</h3>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4">
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`procedureDate-${note.id}`}>Procedure Date</Label>
+                                        <Input
+                                          id={`procedureDate-${note.id}`}
+                                          type="date"
+                                          value={note.procedureData!.procedureDate}
+                                          onChange={(e) => handleUpdateProcedureField(note.id, "procedureDate", e.target.value)}
+                                        />
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`procedureTime-${note.id}`}>Procedure Time</Label>
+                                        <Input
+                                          id={`procedureTime-${note.id}`}
+                                          type="time"
+                                          value={note.procedureData!.procedureTime}
+                                          onChange={(e) => handleUpdateProcedureField(note.id, "procedureTime", e.target.value)}
+                                        />
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`noteWrittenDate-${note.id}`}>Note Written Date</Label>
+                                        <Input
+                                          id={`noteWrittenDate-${note.id}`}
+                                          type="date"
+                                          value={note.procedureData!.noteWrittenDate}
+                                          onChange={(e) => handleUpdateProcedureField(note.id, "noteWrittenDate", e.target.value)}
+                                        />
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`noteWrittenTime-${note.id}`}>Note Written Time</Label>
+                                        <Input
+                                          id={`noteWrittenTime-${note.id}`}
+                                          type="time"
+                                          value={note.procedureData!.noteWrittenTime}
+                                          onChange={(e) => handleUpdateProcedureField(note.id, "noteWrittenTime", e.target.value)}
+                                        />
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Indication & Diagnosis */}
+                                  <div className="space-y-4 border-t pt-6">
+                                    <div>
+                                      <h3 className="text-lg font-semibold mb-2">Indication & Diagnosis</h3>
+                                    </div>
+                                    <div className="space-y-4">
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`indication-${note.id}`}>Indication (Reason for Procedure)</Label>
+                                        <Textarea
+                                          id={`indication-${note.id}`}
+                                          value={note.procedureData!.indication}
+                                          onChange={(e) => handleUpdateProcedureField(note.id, "indication", e.target.value)}
+                                          placeholder="Reason for performing the procedure"
+                                          className="min-h-[80px]"
+                                        />
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`preProcedureDiagnosis-${note.id}`}>Pre-Procedure Diagnosis</Label>
+                                        <Input
+                                          id={`preProcedureDiagnosis-${note.id}`}
+                                          value={note.procedureData!.preProcedureDiagnosis}
+                                          onChange={(e) => handleUpdateProcedureField(note.id, "preProcedureDiagnosis", e.target.value)}
+                                          placeholder="Diagnosis before the procedure"
+                                        />
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`postProcedureDiagnosis-${note.id}`}>Post-Procedure Diagnosis</Label>
+                                        <Input
+                                          id={`postProcedureDiagnosis-${note.id}`}
+                                          value={note.procedureData!.postProcedureDiagnosis}
+                                          onChange={(e) => handleUpdateProcedureField(note.id, "postProcedureDiagnosis", e.target.value)}
+                                          placeholder="Final diagnosis after the procedure"
+                                        />
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Procedure Details */}
+                                  <div className="space-y-4 border-t pt-6">
+                                    <div>
+                                      <h3 className="text-lg font-semibold mb-2">Procedure Details</h3>
+                                    </div>
+                                    <div className="space-y-4">
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`procedureType-${note.id}`}>Procedure Type</Label>
+                                        <Input
+                                          id={`procedureType-${note.id}`}
+                                          value={note.procedureData!.procedureType}
+                                          onChange={(e) => handleUpdateProcedureField(note.id, "procedureType", e.target.value)}
+                                          placeholder="e.g., Spay, Neuter, Dental Extraction"
+                                        />
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`anesthesiaUsed-${note.id}`}>Anesthesia Used</Label>
+                                        <Textarea
+                                          id={`anesthesiaUsed-${note.id}`}
+                                          value={note.procedureData!.anesthesiaUsed}
+                                          onChange={(e) => handleUpdateProcedureField(note.id, "anesthesiaUsed", e.target.value)}
+                                          placeholder="Type and dosage of anesthesia"
+                                          className="min-h-[80px]"
+                                        />
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`techniques-${note.id}`}>Techniques</Label>
+                                        <Textarea
+                                          id={`techniques-${note.id}`}
+                                          value={note.procedureData!.techniques}
+                                          onChange={(e) => handleUpdateProcedureField(note.id, "techniques", e.target.value)}
+                                          placeholder="Surgical techniques and approach used"
+                                          className="min-h-[80px]"
+                                        />
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`positioning-${note.id}`}>Positioning</Label>
+                                        <Input
+                                          id={`positioning-${note.id}`}
+                                          value={note.procedureData!.positioning}
+                                          onChange={(e) => handleUpdateProcedureField(note.id, "positioning", e.target.value)}
+                                          placeholder="Patient positioning during procedure"
+                                        />
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`findings-${note.id}`}>Findings</Label>
+                                        <Textarea
+                                          id={`findings-${note.id}`}
+                                          value={note.procedureData!.findings}
+                                          onChange={(e) => handleUpdateProcedureField(note.id, "findings", e.target.value)}
+                                          placeholder="Intraoperative findings and observations"
+                                          className="min-h-[100px]"
+                                        />
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`estimatedBloodLoss-${note.id}`}>Estimated Blood Loss (EBL)</Label>
+                                        <Input
+                                          id={`estimatedBloodLoss-${note.id}`}
+                                          value={note.procedureData!.estimatedBloodLoss}
+                                          onChange={(e) => handleUpdateProcedureField(note.id, "estimatedBloodLoss", e.target.value)}
+                                          placeholder="e.g., Minimal, 5ml, etc."
+                                        />
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Materials */}
+                                  <div className="space-y-4 border-t pt-6">
+                                    <div>
+                                      <h3 className="text-lg font-semibold mb-2">Materials</h3>
+                                    </div>
+                                    <div className="space-y-4">
+                                      <div className="space-y-2">
+                                        <Label>Materials Used</Label>
+                                        <div className="flex flex-wrap gap-2 mb-2">
+                                          {note.procedureData!.materials.map((material, index) => (
+                                            <Badge key={index} variant="secondary" className="flex items-center gap-1">
+                                              {material}
+                                              <X 
+                                                className="h-3 w-3 cursor-pointer" 
+                                                onClick={() => handleRemoveItemFromProcedureList(note.id, "materials", index)}
+                                              />
+                                            </Badge>
+                                          ))}
+                                        </div>
+                                        <div className="flex gap-2">
+                                          <Input
+                                            placeholder="Add material"
+                                            onKeyPress={(e) => {
+                                              if (e.key === 'Enter' && (e.target as HTMLInputElement).value.trim()) {
+                                                handleAddItemToProcedureList(note.id, "materials", (e.target as HTMLInputElement).value);
+                                                (e.target as HTMLInputElement).value = "";
+                                              }
+                                            }}
+                                          />
+                                          <Button 
+                                            onClick={(e) => {
+                                              const input = e.currentTarget.previousElementSibling as HTMLInputElement;
+                                              if (input?.value.trim()) {
+                                                handleAddItemToProcedureList(note.id, "materials", input.value);
+                                                input.value = "";
+                                              }
+                                            }}
+                                            variant="outline"
+                                            size="sm"
+                                          >
+                                            Add
+                                          </Button>
+                                        </div>
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label>Implants</Label>
+                                        <div className="flex flex-wrap gap-2 mb-2">
+                                          {note.procedureData!.implants.map((implant, index) => (
+                                            <Badge key={index} variant="secondary" className="flex items-center gap-1">
+                                              {implant}
+                                              <X 
+                                                className="h-3 w-3 cursor-pointer" 
+                                                onClick={() => handleRemoveItemFromProcedureList(note.id, "implants", index)}
+                                              />
+                                            </Badge>
+                                          ))}
+                                        </div>
+                                        <div className="flex gap-2">
+                                          <Input
+                                            placeholder="Add implant (with tracking sticker if applicable)"
+                                            onKeyPress={(e) => {
+                                              if (e.key === 'Enter' && (e.target as HTMLInputElement).value.trim()) {
+                                                handleAddItemToProcedureList(note.id, "implants", (e.target as HTMLInputElement).value);
+                                                (e.target as HTMLInputElement).value = "";
+                                              }
+                                            }}
+                                          />
+                                          <Button 
+                                            onClick={(e) => {
+                                              const input = e.currentTarget.previousElementSibling as HTMLInputElement;
+                                              if (input?.value.trim()) {
+                                                handleAddItemToProcedureList(note.id, "implants", input.value);
+                                                input.value = "";
+                                              }
+                                            }}
+                                            variant="outline"
+                                            size="sm"
+                                          >
+                                            Add
+                                          </Button>
+                                        </div>
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label>Grafts</Label>
+                                        <div className="flex flex-wrap gap-2 mb-2">
+                                          {note.procedureData!.grafts.map((graft, index) => (
+                                            <Badge key={index} variant="secondary" className="flex items-center gap-1">
+                                              {graft}
+                                              <X 
+                                                className="h-3 w-3 cursor-pointer" 
+                                                onClick={() => handleRemoveItemFromProcedureList(note.id, "grafts", index)}
+                                              />
+                                            </Badge>
+                                          ))}
+                                        </div>
+                                        <div className="flex gap-2">
+                                          <Input
+                                            placeholder="Add graft"
+                                            onKeyPress={(e) => {
+                                              if (e.key === 'Enter' && (e.target as HTMLInputElement).value.trim()) {
+                                                handleAddItemToProcedureList(note.id, "grafts", (e.target as HTMLInputElement).value);
+                                                (e.target as HTMLInputElement).value = "";
+                                              }
+                                            }}
+                                          />
+                                          <Button 
+                                            onClick={(e) => {
+                                              const input = e.currentTarget.previousElementSibling as HTMLInputElement;
+                                              if (input?.value.trim()) {
+                                                handleAddItemToProcedureList(note.id, "grafts", input.value);
+                                                input.value = "";
+                                              }
+                                            }}
+                                            variant="outline"
+                                            size="sm"
+                                          >
+                                            Add
+                                          </Button>
+                                        </div>
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label>Instruments</Label>
+                                        <div className="flex flex-wrap gap-2 mb-2">
+                                          {note.procedureData!.instruments.map((instrument, index) => (
+                                            <Badge key={index} variant="secondary" className="flex items-center gap-1">
+                                              {instrument}
+                                              <X 
+                                                className="h-3 w-3 cursor-pointer" 
+                                                onClick={() => handleRemoveItemFromProcedureList(note.id, "instruments", index)}
+                                              />
+                                            </Badge>
+                                          ))}
+                                        </div>
+                                        <div className="flex gap-2">
+                                          <Input
+                                            placeholder="Add instrument"
+                                            onKeyPress={(e) => {
+                                              if (e.key === 'Enter' && (e.target as HTMLInputElement).value.trim()) {
+                                                handleAddItemToProcedureList(note.id, "instruments", (e.target as HTMLInputElement).value);
+                                                (e.target as HTMLInputElement).value = "";
+                                              }
+                                            }}
+                                          />
+                                          <Button 
+                                            onClick={(e) => {
+                                              const input = e.currentTarget.previousElementSibling as HTMLInputElement;
+                                              if (input?.value.trim()) {
+                                                handleAddItemToProcedureList(note.id, "instruments", input.value);
+                                                input.value = "";
+                                              }
+                                            }}
+                                            variant="outline"
+                                            size="sm"
+                                          >
+                                            Add
+                                          </Button>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Specimens */}
+                                  <div className="space-y-4 border-t pt-6">
+                                    <div>
+                                      <h3 className="text-lg font-semibold mb-2">Specimens</h3>
+                                    </div>
+                                    <div className="space-y-2">
+                                      <Label>Specimens Sent to Pathology</Label>
+                                      <div className="flex flex-wrap gap-2 mb-2">
+                                        {note.procedureData!.specimens.map((specimen, index) => (
+                                          <Badge key={index} variant="secondary" className="flex items-center gap-1">
+                                            {specimen}
+                                            <X 
+                                              className="h-3 w-3 cursor-pointer" 
+                                              onClick={() => handleRemoveItemFromProcedureList(note.id, "specimens", index)}
+                                            />
+                                          </Badge>
+                                        ))}
+                                      </div>
+                                      <div className="flex gap-2">
+                                        <Input
+                                          placeholder="Add specimen"
+                                          onKeyPress={(e) => {
+                                            if (e.key === 'Enter' && (e.target as HTMLInputElement).value.trim()) {
+                                              handleAddItemToProcedureList(note.id, "specimens", (e.target as HTMLInputElement).value);
+                                              (e.target as HTMLInputElement).value = "";
+                                            }
+                                          }}
+                                        />
+                                        <Button 
+                                          onClick={(e) => {
+                                            const input = e.currentTarget.previousElementSibling as HTMLInputElement;
+                                            if (input?.value.trim()) {
+                                              handleAddItemToProcedureList(note.id, "specimens", input.value);
+                                              input.value = "";
+                                            }
+                                          }}
+                                          variant="outline"
+                                          size="sm"
+                                        >
+                                          Add
+                                        </Button>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Complications */}
+                                  <div className="space-y-4 border-t pt-6">
+                                    <div>
+                                      <h3 className="text-lg font-semibold mb-2">Complications</h3>
+                                    </div>
+                                    <div className="space-y-2">
+                                      <Label htmlFor={`complications-${note.id}`}>Complications Encountered</Label>
+                                      <Textarea
+                                        id={`complications-${note.id}`}
+                                        value={note.procedureData!.complications}
+                                        onChange={(e) => handleUpdateProcedureField(note.id, "complications", e.target.value)}
+                                        placeholder="Document any complications or issues encountered during the procedure"
+                                        className="min-h-[100px]"
+                                      />
+                                    </div>
+                                  </div>
+
+                                  {/* Informed Consent */}
+                                  <div className="space-y-4 border-t pt-6">
+                                    <div>
+                                      <h3 className="text-lg font-semibold mb-2">Informed Consent</h3>
+                                    </div>
+                                    <div className="space-y-4">
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`informedConsent-${note.id}`}>Informed Consent Documentation</Label>
+                                        <Textarea
+                                          id={`informedConsent-${note.id}`}
+                                          value={note.procedureData!.informedConsent}
+                                          onChange={(e) => handleUpdateProcedureField(note.id, "informedConsent", e.target.value)}
+                                          placeholder="Documentation of informed consent discussion"
+                                          className="min-h-[80px]"
+                                        />
+                                      </div>
+                                      <div className="space-y-3">
+                                        <div className="flex items-center space-x-2">
+                                          <input
+                                            type="checkbox"
+                                            id={`risksDiscussed-${note.id}`}
+                                            checked={note.procedureData!.risksDiscussed}
+                                            onChange={(e) => handleUpdateProcedureField(note.id, "risksDiscussed", e.target.checked)}
+                                            className="rounded border-gray-300"
+                                          />
+                                          <Label htmlFor={`risksDiscussed-${note.id}`} className="font-normal cursor-pointer">
+                                            Risks discussed with owner
+                                          </Label>
+                                        </div>
+                                        <div className="flex items-center space-x-2">
+                                          <input
+                                            type="checkbox"
+                                            id={`benefitsDiscussed-${note.id}`}
+                                            checked={note.procedureData!.benefitsDiscussed}
+                                            onChange={(e) => handleUpdateProcedureField(note.id, "benefitsDiscussed", e.target.checked)}
+                                            className="rounded border-gray-300"
+                                          />
+                                          <Label htmlFor={`benefitsDiscussed-${note.id}`} className="font-normal cursor-pointer">
+                                            Benefits discussed with owner
+                                          </Label>
+                                        </div>
+                                        <div className="flex items-center space-x-2">
+                                          <input
+                                            type="checkbox"
+                                            id={`alternativesDiscussed-${note.id}`}
+                                            checked={note.procedureData!.alternativesDiscussed}
+                                            onChange={(e) => handleUpdateProcedureField(note.id, "alternativesDiscussed", e.target.checked)}
+                                            className="rounded border-gray-300"
+                                          />
+                                          <Label htmlFor={`alternativesDiscussed-${note.id}`} className="font-normal cursor-pointer">
+                                            Alternatives discussed with owner
+                                          </Label>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Post-Procedure Plan */}
+                                  <div className="space-y-4 border-t pt-6">
+                                    <div>
+                                      <h3 className="text-lg font-semibold mb-2">Post-Procedure Plan</h3>
+                                    </div>
+                                    <div className="space-y-4">
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`medications-${note.id}`}>Medications</Label>
+                                        <Textarea
+                                          id={`medications-${note.id}`}
+                                          value={note.procedureData!.medications}
+                                          onChange={(e) => handleUpdateProcedureField(note.id, "medications", e.target.value)}
+                                          placeholder="Post-procedure medications prescribed"
+                                          className="min-h-[80px]"
+                                        />
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`instructions-${note.id}`}>Instructions</Label>
+                                        <Textarea
+                                          id={`instructions-${note.id}`}
+                                          value={note.procedureData!.instructions}
+                                          onChange={(e) => handleUpdateProcedureField(note.id, "instructions", e.target.value)}
+                                          placeholder="Post-procedure care instructions for owner"
+                                          className="min-h-[100px]"
+                                        />
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`followUp-${note.id}`}>Follow-Up</Label>
+                                        <Textarea
+                                          id={`followUp-${note.id}`}
+                                          value={note.procedureData!.followUp}
+                                          onChange={(e) => handleUpdateProcedureField(note.id, "followUp", e.target.value)}
+                                          placeholder="Follow-up appointments and monitoring requirements"
+                                          className="min-h-[80px]"
+                                        />
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`disposition-${note.id}`}>Disposition</Label>
+                                        <Input
+                                          id={`disposition-${note.id}`}
+                                          value={note.procedureData!.disposition}
+                                          onChange={(e) => handleUpdateProcedureField(note.id, "disposition", e.target.value)}
+                                          placeholder="Patient's condition and disposition (e.g., Stable, Recovering, etc.)"
+                                        />
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              ) : isAnesthesiaNote ? (
+                                // Render Anesthesia form
+                                <div className="space-y-8">
+                                  {/* Anesthetist & Provider Info */}
+                                  <div className="space-y-4 border-t pt-6">
+                                    <div>
+                                      <h3 className="text-lg font-semibold mb-2">Anesthetist & Provider Information</h3>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4">
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`anesthetist-${note.id}`}>Anesthetist Name</Label>
+                                        <Input
+                                          id={`anesthetist-${note.id}`}
+                                          value={note.anesthesiaData!.anesthetistName}
+                                          onChange={(e) => handleUpdateAnesthesiaField(note.id, "anesthetistName", e.target.value)}
+                                          placeholder="Enter anesthetist name"
+                                        />
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`supervisingVet-${note.id}`}>Supervising Veterinarian</Label>
+                                        <Input
+                                          id={`supervisingVet-${note.id}`}
+                                          value={note.anesthesiaData!.supervisingVeterinarian}
+                                          onChange={(e) => handleUpdateAnesthesiaField(note.id, "supervisingVeterinarian", e.target.value)}
+                                          placeholder="Enter supervising veterinarian"
+                                        />
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Date & Time */}
+                                  <div className="space-y-4 border-t pt-6">
+                                    <div>
+                                      <h3 className="text-lg font-semibold mb-2">Date & Time</h3>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4">
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`anesthesiaDate-${note.id}`}>Anesthesia Date</Label>
+                                        <Input
+                                          id={`anesthesiaDate-${note.id}`}
+                                          type="date"
+                                          value={note.anesthesiaData!.anesthesiaDate}
+                                          onChange={(e) => handleUpdateAnesthesiaField(note.id, "anesthesiaDate", e.target.value)}
+                                        />
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`anesthesiaStartTime-${note.id}`}>Start Time</Label>
+                                        <Input
+                                          id={`anesthesiaStartTime-${note.id}`}
+                                          type="time"
+                                          value={note.anesthesiaData!.anesthesiaStartTime}
+                                          onChange={(e) => handleUpdateAnesthesiaField(note.id, "anesthesiaStartTime", e.target.value)}
+                                        />
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`anesthesiaEndTime-${note.id}`}>End Time</Label>
+                                        <Input
+                                          id={`anesthesiaEndTime-${note.id}`}
+                                          type="time"
+                                          value={note.anesthesiaData!.anesthesiaEndTime}
+                                          onChange={(e) => handleUpdateAnesthesiaField(note.id, "anesthesiaEndTime", e.target.value)}
+                                        />
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`duration-${note.id}`}>Duration</Label>
+                                        <Input
+                                          id={`duration-${note.id}`}
+                                          value={note.anesthesiaData!.duration}
+                                          onChange={(e) => handleUpdateAnesthesiaField(note.id, "duration", e.target.value)}
+                                          placeholder="e.g., 45 minutes"
+                                        />
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Pre-Anesthesia Assessment */}
+                                  <div className="space-y-4 border-t pt-6">
+                                    <div>
+                                      <h3 className="text-lg font-semibold mb-2">Pre-Anesthesia Assessment</h3>
+                                    </div>
+                                    <div className="space-y-4">
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`asaStatus-${note.id}`}>ASA Physical Status</Label>
+                                        <Select
+                                          value={note.anesthesiaData!.asaStatus}
+                                          onValueChange={(value) => handleUpdateAnesthesiaField(note.id, "asaStatus", value)}
+                                        >
+                                          <SelectTrigger>
+                                            <SelectValue placeholder="Select ASA status" />
+                                          </SelectTrigger>
+                                          <SelectContent>
+                                            <SelectItem value="ASA I">ASA I - Normal healthy patient</SelectItem>
+                                            <SelectItem value="ASA II">ASA II - Mild systemic disease</SelectItem>
+                                            <SelectItem value="ASA III">ASA III - Severe systemic disease</SelectItem>
+                                            <SelectItem value="ASA IV">ASA IV - Severe systemic disease that is a constant threat to life</SelectItem>
+                                            <SelectItem value="ASA V">ASA V - Moribund patient not expected to survive</SelectItem>
+                                            <SelectItem value="ASA E">ASA E - Emergency procedure</SelectItem>
+                                          </SelectContent>
+                                        </Select>
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`preAnesthesiaAssessment-${note.id}`}>Pre-Anesthesia Assessment</Label>
+                                        <Textarea
+                                          id={`preAnesthesiaAssessment-${note.id}`}
+                                          value={note.anesthesiaData!.preAnesthesiaAssessment}
+                                          onChange={(e) => handleUpdateAnesthesiaField(note.id, "preAnesthesiaAssessment", e.target.value)}
+                                          placeholder="Physical examination findings, patient status, and risk assessment"
+                                          className="min-h-[100px]"
+                                        />
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label>Risk Factors</Label>
+                                        <div className="flex flex-wrap gap-2 mb-2">
+                                          {note.anesthesiaData!.riskFactors.map((factor, index) => (
+                                            <Badge key={index} variant="secondary" className="flex items-center gap-1">
+                                              {factor}
+                                              <X 
+                                                className="h-3 w-3 cursor-pointer" 
+                                                onClick={() => handleRemoveItemFromAnesthesiaList(note.id, "riskFactors", index)}
+                                              />
+                                            </Badge>
+                                          ))}
+                                        </div>
+                                        <div className="flex gap-2">
+                                          <Input
+                                            placeholder="Add risk factor"
+                                            onKeyPress={(e) => {
+                                              if (e.key === 'Enter' && (e.target as HTMLInputElement).value.trim()) {
+                                                handleAddItemToAnesthesiaList(note.id, "riskFactors", (e.target as HTMLInputElement).value);
+                                                (e.target as HTMLInputElement).value = "";
+                                              }
+                                            }}
+                                          />
+                                          <Button 
+                                            onClick={(e) => {
+                                              const input = e.currentTarget.previousElementSibling as HTMLInputElement;
+                                              if (input?.value.trim()) {
+                                                handleAddItemToAnesthesiaList(note.id, "riskFactors", input.value);
+                                                input.value = "";
+                                              }
+                                            }}
+                                            variant="outline"
+                                            size="sm"
+                                          >
+                                            Add
+                                          </Button>
+                                        </div>
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label>Allergies</Label>
+                                        <div className="flex flex-wrap gap-2 mb-2">
+                                          {note.anesthesiaData!.allergies.map((allergy, index) => (
+                                            <Badge key={index} variant="secondary" className="flex items-center gap-1">
+                                              {allergy}
+                                              <X 
+                                                className="h-3 w-3 cursor-pointer" 
+                                                onClick={() => handleRemoveItemFromAnesthesiaList(note.id, "allergies", index)}
+                                              />
+                                            </Badge>
+                                          ))}
+                                        </div>
+                                        <div className="flex gap-2">
+                                          <Input
+                                            placeholder="Add allergy"
+                                            onKeyPress={(e) => {
+                                              if (e.key === 'Enter' && (e.target as HTMLInputElement).value.trim()) {
+                                                handleAddItemToAnesthesiaList(note.id, "allergies", (e.target as HTMLInputElement).value);
+                                                (e.target as HTMLInputElement).value = "";
+                                              }
+                                            }}
+                                          />
+                                          <Button 
+                                            onClick={(e) => {
+                                              const input = e.currentTarget.previousElementSibling as HTMLInputElement;
+                                              if (input?.value.trim()) {
+                                                handleAddItemToAnesthesiaList(note.id, "allergies", input.value);
+                                                input.value = "";
+                                              }
+                                            }}
+                                            variant="outline"
+                                            size="sm"
+                                          >
+                                            Add
+                                          </Button>
+                                        </div>
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label>Current Medications</Label>
+                                        <div className="flex flex-wrap gap-2 mb-2">
+                                          {note.anesthesiaData!.currentMedications.map((med, index) => (
+                                            <Badge key={index} variant="secondary" className="flex items-center gap-1">
+                                              {med}
+                                              <X 
+                                                className="h-3 w-3 cursor-pointer" 
+                                                onClick={() => handleRemoveItemFromAnesthesiaList(note.id, "currentMedications", index)}
+                                              />
+                                            </Badge>
+                                          ))}
+                                        </div>
+                                        <div className="flex gap-2">
+                                          <Input
+                                            placeholder="Add medication"
+                                            onKeyPress={(e) => {
+                                              if (e.key === 'Enter' && (e.target as HTMLInputElement).value.trim()) {
+                                                handleAddItemToAnesthesiaList(note.id, "currentMedications", (e.target as HTMLInputElement).value);
+                                                (e.target as HTMLInputElement).value = "";
+                                              }
+                                            }}
+                                          />
+                                          <Button 
+                                            onClick={(e) => {
+                                              const input = e.currentTarget.previousElementSibling as HTMLInputElement;
+                                              if (input?.value.trim()) {
+                                                handleAddItemToAnesthesiaList(note.id, "currentMedications", input.value);
+                                                input.value = "";
+                                              }
+                                            }}
+                                            variant="outline"
+                                            size="sm"
+                                          >
+                                            Add
+                                          </Button>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Anesthesia Protocol */}
+                                  <div className="space-y-4 border-t pt-6">
+                                    <div>
+                                      <h3 className="text-lg font-semibold mb-2">Anesthesia Protocol</h3>
+                                    </div>
+                                    <div className="space-y-4">
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`premedication-${note.id}`}>Premedication</Label>
+                                        <Input
+                                          id={`premedication-${note.id}`}
+                                          value={note.anesthesiaData!.premedication}
+                                          onChange={(e) => handleUpdateAnesthesiaField(note.id, "premedication", e.target.value)}
+                                          placeholder="e.g., Acepromazine 0.05 mg/kg IM"
+                                        />
+                                      </div>
+                                      <div className="grid grid-cols-2 gap-4">
+                                        <div className="space-y-2">
+                                          <Label htmlFor={`inductionAgent-${note.id}`}>Induction Agent</Label>
+                                          <Input
+                                            id={`inductionAgent-${note.id}`}
+                                            value={note.anesthesiaData!.inductionAgent}
+                                            onChange={(e) => handleUpdateAnesthesiaField(note.id, "inductionAgent", e.target.value)}
+                                            placeholder="e.g., Propofol"
+                                          />
+                                        </div>
+                                        <div className="space-y-2">
+                                          <Label htmlFor={`inductionDose-${note.id}`}>Induction Dose</Label>
+                                          <Input
+                                            id={`inductionDose-${note.id}`}
+                                            value={note.anesthesiaData!.inductionDose}
+                                            onChange={(e) => handleUpdateAnesthesiaField(note.id, "inductionDose", e.target.value)}
+                                            placeholder="e.g., 4 mg/kg IV"
+                                          />
+                                        </div>
+                                      </div>
+                                      <div className="grid grid-cols-2 gap-4">
+                                        <div className="space-y-2">
+                                          <Label htmlFor={`maintenanceAgent-${note.id}`}>Maintenance Agent</Label>
+                                          <Input
+                                            id={`maintenanceAgent-${note.id}`}
+                                            value={note.anesthesiaData!.maintenanceAgent}
+                                            onChange={(e) => handleUpdateAnesthesiaField(note.id, "maintenanceAgent", e.target.value)}
+                                            placeholder="e.g., Isoflurane"
+                                          />
+                                        </div>
+                                        <div className="space-y-2">
+                                          <Label htmlFor={`maintenanceMethod-${note.id}`}>Maintenance Method</Label>
+                                          <Input
+                                            id={`maintenanceMethod-${note.id}`}
+                                            value={note.anesthesiaData!.maintenanceMethod}
+                                            onChange={(e) => handleUpdateAnesthesiaField(note.id, "maintenanceMethod", e.target.value)}
+                                            placeholder="e.g., Isoflurane 1.5% via endotracheal tube"
+                                          />
+                                        </div>
+                                      </div>
+                                      <div className="grid grid-cols-2 gap-4">
+                                        <div className="space-y-2">
+                                          <Label htmlFor={`reversalAgent-${note.id}`}>Reversal Agent</Label>
+                                          <Input
+                                            id={`reversalAgent-${note.id}`}
+                                            value={note.anesthesiaData!.reversalAgent}
+                                            onChange={(e) => handleUpdateAnesthesiaField(note.id, "reversalAgent", e.target.value)}
+                                            placeholder="e.g., Atipamezole"
+                                          />
+                                        </div>
+                                        <div className="space-y-2">
+                                          <Label htmlFor={`reversalDose-${note.id}`}>Reversal Dose</Label>
+                                          <Input
+                                            id={`reversalDose-${note.id}`}
+                                            value={note.anesthesiaData!.reversalDose}
+                                            onChange={(e) => handleUpdateAnesthesiaField(note.id, "reversalDose", e.target.value)}
+                                            placeholder="e.g., 0.1 mg/kg IM"
+                                          />
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Airway Management */}
+                                  <div className="space-y-4 border-t pt-6">
+                                    <div>
+                                      <h3 className="text-lg font-semibold mb-2">Airway Management</h3>
+                                    </div>
+                                    <div className="grid grid-cols-3 gap-4">
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`airwayType-${note.id}`}>Airway Type</Label>
+                                        <Select
+                                          value={note.anesthesiaData!.airwayType}
+                                          onValueChange={(value) => handleUpdateAnesthesiaField(note.id, "airwayType", value)}
+                                        >
+                                          <SelectTrigger>
+                                            <SelectValue placeholder="Select airway type" />
+                                          </SelectTrigger>
+                                          <SelectContent>
+                                            <SelectItem value="Endotracheal tube">Endotracheal tube</SelectItem>
+                                            <SelectItem value="Laryngeal mask">Laryngeal mask</SelectItem>
+                                            <SelectItem value="Face mask">Face mask</SelectItem>
+                                            <SelectItem value="Nasal cannula">Nasal cannula</SelectItem>
+                                            <SelectItem value="Other">Other</SelectItem>
+                                          </SelectContent>
+                                        </Select>
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`airwaySize-${note.id}`}>Airway Size</Label>
+                                        <Input
+                                          id={`airwaySize-${note.id}`}
+                                          value={note.anesthesiaData!.airwaySize}
+                                          onChange={(e) => handleUpdateAnesthesiaField(note.id, "airwaySize", e.target.value)}
+                                          placeholder="e.g., 6.0 mm"
+                                        />
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`intubationDifficulty-${note.id}`}>Intubation Difficulty</Label>
+                                        <Select
+                                          value={note.anesthesiaData!.intubationDifficulty}
+                                          onValueChange={(value) => handleUpdateAnesthesiaField(note.id, "intubationDifficulty", value)}
+                                        >
+                                          <SelectTrigger>
+                                            <SelectValue placeholder="Select difficulty" />
+                                          </SelectTrigger>
+                                          <SelectContent>
+                                            <SelectItem value="Easy">Easy</SelectItem>
+                                            <SelectItem value="Moderate">Moderate</SelectItem>
+                                            <SelectItem value="Difficult">Difficult</SelectItem>
+                                            <SelectItem value="Very Difficult">Very Difficult</SelectItem>
+                                          </SelectContent>
+                                        </Select>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Monitoring */}
+                                  <div className="space-y-4 border-t pt-6">
+                                    <div>
+                                      <h3 className="text-lg font-semibold mb-2">Monitoring</h3>
+                                    </div>
+                                    <div className="space-y-4">
+                                      <div className="space-y-2">
+                                        <Label>Monitoring Equipment</Label>
+                                        <div className="flex flex-wrap gap-2 mb-2">
+                                          {note.anesthesiaData!.monitoringEquipment.map((equipment, index) => (
+                                            <Badge key={index} variant="secondary" className="flex items-center gap-1">
+                                              {equipment}
+                                              <X 
+                                                className="h-3 w-3 cursor-pointer" 
+                                                onClick={() => handleRemoveItemFromAnesthesiaList(note.id, "monitoringEquipment", index)}
+                                              />
+                                            </Badge>
+                                          ))}
+                                        </div>
+                                        <div className="flex gap-2">
+                                          <Input
+                                            placeholder="Add equipment (e.g., ECG, Pulse oximeter, Capnography)"
+                                            onKeyPress={(e) => {
+                                              if (e.key === 'Enter' && (e.target as HTMLInputElement).value.trim()) {
+                                                handleAddItemToAnesthesiaList(note.id, "monitoringEquipment", (e.target as HTMLInputElement).value);
+                                                (e.target as HTMLInputElement).value = "";
+                                              }
+                                            }}
+                                          />
+                                          <Button 
+                                            onClick={(e) => {
+                                              const input = e.currentTarget.previousElementSibling as HTMLInputElement;
+                                              if (input?.value.trim()) {
+                                                handleAddItemToAnesthesiaList(note.id, "monitoringEquipment", input.value);
+                                                input.value = "";
+                                              }
+                                            }}
+                                            variant="outline"
+                                            size="sm"
+                                          >
+                                            Add
+                                          </Button>
+                                        </div>
+                                      </div>
+                                      <div className="grid grid-cols-2 gap-4">
+                                        <div className="space-y-3">
+                                          <h4 className="text-sm font-medium">Baseline Vital Signs</h4>
+                                          <div className="grid grid-cols-2 gap-2">
+                                            <div className="space-y-1">
+                                              <Label htmlFor={`baselineHR-${note.id}`} className="text-xs">Heart Rate (bpm)</Label>
+                                              <Input
+                                                id={`baselineHR-${note.id}`}
+                                                value={note.anesthesiaData!.baselineHeartRate}
+                                                onChange={(e) => handleUpdateAnesthesiaField(note.id, "baselineHeartRate", e.target.value)}
+                                                placeholder="bpm"
+                                              />
+                                            </div>
+                                            <div className="space-y-1">
+                                              <Label htmlFor={`baselineRR-${note.id}`} className="text-xs">Respiratory Rate (rpm)</Label>
+                                              <Input
+                                                id={`baselineRR-${note.id}`}
+                                                value={note.anesthesiaData!.baselineRespiratoryRate}
+                                                onChange={(e) => handleUpdateAnesthesiaField(note.id, "baselineRespiratoryRate", e.target.value)}
+                                                placeholder="rpm"
+                                              />
+                                            </div>
+                                            <div className="space-y-1">
+                                              <Label htmlFor={`baselineBP-${note.id}`} className="text-xs">Blood Pressure (mmHg)</Label>
+                                              <Input
+                                                id={`baselineBP-${note.id}`}
+                                                value={note.anesthesiaData!.baselineBloodPressure}
+                                                onChange={(e) => handleUpdateAnesthesiaField(note.id, "baselineBloodPressure", e.target.value)}
+                                                placeholder="mmHg"
+                                              />
+                                            </div>
+                                            <div className="space-y-1">
+                                              <Label htmlFor={`baselineTemp-${note.id}`} className="text-xs">Temperature (°F)</Label>
+                                              <Input
+                                                id={`baselineTemp-${note.id}`}
+                                                value={note.anesthesiaData!.baselineTemperature}
+                                                onChange={(e) => handleUpdateAnesthesiaField(note.id, "baselineTemperature", e.target.value)}
+                                                placeholder="°F"
+                                              />
+                                            </div>
+                                            <div className="space-y-1">
+                                              <Label htmlFor={`baselineSpO2-${note.id}`} className="text-xs">SpO2 (%)</Label>
+                                              <Input
+                                                id={`baselineSpO2-${note.id}`}
+                                                value={note.anesthesiaData!.baselineSpO2}
+                                                onChange={(e) => handleUpdateAnesthesiaField(note.id, "baselineSpO2", e.target.value)}
+                                                placeholder="%"
+                                              />
+                                            </div>
+                                          </div>
+                                        </div>
+                                        <div className="space-y-3">
+                                          <h4 className="text-sm font-medium">Intraoperative Vital Signs</h4>
+                                          <div className="grid grid-cols-2 gap-2">
+                                            <div className="space-y-1">
+                                              <Label htmlFor={`intraopHR-${note.id}`} className="text-xs">Heart Rate (bpm)</Label>
+                                              <Input
+                                                id={`intraopHR-${note.id}`}
+                                                value={note.anesthesiaData!.intraopHeartRate}
+                                                onChange={(e) => handleUpdateAnesthesiaField(note.id, "intraopHeartRate", e.target.value)}
+                                                placeholder="bpm"
+                                              />
+                                            </div>
+                                            <div className="space-y-1">
+                                              <Label htmlFor={`intraopRR-${note.id}`} className="text-xs">Respiratory Rate (rpm)</Label>
+                                              <Input
+                                                id={`intraopRR-${note.id}`}
+                                                value={note.anesthesiaData!.intraopRespiratoryRate}
+                                                onChange={(e) => handleUpdateAnesthesiaField(note.id, "intraopRespiratoryRate", e.target.value)}
+                                                placeholder="rpm"
+                                              />
+                                            </div>
+                                            <div className="space-y-1">
+                                              <Label htmlFor={`intraopBP-${note.id}`} className="text-xs">Blood Pressure (mmHg)</Label>
+                                              <Input
+                                                id={`intraopBP-${note.id}`}
+                                                value={note.anesthesiaData!.intraopBloodPressure}
+                                                onChange={(e) => handleUpdateAnesthesiaField(note.id, "intraopBloodPressure", e.target.value)}
+                                                placeholder="mmHg"
+                                              />
+                                            </div>
+                                            <div className="space-y-1">
+                                              <Label htmlFor={`intraopTemp-${note.id}`} className="text-xs">Temperature (°F)</Label>
+                                              <Input
+                                                id={`intraopTemp-${note.id}`}
+                                                value={note.anesthesiaData!.intraopTemperature}
+                                                onChange={(e) => handleUpdateAnesthesiaField(note.id, "intraopTemperature", e.target.value)}
+                                                placeholder="°F"
+                                              />
+                                            </div>
+                                            <div className="space-y-1">
+                                              <Label htmlFor={`intraopSpO2-${note.id}`} className="text-xs">SpO2 (%)</Label>
+                                              <Input
+                                                id={`intraopSpO2-${note.id}`}
+                                                value={note.anesthesiaData!.intraopSpO2}
+                                                onChange={(e) => handleUpdateAnesthesiaField(note.id, "intraopSpO2", e.target.value)}
+                                                placeholder="%"
+                                              />
+                                            </div>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Fluid Management */}
+                                  <div className="space-y-4 border-t pt-6">
+                                    <div>
+                                      <h3 className="text-lg font-semibold mb-2">Fluid Management</h3>
+                                    </div>
+                                    <div className="grid grid-cols-3 gap-4">
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`fluidsAdministered-${note.id}`}>Fluids Administered</Label>
+                                        <Input
+                                          id={`fluidsAdministered-${note.id}`}
+                                          value={note.anesthesiaData!.fluidsAdministered}
+                                          onChange={(e) => handleUpdateAnesthesiaField(note.id, "fluidsAdministered", e.target.value)}
+                                          placeholder="e.g., 250 ml"
+                                        />
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`fluidType-${note.id}`}>Fluid Type</Label>
+                                        <Input
+                                          id={`fluidType-${note.id}`}
+                                          value={note.anesthesiaData!.fluidType}
+                                          onChange={(e) => handleUpdateAnesthesiaField(note.id, "fluidType", e.target.value)}
+                                          placeholder="e.g., Lactated Ringer's"
+                                        />
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`fluidRate-${note.id}`}>Fluid Rate</Label>
+                                        <Input
+                                          id={`fluidRate-${note.id}`}
+                                          value={note.anesthesiaData!.fluidRate}
+                                          onChange={(e) => handleUpdateAnesthesiaField(note.id, "fluidRate", e.target.value)}
+                                          placeholder="e.g., 10 ml/kg/hr"
+                                        />
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Complications & Adverse Events */}
+                                  <div className="space-y-4 border-t pt-6">
+                                    <div>
+                                      <h3 className="text-lg font-semibold mb-2">Complications & Adverse Events</h3>
+                                    </div>
+                                    <div className="space-y-4">
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`complications-${note.id}`}>Complications</Label>
+                                        <Textarea
+                                          id={`complications-${note.id}`}
+                                          value={note.anesthesiaData!.complications}
+                                          onChange={(e) => handleUpdateAnesthesiaField(note.id, "complications", e.target.value)}
+                                          placeholder="Document any complications encountered during anesthesia"
+                                          className="min-h-[80px]"
+                                        />
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label>Adverse Events</Label>
+                                        <div className="flex flex-wrap gap-2 mb-2">
+                                          {note.anesthesiaData!.adverseEvents.map((event, index) => (
+                                            <Badge key={index} variant="secondary" className="flex items-center gap-1">
+                                              {event}
+                                              <X 
+                                                className="h-3 w-3 cursor-pointer" 
+                                                onClick={() => handleRemoveItemFromAnesthesiaList(note.id, "adverseEvents", index)}
+                                              />
+                                            </Badge>
+                                          ))}
+                                        </div>
+                                        <div className="flex gap-2">
+                                          <Input
+                                            placeholder="Add adverse event"
+                                            onKeyPress={(e) => {
+                                              if (e.key === 'Enter' && (e.target as HTMLInputElement).value.trim()) {
+                                                handleAddItemToAnesthesiaList(note.id, "adverseEvents", (e.target as HTMLInputElement).value);
+                                                (e.target as HTMLInputElement).value = "";
+                                              }
+                                            }}
+                                          />
+                                          <Button 
+                                            onClick={(e) => {
+                                              const input = e.currentTarget.previousElementSibling as HTMLInputElement;
+                                              if (input?.value.trim()) {
+                                                handleAddItemToAnesthesiaList(note.id, "adverseEvents", input.value);
+                                                input.value = "";
+                                              }
+                                            }}
+                                            variant="outline"
+                                            size="sm"
+                                          >
+                                            Add
+                                          </Button>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Recovery */}
+                                  <div className="space-y-4 border-t pt-6">
+                                    <div>
+                                      <h3 className="text-lg font-semibold mb-2">Recovery</h3>
+                                    </div>
+                                    <div className="space-y-4">
+                                      <div className="grid grid-cols-2 gap-4">
+                                        <div className="space-y-2">
+                                          <Label htmlFor={`recoveryTime-${note.id}`}>Recovery Time</Label>
+                                          <Input
+                                            id={`recoveryTime-${note.id}`}
+                                            value={note.anesthesiaData!.recoveryTime}
+                                            onChange={(e) => handleUpdateAnesthesiaField(note.id, "recoveryTime", e.target.value)}
+                                            placeholder="e.g., 15 minutes"
+                                          />
+                                        </div>
+                                        <div className="space-y-2">
+                                          <Label htmlFor={`recoveryQuality-${note.id}`}>Recovery Quality</Label>
+                                          <Select
+                                            value={note.anesthesiaData!.recoveryQuality}
+                                            onValueChange={(value) => handleUpdateAnesthesiaField(note.id, "recoveryQuality", value)}
+                                          >
+                                            <SelectTrigger>
+                                              <SelectValue placeholder="Select recovery quality" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                              <SelectItem value="Smooth">Smooth</SelectItem>
+                                              <SelectItem value="Prolonged">Prolonged</SelectItem>
+                                              <SelectItem value="Agitated">Agitated</SelectItem>
+                                              <SelectItem value="Delayed">Delayed</SelectItem>
+                                              <SelectItem value="Eventful">Eventful</SelectItem>
+                                            </SelectContent>
+                                          </Select>
+                                        </div>
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`extubationTime-${note.id}`}>Extubation Time</Label>
+                                        <Input
+                                          id={`extubationTime-${note.id}`}
+                                          type="time"
+                                          value={note.anesthesiaData!.extubationTime}
+                                          onChange={(e) => handleUpdateAnesthesiaField(note.id, "extubationTime", e.target.value)}
+                                        />
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`recoveryMonitoring-${note.id}`}>Recovery Monitoring</Label>
+                                        <Textarea
+                                          id={`recoveryMonitoring-${note.id}`}
+                                          value={note.anesthesiaData!.recoveryMonitoring}
+                                          onChange={(e) => handleUpdateAnesthesiaField(note.id, "recoveryMonitoring", e.target.value)}
+                                          placeholder="Monitoring performed during recovery period"
+                                          className="min-h-[80px]"
+                                        />
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`postAnesthesiaVitalSigns-${note.id}`}>Post-Anesthesia Vital Signs</Label>
+                                        <Textarea
+                                          id={`postAnesthesiaVitalSigns-${note.id}`}
+                                          value={note.anesthesiaData!.postAnesthesiaVitalSigns}
+                                          onChange={(e) => handleUpdateAnesthesiaField(note.id, "postAnesthesiaVitalSigns", e.target.value)}
+                                          placeholder="Vital signs after recovery"
+                                          className="min-h-[80px]"
+                                        />
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Post-Anesthesia Plan */}
+                                  <div className="space-y-4 border-t pt-6">
+                                    <div>
+                                      <h3 className="text-lg font-semibold mb-2">Post-Anesthesia Plan</h3>
+                                    </div>
+                                    <div className="space-y-4">
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`postAnesthesiaInstructions-${note.id}`}>Post-Anesthesia Instructions</Label>
+                                        <Textarea
+                                          id={`postAnesthesiaInstructions-${note.id}`}
+                                          value={note.anesthesiaData!.postAnesthesiaInstructions}
+                                          onChange={(e) => handleUpdateAnesthesiaField(note.id, "postAnesthesiaInstructions", e.target.value)}
+                                          placeholder="Instructions for post-anesthesia care"
+                                          className="min-h-[80px]"
+                                        />
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`monitoringRequirements-${note.id}`}>Monitoring Requirements</Label>
+                                        <Textarea
+                                          id={`monitoringRequirements-${note.id}`}
+                                          value={note.anesthesiaData!.monitoringRequirements}
+                                          onChange={(e) => handleUpdateAnesthesiaField(note.id, "monitoringRequirements", e.target.value)}
+                                          placeholder="Ongoing monitoring requirements"
+                                          className="min-h-[80px]"
+                                        />
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`followUp-${note.id}`}>Follow-Up</Label>
+                                        <Textarea
+                                          id={`followUp-${note.id}`}
+                                          value={note.anesthesiaData!.followUp}
+                                          onChange={(e) => handleUpdateAnesthesiaField(note.id, "followUp", e.target.value)}
+                                          placeholder="Follow-up appointments or monitoring"
+                                          className="min-h-[80px]"
+                                        />
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Additional Notes */}
+                                  <div className="space-y-4 border-t pt-6">
+                                    <div>
+                                      <h3 className="text-lg font-semibold mb-2">Additional Notes</h3>
+                                    </div>
+                                    <div className="space-y-2">
+                                      <Label htmlFor={`additionalNotes-${note.id}`}>Additional Notes</Label>
+                                      <Textarea
+                                        id={`additionalNotes-${note.id}`}
+                                        value={note.anesthesiaData!.additionalNotes}
+                                        onChange={(e) => handleUpdateAnesthesiaField(note.id, "additionalNotes", e.target.value)}
+                                        placeholder="Any additional relevant information"
+                                        className="min-h-[100px]"
+                                      />
+                                    </div>
+                                  </div>
+                                </div>
+                              ) : isDischargeNote ? (
+                                // Render Discharge form
+                                <div className="space-y-8">
+                                  {/* Provider & Patient Info */}
+                                  <div className="space-y-4 border-t pt-6">
+                                    <div>
+                                      <h3 className="text-lg font-semibold mb-2">Provider & Patient Information</h3>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4">
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`dischargingVet-${note.id}`}>Discharging Veterinarian</Label>
+                                        <Input
+                                          id={`dischargingVet-${note.id}`}
+                                          value={note.dischargeData!.dischargingVeterinarian}
+                                          onChange={(e) => handleUpdateDischargeField(note.id, "dischargingVeterinarian", e.target.value)}
+                                          placeholder="Enter discharging veterinarian name"
+                                        />
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`patientName-${note.id}`}>Patient Name</Label>
+                                        <Input
+                                          id={`patientName-${note.id}`}
+                                          value={note.dischargeData!.patientName}
+                                          onChange={(e) => handleUpdateDischargeField(note.id, "patientName", e.target.value)}
+                                          placeholder="Patient name"
+                                        />
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`ownerName-${note.id}`}>Owner Name</Label>
+                                        <Input
+                                          id={`ownerName-${note.id}`}
+                                          value={note.dischargeData!.ownerName}
+                                          onChange={(e) => handleUpdateDischargeField(note.id, "ownerName", e.target.value)}
+                                          placeholder="Owner name"
+                                        />
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Date & Time */}
+                                  <div className="space-y-4 border-t pt-6">
+                                    <div>
+                                      <h3 className="text-lg font-semibold mb-2">Date & Time</h3>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4">
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`dischargeDate-${note.id}`}>Discharge Date</Label>
+                                        <Input
+                                          id={`dischargeDate-${note.id}`}
+                                          type="date"
+                                          value={note.dischargeData!.dischargeDate}
+                                          onChange={(e) => handleUpdateDischargeField(note.id, "dischargeDate", e.target.value)}
+                                        />
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`dischargeTime-${note.id}`}>Discharge Time</Label>
+                                        <Input
+                                          id={`dischargeTime-${note.id}`}
+                                          type="time"
+                                          value={note.dischargeData!.dischargeTime}
+                                          onChange={(e) => handleUpdateDischargeField(note.id, "dischargeTime", e.target.value)}
+                                        />
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`admissionDate-${note.id}`}>Admission Date</Label>
+                                        <Input
+                                          id={`admissionDate-${note.id}`}
+                                          type="date"
+                                          value={note.dischargeData!.admissionDate}
+                                          onChange={(e) => handleUpdateDischargeField(note.id, "admissionDate", e.target.value)}
+                                        />
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`admissionTime-${note.id}`}>Admission Time</Label>
+                                        <Input
+                                          id={`admissionTime-${note.id}`}
+                                          type="time"
+                                          value={note.dischargeData!.admissionTime}
+                                          onChange={(e) => handleUpdateDischargeField(note.id, "admissionTime", e.target.value)}
+                                        />
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`lengthOfStay-${note.id}`}>Length of Stay</Label>
+                                        <Input
+                                          id={`lengthOfStay-${note.id}`}
+                                          value={note.dischargeData!.lengthOfStay}
+                                          onChange={(e) => handleUpdateDischargeField(note.id, "lengthOfStay", e.target.value)}
+                                          placeholder="e.g., 2 days, 3 hours"
+                                        />
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Visit/Admission Information */}
+                                  <div className="space-y-4 border-t pt-6">
+                                    <div>
+                                      <h3 className="text-lg font-semibold mb-2">Visit/Admission Information</h3>
+                                    </div>
+                                    <div className="space-y-4">
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`reasonForVisit-${note.id}`}>Reason for Visit</Label>
+                                        <Input
+                                          id={`reasonForVisit-${note.id}`}
+                                          value={note.dischargeData!.reasonForVisit}
+                                          onChange={(e) => handleUpdateDischargeField(note.id, "reasonForVisit", e.target.value)}
+                                          placeholder="Reason for visit/admission"
+                                        />
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`chiefComplaint-${note.id}`}>Chief Complaint</Label>
+                                        <Textarea
+                                          id={`chiefComplaint-${note.id}`}
+                                          value={note.dischargeData!.chiefComplaint}
+                                          onChange={(e) => handleUpdateDischargeField(note.id, "chiefComplaint", e.target.value)}
+                                          placeholder="Chief complaint at presentation"
+                                          className="min-h-[80px]"
+                                        />
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Diagnosis */}
+                                  <div className="space-y-4 border-t pt-6">
+                                    <div>
+                                      <h3 className="text-lg font-semibold mb-2">Diagnosis</h3>
+                                    </div>
+                                    <div className="space-y-4">
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`primaryDiagnosis-${note.id}`}>Primary Diagnosis</Label>
+                                        <Input
+                                          id={`primaryDiagnosis-${note.id}`}
+                                          value={note.dischargeData!.primaryDiagnosis}
+                                          onChange={(e) => handleUpdateDischargeField(note.id, "primaryDiagnosis", e.target.value)}
+                                          placeholder="Primary diagnosis"
+                                        />
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label>Secondary Diagnoses</Label>
+                                        <div className="flex flex-wrap gap-2 mb-2">
+                                          {note.dischargeData!.secondaryDiagnoses.map((diagnosis, index) => (
+                                            <Badge key={index} variant="secondary" className="flex items-center gap-1">
+                                              {diagnosis}
+                                              <X 
+                                                className="h-3 w-3 cursor-pointer" 
+                                                onClick={() => handleRemoveItemFromDischargeList(note.id, "secondaryDiagnoses", index)}
+                                              />
+                                            </Badge>
+                                          ))}
+                                        </div>
+                                        <div className="flex gap-2">
+                                          <Input
+                                            placeholder="Add secondary diagnosis"
+                                            onKeyPress={(e) => {
+                                              if (e.key === 'Enter' && (e.target as HTMLInputElement).value.trim()) {
+                                                handleAddItemToDischargeList(note.id, "secondaryDiagnoses", (e.target as HTMLInputElement).value);
+                                                (e.target as HTMLInputElement).value = "";
+                                              }
+                                            }}
+                                          />
+                                          <Button 
+                                            onClick={(e) => {
+                                              const input = e.currentTarget.previousElementSibling as HTMLInputElement;
+                                              if (input?.value.trim()) {
+                                                handleAddItemToDischargeList(note.id, "secondaryDiagnoses", input.value);
+                                                input.value = "";
+                                              }
+                                            }}
+                                            variant="outline"
+                                            size="sm"
+                                          >
+                                            Add
+                                          </Button>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Treatment Summary */}
+                                  <div className="space-y-4 border-t pt-6">
+                                    <div>
+                                      <h3 className="text-lg font-semibold mb-2">Treatment Summary</h3>
+                                    </div>
+                                    <div className="space-y-4">
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`treatmentSummary-${note.id}`}>Treatment Summary</Label>
+                                        <Textarea
+                                          id={`treatmentSummary-${note.id}`}
+                                          value={note.dischargeData!.treatmentSummary}
+                                          onChange={(e) => handleUpdateDischargeField(note.id, "treatmentSummary", e.target.value)}
+                                          placeholder="Summary of treatments provided during visit/admission"
+                                          className="min-h-[100px]"
+                                        />
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label>Procedures Performed</Label>
+                                        <div className="flex flex-wrap gap-2 mb-2">
+                                          {note.dischargeData!.proceduresPerformed.map((procedure, index) => (
+                                            <Badge key={index} variant="secondary" className="flex items-center gap-1">
+                                              {procedure}
+                                              <X 
+                                                className="h-3 w-3 cursor-pointer" 
+                                                onClick={() => handleRemoveItemFromDischargeList(note.id, "proceduresPerformed", index)}
+                                              />
+                                            </Badge>
+                                          ))}
+                                        </div>
+                                        <div className="flex gap-2">
+                                          <Input
+                                            placeholder="Add procedure"
+                                            onKeyPress={(e) => {
+                                              if (e.key === 'Enter' && (e.target as HTMLInputElement).value.trim()) {
+                                                handleAddItemToDischargeList(note.id, "proceduresPerformed", (e.target as HTMLInputElement).value);
+                                                (e.target as HTMLInputElement).value = "";
+                                              }
+                                            }}
+                                          />
+                                          <Button 
+                                            onClick={(e) => {
+                                              const input = e.currentTarget.previousElementSibling as HTMLInputElement;
+                                              if (input?.value.trim()) {
+                                                handleAddItemToDischargeList(note.id, "proceduresPerformed", input.value);
+                                                input.value = "";
+                                              }
+                                            }}
+                                            variant="outline"
+                                            size="sm"
+                                          >
+                                            Add
+                                          </Button>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Medications Prescribed */}
+                                  <div className="space-y-4 border-t pt-6">
+                                    <div>
+                                      <h3 className="text-lg font-semibold mb-2">Medications Prescribed</h3>
+                                    </div>
+                                    <div className="space-y-3">
+                                      {note.dischargeData!.medications.map((med, index) => (
+                                        <Card key={index} className="p-4">
+                                          <div className="flex items-start justify-between mb-3">
+                                            <h4 className="font-medium">Medication {index + 1}</h4>
+                                            <Button
+                                              variant="ghost"
+                                              size="icon"
+                                              onClick={() => handleRemoveDischargeMedication(note.id, index)}
+                                            >
+                                              <Trash2 className="h-4 w-4" />
+                                            </Button>
+                                          </div>
+                                          <div className="grid grid-cols-2 gap-3">
+                                            <div className="space-y-2">
+                                              <Label className="text-xs">Medication Name</Label>
+                                              <Input
+                                                value={med.name}
+                                                onChange={(e) => handleUpdateDischargeMedication(note.id, index, "name", e.target.value)}
+                                                placeholder="Medication name"
+                                              />
+                                            </div>
+                                            <div className="space-y-2">
+                                              <Label className="text-xs">Dosage</Label>
+                                              <Input
+                                                value={med.dosage}
+                                                onChange={(e) => handleUpdateDischargeMedication(note.id, index, "dosage", e.target.value)}
+                                                placeholder="e.g., 10 mg"
+                                              />
+                                            </div>
+                                            <div className="space-y-2">
+                                              <Label className="text-xs">Frequency</Label>
+                                              <Input
+                                                value={med.frequency}
+                                                onChange={(e) => handleUpdateDischargeMedication(note.id, index, "frequency", e.target.value)}
+                                                placeholder="e.g., Twice daily"
+                                              />
+                                            </div>
+                                            <div className="space-y-2">
+                                              <Label className="text-xs">Duration</Label>
+                                              <Input
+                                                value={med.duration}
+                                                onChange={(e) => handleUpdateDischargeMedication(note.id, index, "duration", e.target.value)}
+                                                placeholder="e.g., 7 days"
+                                              />
+                                            </div>
+                                            <div className="space-y-2 col-span-2">
+                                              <Label className="text-xs">Instructions</Label>
+                                              <Textarea
+                                                value={med.instructions}
+                                                onChange={(e) => handleUpdateDischargeMedication(note.id, index, "instructions", e.target.value)}
+                                                placeholder="Special instructions"
+                                                className="min-h-[60px]"
+                                              />
+                                            </div>
+                                          </div>
+                                        </Card>
+                                      ))}
+                                      <Button
+                                        variant="outline"
+                                        onClick={() => handleAddDischargeMedication(note.id, {name: "", dosage: "", frequency: "", duration: "", instructions: ""})}
+                                        className="w-full"
+                                      >
+                                        <Plus className="h-4 w-4 mr-2" />
+                                        Add Medication
+                                      </Button>
+                                    </div>
+                                  </div>
+
+                                  {/* Instructions for Owner */}
+                                  <div className="space-y-4 border-t pt-6">
+                                    <div>
+                                      <h3 className="text-lg font-semibold mb-2">Instructions for Owner</h3>
+                                    </div>
+                                    <div className="space-y-4">
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`homeCareInstructions-${note.id}`}>Home Care Instructions</Label>
+                                        <Textarea
+                                          id={`homeCareInstructions-${note.id}`}
+                                          value={note.dischargeData!.homeCareInstructions}
+                                          onChange={(e) => handleUpdateDischargeField(note.id, "homeCareInstructions", e.target.value)}
+                                          placeholder="Detailed home care instructions for the owner"
+                                          className="min-h-[100px]"
+                                        />
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`activityRestrictions-${note.id}`}>Activity Restrictions</Label>
+                                        <Textarea
+                                          id={`activityRestrictions-${note.id}`}
+                                          value={note.dischargeData!.activityRestrictions}
+                                          onChange={(e) => handleUpdateDischargeField(note.id, "activityRestrictions", e.target.value)}
+                                          placeholder="Activity restrictions and limitations"
+                                          className="min-h-[80px]"
+                                        />
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`dietInstructions-${note.id}`}>Diet Instructions</Label>
+                                        <Textarea
+                                          id={`dietInstructions-${note.id}`}
+                                          value={note.dischargeData!.dietInstructions}
+                                          onChange={(e) => handleUpdateDischargeField(note.id, "dietInstructions", e.target.value)}
+                                          placeholder="Dietary recommendations and restrictions"
+                                          className="min-h-[80px]"
+                                        />
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Follow-up Care */}
+                                  <div className="space-y-4 border-t pt-6">
+                                    <div>
+                                      <h3 className="text-lg font-semibold mb-2">Follow-up Care</h3>
+                                    </div>
+                                    <div className="space-y-4">
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`followUpAppointments-${note.id}`}>Follow-up Appointments</Label>
+                                        <Textarea
+                                          id={`followUpAppointments-${note.id}`}
+                                          value={note.dischargeData!.followUpAppointments}
+                                          onChange={(e) => handleUpdateDischargeField(note.id, "followUpAppointments", e.target.value)}
+                                          placeholder="Scheduled follow-up appointments"
+                                          className="min-h-[80px]"
+                                        />
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`followUpInstructions-${note.id}`}>Follow-up Instructions</Label>
+                                        <Textarea
+                                          id={`followUpInstructions-${note.id}`}
+                                          value={note.dischargeData!.followUpInstructions}
+                                          onChange={(e) => handleUpdateDischargeField(note.id, "followUpInstructions", e.target.value)}
+                                          placeholder="Instructions for follow-up care"
+                                          className="min-h-[80px]"
+                                        />
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`recheckDate-${note.id}`}>Recheck Date</Label>
+                                        <Input
+                                          id={`recheckDate-${note.id}`}
+                                          type="date"
+                                          value={note.dischargeData!.recheckDate}
+                                          onChange={(e) => handleUpdateDischargeField(note.id, "recheckDate", e.target.value)}
+                                        />
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Warning Signs */}
+                                  <div className="space-y-4 border-t pt-6">
+                                    <div>
+                                      <h3 className="text-lg font-semibold mb-2">Warning Signs</h3>
+                                    </div>
+                                    <div className="space-y-4">
+                                      <div className="space-y-2">
+                                        <Label>Warning Signs to Watch For</Label>
+                                        <div className="flex flex-wrap gap-2 mb-2">
+                                          {note.dischargeData!.warningSigns.map((sign, index) => (
+                                            <Badge key={index} variant="secondary" className="flex items-center gap-1">
+                                              {sign}
+                                              <X 
+                                                className="h-3 w-3 cursor-pointer" 
+                                                onClick={() => handleRemoveItemFromDischargeList(note.id, "warningSigns", index)}
+                                              />
+                                            </Badge>
+                                          ))}
+                                        </div>
+                                        <div className="flex gap-2">
+                                          <Input
+                                            placeholder="Add warning sign"
+                                            onKeyPress={(e) => {
+                                              if (e.key === 'Enter' && (e.target as HTMLInputElement).value.trim()) {
+                                                handleAddItemToDischargeList(note.id, "warningSigns", (e.target as HTMLInputElement).value);
+                                                (e.target as HTMLInputElement).value = "";
+                                              }
+                                            }}
+                                          />
+                                          <Button 
+                                            onClick={(e) => {
+                                              const input = e.currentTarget.previousElementSibling as HTMLInputElement;
+                                              if (input?.value.trim()) {
+                                                handleAddItemToDischargeList(note.id, "warningSigns", input.value);
+                                                input.value = "";
+                                              }
+                                            }}
+                                            variant="outline"
+                                            size="sm"
+                                          >
+                                            Add
+                                          </Button>
+                                        </div>
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`whenToSeekEmergencyCare-${note.id}`}>When to Seek Emergency Care</Label>
+                                        <Textarea
+                                          id={`whenToSeekEmergencyCare-${note.id}`}
+                                          value={note.dischargeData!.whenToSeekEmergencyCare}
+                                          onChange={(e) => handleUpdateDischargeField(note.id, "whenToSeekEmergencyCare", e.target.value)}
+                                          placeholder="Specific situations when owner should seek emergency care"
+                                          className="min-h-[80px]"
+                                        />
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Discharge Condition */}
+                                  <div className="space-y-4 border-t pt-6">
+                                    <div>
+                                      <h3 className="text-lg font-semibold mb-2">Discharge Condition</h3>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4">
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`dischargeCondition-${note.id}`}>Discharge Condition</Label>
+                                        <Select
+                                          value={note.dischargeData!.dischargeCondition}
+                                          onValueChange={(value) => handleUpdateDischargeField(note.id, "dischargeCondition", value)}
+                                        >
+                                          <SelectTrigger>
+                                            <SelectValue placeholder="Select condition" />
+                                          </SelectTrigger>
+                                          <SelectContent>
+                                            <SelectItem value="Stable">Stable</SelectItem>
+                                            <SelectItem value="Improved">Improved</SelectItem>
+                                            <SelectItem value="Guarded">Guarded</SelectItem>
+                                            <SelectItem value="Critical">Critical</SelectItem>
+                                            <SelectItem value="Fair">Fair</SelectItem>
+                                          </SelectContent>
+                                        </Select>
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`dischargeStatus-${note.id}`}>Discharge Status</Label>
+                                        <Select
+                                          value={note.dischargeData!.dischargeStatus}
+                                          onValueChange={(value) => handleUpdateDischargeField(note.id, "dischargeStatus", value)}
+                                        >
+                                          <SelectTrigger>
+                                            <SelectValue placeholder="Select status" />
+                                          </SelectTrigger>
+                                          <SelectContent>
+                                            <SelectItem value="Discharged to owner">Discharged to owner</SelectItem>
+                                            <SelectItem value="Transferred">Transferred</SelectItem>
+                                            <SelectItem value="Against medical advice">Against medical advice</SelectItem>
+                                            <SelectItem value="Deceased">Deceased</SelectItem>
+                                          </SelectContent>
+                                        </Select>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Owner Education */}
+                                  <div className="space-y-4 border-t pt-6">
+                                    <div>
+                                      <h3 className="text-lg font-semibold mb-2">Owner Education</h3>
+                                    </div>
+                                    <div className="space-y-4">
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`ownerEducation-${note.id}`}>Owner Education</Label>
+                                        <Textarea
+                                          id={`ownerEducation-${note.id}`}
+                                          value={note.dischargeData!.ownerEducation}
+                                          onChange={(e) => handleUpdateDischargeField(note.id, "ownerEducation", e.target.value)}
+                                          placeholder="Educational information provided to owner"
+                                          className="min-h-[100px]"
+                                        />
+                                      </div>
+                                      <div className="space-y-3">
+                                        <div className="flex items-center space-x-2">
+                                          <input
+                                            type="checkbox"
+                                            id={`questionsAnswered-${note.id}`}
+                                            checked={note.dischargeData!.questionsAnswered}
+                                            onChange={(e) => handleUpdateDischargeField(note.id, "questionsAnswered", e.target.checked)}
+                                            className="rounded border-gray-300"
+                                          />
+                                          <Label htmlFor={`questionsAnswered-${note.id}`} className="font-normal cursor-pointer">
+                                            Owner's questions were answered
+                                          </Label>
+                                        </div>
+                                        <div className="flex items-center space-x-2">
+                                          <input
+                                            type="checkbox"
+                                            id={`instructionsUnderstood-${note.id}`}
+                                            checked={note.dischargeData!.instructionsUnderstood}
+                                            onChange={(e) => handleUpdateDischargeField(note.id, "instructionsUnderstood", e.target.checked)}
+                                            className="rounded border-gray-300"
+                                          />
+                                          <Label htmlFor={`instructionsUnderstood-${note.id}`} className="font-normal cursor-pointer">
+                                            Owner understood discharge instructions
+                                          </Label>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Additional Notes */}
+                                  <div className="space-y-4 border-t pt-6">
+                                    <div>
+                                      <h3 className="text-lg font-semibold mb-2">Additional Notes</h3>
+                                    </div>
+                                    <div className="space-y-2">
+                                      <Label htmlFor={`additionalNotes-${note.id}`}>Additional Notes</Label>
+                                      <Textarea
+                                        id={`additionalNotes-${note.id}`}
+                                        value={note.dischargeData!.additionalNotes}
+                                        onChange={(e) => handleUpdateDischargeField(note.id, "additionalNotes", e.target.value)}
+                                        placeholder="Any additional relevant information"
+                                        className="min-h-[100px]"
+                                      />
+                                    </div>
+                                  </div>
+                                </div>
+                              ) : isFollowUpNote ? (
+                                // Render Follow-up form
+                                <div className="space-y-8">
+                                  {/* Provider & Patient Info */}
+                                  <div className="space-y-4 border-t pt-6">
+                                    <div>
+                                      <h3 className="text-lg font-semibold mb-2">Provider & Patient Information</h3>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4">
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`vetName-${note.id}`}>Veterinarian Name</Label>
+                                        <Input
+                                          id={`vetName-${note.id}`}
+                                          value={note.followUpData!.veterinarianName}
+                                          onChange={(e) => handleUpdateFollowUpField(note.id, "veterinarianName", e.target.value)}
+                                          placeholder="Enter veterinarian name"
+                                        />
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`patientName-${note.id}`}>Patient Name</Label>
+                                        <Input
+                                          id={`patientName-${note.id}`}
+                                          value={note.followUpData!.patientName}
+                                          onChange={(e) => handleUpdateFollowUpField(note.id, "patientName", e.target.value)}
+                                          placeholder="Patient name"
+                                        />
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`ownerName-${note.id}`}>Owner Name</Label>
+                                        <Input
+                                          id={`ownerName-${note.id}`}
+                                          value={note.followUpData!.ownerName}
+                                          onChange={(e) => handleUpdateFollowUpField(note.id, "ownerName", e.target.value)}
+                                          placeholder="Owner name"
+                                        />
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Date & Time */}
+                                  <div className="space-y-4 border-t pt-6">
+                                    <div>
+                                      <h3 className="text-lg font-semibold mb-2">Date & Time</h3>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4">
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`followUpDate-${note.id}`}>Follow-up Date</Label>
+                                        <Input
+                                          id={`followUpDate-${note.id}`}
+                                          type="date"
+                                          value={note.followUpData!.followUpDate}
+                                          onChange={(e) => handleUpdateFollowUpField(note.id, "followUpDate", e.target.value)}
+                                        />
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`followUpTime-${note.id}`}>Follow-up Time</Label>
+                                        <Input
+                                          id={`followUpTime-${note.id}`}
+                                          type="time"
+                                          value={note.followUpData!.followUpTime}
+                                          onChange={(e) => handleUpdateFollowUpField(note.id, "followUpTime", e.target.value)}
+                                        />
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`originalVisitDate-${note.id}`}>Original Visit Date</Label>
+                                        <Input
+                                          id={`originalVisitDate-${note.id}`}
+                                          type="date"
+                                          value={note.followUpData!.originalVisitDate}
+                                          onChange={(e) => handleUpdateFollowUpField(note.id, "originalVisitDate", e.target.value)}
+                                        />
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`daysSinceLastVisit-${note.id}`}>Days Since Last Visit</Label>
+                                        <Input
+                                          id={`daysSinceLastVisit-${note.id}`}
+                                          value={note.followUpData!.daysSinceLastVisit}
+                                          onChange={(e) => handleUpdateFollowUpField(note.id, "daysSinceLastVisit", e.target.value)}
+                                          placeholder="e.g., 7 days"
+                                        />
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Visit Information */}
+                                  <div className="space-y-4 border-t pt-6">
+                                    <div>
+                                      <h3 className="text-lg font-semibold mb-2">Visit Information</h3>
+                                    </div>
+                                    <div className="space-y-4">
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`visitType-${note.id}`}>Visit Type</Label>
+                                        <Select
+                                          value={note.followUpData!.visitType}
+                                          onValueChange={(value) => handleUpdateFollowUpField(note.id, "visitType", value)}
+                                        >
+                                          <SelectTrigger>
+                                            <SelectValue placeholder="Select visit type" />
+                                          </SelectTrigger>
+                                          <SelectContent>
+                                            <SelectItem value="Recheck">Recheck</SelectItem>
+                                            <SelectItem value="Progress check">Progress check</SelectItem>
+                                            <SelectItem value="Post-operative">Post-operative</SelectItem>
+                                            <SelectItem value="Routine follow-up">Routine follow-up</SelectItem>
+                                            <SelectItem value="Emergency follow-up">Emergency follow-up</SelectItem>
+                                            <SelectItem value="Phone consultation">Phone consultation</SelectItem>
+                                          </SelectContent>
+                                        </Select>
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`reasonForFollowUp-${note.id}`}>Reason for Follow-up</Label>
+                                        <Textarea
+                                          id={`reasonForFollowUp-${note.id}`}
+                                          value={note.followUpData!.reasonForFollowUp}
+                                          onChange={(e) => handleUpdateFollowUpField(note.id, "reasonForFollowUp", e.target.value)}
+                                          placeholder="Reason for this follow-up visit"
+                                          className="min-h-[80px]"
+                                        />
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`chiefComplaint-${note.id}`}>Chief Complaint</Label>
+                                        <Textarea
+                                          id={`chiefComplaint-${note.id}`}
+                                          value={note.followUpData!.chiefComplaint}
+                                          onChange={(e) => handleUpdateFollowUpField(note.id, "chiefComplaint", e.target.value)}
+                                          placeholder="Current chief complaint"
+                                          className="min-h-[80px]"
+                                        />
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Previous Visit Summary */}
+                                  <div className="space-y-4 border-t pt-6">
+                                    <div>
+                                      <h3 className="text-lg font-semibold mb-2">Previous Visit Summary</h3>
+                                    </div>
+                                    <div className="space-y-4">
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`previousDiagnosis-${note.id}`}>Previous Diagnosis</Label>
+                                        <Input
+                                          id={`previousDiagnosis-${note.id}`}
+                                          value={note.followUpData!.previousDiagnosis}
+                                          onChange={(e) => handleUpdateFollowUpField(note.id, "previousDiagnosis", e.target.value)}
+                                          placeholder="Diagnosis from previous visit"
+                                        />
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`previousTreatment-${note.id}`}>Previous Treatment</Label>
+                                        <Textarea
+                                          id={`previousTreatment-${note.id}`}
+                                          value={note.followUpData!.previousTreatment}
+                                          onChange={(e) => handleUpdateFollowUpField(note.id, "previousTreatment", e.target.value)}
+                                          placeholder="Treatment provided during previous visit"
+                                          className="min-h-[80px]"
+                                        />
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Current Assessment */}
+                                  <div className="space-y-4 border-t pt-6">
+                                    <div>
+                                      <h3 className="text-lg font-semibold mb-2">Current Assessment</h3>
+                                    </div>
+                                    <div className="space-y-4">
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`currentStatus-${note.id}`}>Current Status</Label>
+                                        <Textarea
+                                          id={`currentStatus-${note.id}`}
+                                          value={note.followUpData!.currentStatus}
+                                          onChange={(e) => handleUpdateFollowUpField(note.id, "currentStatus", e.target.value)}
+                                          placeholder="Current patient status and condition"
+                                          className="min-h-[80px]"
+                                        />
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`improvement-${note.id}`}>Improvement Status</Label>
+                                        <Select
+                                          value={note.followUpData!.improvement}
+                                          onValueChange={(value) => handleUpdateFollowUpField(note.id, "improvement", value)}
+                                        >
+                                          <SelectTrigger>
+                                            <SelectValue placeholder="Select improvement status" />
+                                          </SelectTrigger>
+                                          <SelectContent>
+                                            <SelectItem value="Resolved">Resolved</SelectItem>
+                                            <SelectItem value="Improved">Improved</SelectItem>
+                                            <SelectItem value="No change">No change</SelectItem>
+                                            <SelectItem value="Worse">Worse</SelectItem>
+                                            <SelectItem value="Stable">Stable</SelectItem>
+                                          </SelectContent>
+                                        </Select>
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label>Current Symptoms</Label>
+                                        <div className="flex flex-wrap gap-2 mb-2">
+                                          {note.followUpData!.currentSymptoms.map((symptom, index) => (
+                                            <Badge key={index} variant="secondary" className="flex items-center gap-1">
+                                              {symptom}
+                                              <X 
+                                                className="h-3 w-3 cursor-pointer" 
+                                                onClick={() => handleRemoveItemFromFollowUpList(note.id, "currentSymptoms", index)}
+                                              />
+                                            </Badge>
+                                          ))}
+                                        </div>
+                                        <div className="flex gap-2">
+                                          <Input
+                                            placeholder="Add symptom"
+                                            onKeyPress={(e) => {
+                                              if (e.key === 'Enter' && (e.target as HTMLInputElement).value.trim()) {
+                                                handleAddItemToFollowUpList(note.id, "currentSymptoms", (e.target as HTMLInputElement).value);
+                                                (e.target as HTMLInputElement).value = "";
+                                              }
+                                            }}
+                                          />
+                                          <Button 
+                                            onClick={(e) => {
+                                              const input = e.currentTarget.previousElementSibling as HTMLInputElement;
+                                              if (input?.value.trim()) {
+                                                handleAddItemToFollowUpList(note.id, "currentSymptoms", input.value);
+                                                input.value = "";
+                                              }
+                                            }}
+                                            variant="outline"
+                                            size="sm"
+                                          >
+                                            Add
+                                          </Button>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Physical Examination */}
+                                  <div className="space-y-4 border-t pt-6">
+                                    <div>
+                                      <h3 className="text-lg font-semibold mb-2">Physical Examination</h3>
+                                    </div>
+                                    <div className="space-y-4">
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`physicalExamFindings-${note.id}`}>Physical Exam Findings</Label>
+                                        <Textarea
+                                          id={`physicalExamFindings-${note.id}`}
+                                          value={note.followUpData!.physicalExamFindings}
+                                          onChange={(e) => handleUpdateFollowUpField(note.id, "physicalExamFindings", e.target.value)}
+                                          placeholder="Physical examination findings"
+                                          className="min-h-[100px]"
+                                        />
+                                      </div>
+                                      <div className="space-y-3">
+                                        <h4 className="text-sm font-medium">Vital Signs</h4>
+                                        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                                          <div className="space-y-1">
+                                            <Label htmlFor={`temp-${note.id}`} className="text-xs">Temperature (°F)</Label>
+                                            <Input
+                                              id={`temp-${note.id}`}
+                                              value={note.followUpData!.vitalSigns.temperature}
+                                              onChange={(e) => handleUpdateFollowUpVitalSign(note.id, "temperature", e.target.value)}
+                                              placeholder="°F"
+                                            />
+                                          </div>
+                                          <div className="space-y-1">
+                                            <Label htmlFor={`hr-${note.id}`} className="text-xs">Heart Rate (bpm)</Label>
+                                            <Input
+                                              id={`hr-${note.id}`}
+                                              value={note.followUpData!.vitalSigns.heartRate}
+                                              onChange={(e) => handleUpdateFollowUpVitalSign(note.id, "heartRate", e.target.value)}
+                                              placeholder="bpm"
+                                            />
+                                          </div>
+                                          <div className="space-y-1">
+                                            <Label htmlFor={`rr-${note.id}`} className="text-xs">Respiratory Rate (rpm)</Label>
+                                            <Input
+                                              id={`rr-${note.id}`}
+                                              value={note.followUpData!.vitalSigns.respiratoryRate}
+                                              onChange={(e) => handleUpdateFollowUpVitalSign(note.id, "respiratoryRate", e.target.value)}
+                                              placeholder="rpm"
+                                            />
+                                          </div>
+                                          <div className="space-y-1">
+                                            <Label htmlFor={`weight-${note.id}`} className="text-xs">Weight (kg)</Label>
+                                            <Input
+                                              id={`weight-${note.id}`}
+                                              value={note.followUpData!.vitalSigns.weight}
+                                              onChange={(e) => handleUpdateFollowUpVitalSign(note.id, "weight", e.target.value)}
+                                              placeholder="kg"
+                                            />
+                                          </div>
+                                          <div className="space-y-1">
+                                            <Label htmlFor={`bcs-${note.id}`} className="text-xs">Body Condition Score</Label>
+                                            <Input
+                                              id={`bcs-${note.id}`}
+                                              value={note.followUpData!.vitalSigns.bodyConditionScore}
+                                              onChange={(e) => handleUpdateFollowUpVitalSign(note.id, "bodyConditionScore", e.target.value)}
+                                              placeholder="1-9"
+                                            />
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Assessment */}
+                                  <div className="space-y-4 border-t pt-6">
+                                    <div>
+                                      <h3 className="text-lg font-semibold mb-2">Assessment</h3>
+                                    </div>
+                                    <div className="space-y-4">
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`currentAssessment-${note.id}`}>Current Assessment</Label>
+                                        <Textarea
+                                          id={`currentAssessment-${note.id}`}
+                                          value={note.followUpData!.currentAssessment}
+                                          onChange={(e) => handleUpdateFollowUpField(note.id, "currentAssessment", e.target.value)}
+                                          placeholder="Clinical assessment and interpretation"
+                                          className="min-h-[100px]"
+                                        />
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`diagnosis-${note.id}`}>Diagnosis</Label>
+                                        <Input
+                                          id={`diagnosis-${note.id}`}
+                                          value={note.followUpData!.diagnosis}
+                                          onChange={(e) => handleUpdateFollowUpField(note.id, "diagnosis", e.target.value)}
+                                          placeholder="Current diagnosis"
+                                        />
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label>Differential Diagnoses</Label>
+                                        <div className="flex flex-wrap gap-2 mb-2">
+                                          {note.followUpData!.differentialDiagnoses.map((diagnosis, index) => (
+                                            <Badge key={index} variant="secondary" className="flex items-center gap-1">
+                                              {diagnosis}
+                                              <X 
+                                                className="h-3 w-3 cursor-pointer" 
+                                                onClick={() => handleRemoveItemFromFollowUpList(note.id, "differentialDiagnoses", index)}
+                                              />
+                                            </Badge>
+                                          ))}
+                                        </div>
+                                        <div className="flex gap-2">
+                                          <Input
+                                            placeholder="Add differential diagnosis"
+                                            onKeyPress={(e) => {
+                                              if (e.key === 'Enter' && (e.target as HTMLInputElement).value.trim()) {
+                                                handleAddItemToFollowUpList(note.id, "differentialDiagnoses", (e.target as HTMLInputElement).value);
+                                                (e.target as HTMLInputElement).value = "";
+                                              }
+                                            }}
+                                          />
+                                          <Button 
+                                            onClick={(e) => {
+                                              const input = e.currentTarget.previousElementSibling as HTMLInputElement;
+                                              if (input?.value.trim()) {
+                                                handleAddItemToFollowUpList(note.id, "differentialDiagnoses", input.value);
+                                                input.value = "";
+                                              }
+                                            }}
+                                            variant="outline"
+                                            size="sm"
+                                          >
+                                            Add
+                                          </Button>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Treatment Plan */}
+                                  <div className="space-y-4 border-t pt-6">
+                                    <div>
+                                      <h3 className="text-lg font-semibold mb-2">Treatment Plan</h3>
+                                    </div>
+                                    <div className="space-y-4">
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`treatmentPlan-${note.id}`}>Treatment Plan</Label>
+                                        <Textarea
+                                          id={`treatmentPlan-${note.id}`}
+                                          value={note.followUpData!.treatmentPlan}
+                                          onChange={(e) => handleUpdateFollowUpField(note.id, "treatmentPlan", e.target.value)}
+                                          placeholder="Treatment plan and recommendations"
+                                          className="min-h-[100px]"
+                                        />
+                                      </div>
+                                      <div className="space-y-3">
+                                        <Label>Medications</Label>
+                                        {note.followUpData!.medications.map((med, index) => (
+                                          <Card key={index} className="p-4">
+                                            <div className="flex items-start justify-between mb-3">
+                                              <h4 className="font-medium">Medication {index + 1}</h4>
+                                              <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                onClick={() => handleRemoveFollowUpMedication(note.id, index)}
+                                              >
+                                                <Trash2 className="h-4 w-4" />
+                                              </Button>
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-3">
+                                              <div className="space-y-2">
+                                                <Label className="text-xs">Medication Name</Label>
+                                                <Input
+                                                  value={med.name}
+                                                  onChange={(e) => handleUpdateFollowUpMedication(note.id, index, "name", e.target.value)}
+                                                  placeholder="Medication name"
+                                                />
+                                              </div>
+                                              <div className="space-y-2">
+                                                <Label className="text-xs">Dosage</Label>
+                                                <Input
+                                                  value={med.dosage}
+                                                  onChange={(e) => handleUpdateFollowUpMedication(note.id, index, "dosage", e.target.value)}
+                                                  placeholder="e.g., 10 mg"
+                                                />
+                                              </div>
+                                              <div className="space-y-2">
+                                                <Label className="text-xs">Frequency</Label>
+                                                <Input
+                                                  value={med.frequency}
+                                                  onChange={(e) => handleUpdateFollowUpMedication(note.id, index, "frequency", e.target.value)}
+                                                  placeholder="e.g., Twice daily"
+                                                />
+                                              </div>
+                                              <div className="space-y-2">
+                                                <Label className="text-xs">Duration</Label>
+                                                <Input
+                                                  value={med.duration}
+                                                  onChange={(e) => handleUpdateFollowUpMedication(note.id, index, "duration", e.target.value)}
+                                                  placeholder="e.g., 7 days"
+                                                />
+                                              </div>
+                                              <div className="space-y-2 col-span-2">
+                                                <Label className="text-xs">Instructions</Label>
+                                                <Textarea
+                                                  value={med.instructions}
+                                                  onChange={(e) => handleUpdateFollowUpMedication(note.id, index, "instructions", e.target.value)}
+                                                  placeholder="Special instructions"
+                                                  className="min-h-[60px]"
+                                                />
+                                              </div>
+                                            </div>
+                                          </Card>
+                                        ))}
+                                        <Button
+                                          variant="outline"
+                                          onClick={() => handleAddFollowUpMedication(note.id, {name: "", dosage: "", frequency: "", duration: "", instructions: ""})}
+                                          className="w-full"
+                                        >
+                                          <Plus className="h-4 w-4 mr-2" />
+                                          Add Medication
+                                        </Button>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Recommendations */}
+                                  <div className="space-y-4 border-t pt-6">
+                                    <div>
+                                      <h3 className="text-lg font-semibold mb-2">Recommendations</h3>
+                                    </div>
+                                    <div className="space-y-4">
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`recommendations-${note.id}`}>Recommendations</Label>
+                                        <Textarea
+                                          id={`recommendations-${note.id}`}
+                                          value={note.followUpData!.recommendations}
+                                          onChange={(e) => handleUpdateFollowUpField(note.id, "recommendations", e.target.value)}
+                                          placeholder="General recommendations for the owner"
+                                          className="min-h-[80px]"
+                                        />
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`activityRestrictions-${note.id}`}>Activity Restrictions</Label>
+                                        <Textarea
+                                          id={`activityRestrictions-${note.id}`}
+                                          value={note.followUpData!.activityRestrictions}
+                                          onChange={(e) => handleUpdateFollowUpField(note.id, "activityRestrictions", e.target.value)}
+                                          placeholder="Activity restrictions and limitations"
+                                          className="min-h-[80px]"
+                                        />
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`dietRecommendations-${note.id}`}>Diet Recommendations</Label>
+                                        <Textarea
+                                          id={`dietRecommendations-${note.id}`}
+                                          value={note.followUpData!.dietRecommendations}
+                                          onChange={(e) => handleUpdateFollowUpField(note.id, "dietRecommendations", e.target.value)}
+                                          placeholder="Dietary recommendations"
+                                          className="min-h-[80px]"
+                                        />
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Follow-up Plan */}
+                                  <div className="space-y-4 border-t pt-6">
+                                    <div>
+                                      <h3 className="text-lg font-semibold mb-2">Follow-up Plan</h3>
+                                    </div>
+                                    <div className="space-y-4">
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`nextFollowUpDate-${note.id}`}>Next Follow-up Date</Label>
+                                        <Input
+                                          id={`nextFollowUpDate-${note.id}`}
+                                          type="date"
+                                          value={note.followUpData!.nextFollowUpDate}
+                                          onChange={(e) => handleUpdateFollowUpField(note.id, "nextFollowUpDate", e.target.value)}
+                                        />
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`nextFollowUpInstructions-${note.id}`}>Next Follow-up Instructions</Label>
+                                        <Textarea
+                                          id={`nextFollowUpInstructions-${note.id}`}
+                                          value={note.followUpData!.nextFollowUpInstructions}
+                                          onChange={(e) => handleUpdateFollowUpField(note.id, "nextFollowUpInstructions", e.target.value)}
+                                          placeholder="Instructions for next follow-up visit"
+                                          className="min-h-[80px]"
+                                        />
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`followUpInterval-${note.id}`}>Follow-up Interval</Label>
+                                        <Input
+                                          id={`followUpInterval-${note.id}`}
+                                          value={note.followUpData!.followUpInterval}
+                                          onChange={(e) => handleUpdateFollowUpField(note.id, "followUpInterval", e.target.value)}
+                                          placeholder="e.g., 2 weeks, 1 month"
+                                        />
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Owner Communication */}
+                                  <div className="space-y-4 border-t pt-6">
+                                    <div>
+                                      <h3 className="text-lg font-semibold mb-2">Owner Communication</h3>
+                                    </div>
+                                    <div className="space-y-4">
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`ownerConcerns-${note.id}`}>Owner Concerns</Label>
+                                        <Textarea
+                                          id={`ownerConcerns-${note.id}`}
+                                          value={note.followUpData!.ownerConcerns}
+                                          onChange={(e) => handleUpdateFollowUpField(note.id, "ownerConcerns", e.target.value)}
+                                          placeholder="Owner's concerns and questions"
+                                          className="min-h-[80px]"
+                                        />
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`ownerQuestions-${note.id}`}>Owner Questions</Label>
+                                        <Textarea
+                                          id={`ownerQuestions-${note.id}`}
+                                          value={note.followUpData!.ownerQuestions}
+                                          onChange={(e) => handleUpdateFollowUpField(note.id, "ownerQuestions", e.target.value)}
+                                          placeholder="Questions asked by owner"
+                                          className="min-h-[80px]"
+                                        />
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`ownerEducation-${note.id}`}>Owner Education</Label>
+                                        <Textarea
+                                          id={`ownerEducation-${note.id}`}
+                                          value={note.followUpData!.ownerEducation}
+                                          onChange={(e) => handleUpdateFollowUpField(note.id, "ownerEducation", e.target.value)}
+                                          placeholder="Educational information provided to owner"
+                                          className="min-h-[80px]"
+                                        />
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Additional Notes */}
+                                  <div className="space-y-4 border-t pt-6">
+                                    <div>
+                                      <h3 className="text-lg font-semibold mb-2">Additional Notes</h3>
+                                    </div>
+                                    <div className="space-y-2">
+                                      <Label htmlFor={`additionalNotes-${note.id}`}>Additional Notes</Label>
+                                      <Textarea
+                                        id={`additionalNotes-${note.id}`}
+                                        value={note.followUpData!.additionalNotes}
+                                        onChange={(e) => handleUpdateFollowUpField(note.id, "additionalNotes", e.target.value)}
+                                        placeholder="Any additional relevant information"
+                                        className="min-h-[100px]"
+                                      />
+                                    </div>
+                                  </div>
+                                </div>
+                              ) : isProgressNote ? (
+                                // Render Progress form
+                                <div className="space-y-8">
+                                  {/* Provider & Patient Info */}
+                                  <div className="space-y-4 border-t pt-6">
+                                    <div>
+                                      <h3 className="text-lg font-semibold mb-2">Provider & Patient Information</h3>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4">
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`vetName-${note.id}`}>Veterinarian Name</Label>
+                                        <Input
+                                          id={`vetName-${note.id}`}
+                                          value={note.progressData!.veterinarianName}
+                                          onChange={(e) => handleUpdateProgressField(note.id, "veterinarianName", e.target.value)}
+                                          placeholder="Enter veterinarian name"
+                                        />
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`patientName-${note.id}`}>Patient Name</Label>
+                                        <Input
+                                          id={`patientName-${note.id}`}
+                                          value={note.progressData!.patientName}
+                                          onChange={(e) => handleUpdateProgressField(note.id, "patientName", e.target.value)}
+                                          placeholder="Patient name"
+                                        />
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`ownerName-${note.id}`}>Owner Name</Label>
+                                        <Input
+                                          id={`ownerName-${note.id}`}
+                                          value={note.progressData!.ownerName}
+                                          onChange={(e) => handleUpdateProgressField(note.id, "ownerName", e.target.value)}
+                                          placeholder="Owner name"
+                                        />
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Date & Time */}
+                                  <div className="space-y-4 border-t pt-6">
+                                    <div>
+                                      <h3 className="text-lg font-semibold mb-2">Date & Time</h3>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4">
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`progressDate-${note.id}`}>Progress Note Date</Label>
+                                        <Input
+                                          id={`progressDate-${note.id}`}
+                                          type="date"
+                                          value={note.progressData!.progressDate}
+                                          onChange={(e) => handleUpdateProgressField(note.id, "progressDate", e.target.value)}
+                                        />
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`progressTime-${note.id}`}>Progress Note Time</Label>
+                                        <Input
+                                          id={`progressTime-${note.id}`}
+                                          type="time"
+                                          value={note.progressData!.progressTime}
+                                          onChange={(e) => handleUpdateProgressField(note.id, "progressTime", e.target.value)}
+                                        />
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`admissionDate-${note.id}`}>Admission Date</Label>
+                                        <Input
+                                          id={`admissionDate-${note.id}`}
+                                          type="date"
+                                          value={note.progressData!.admissionDate}
+                                          onChange={(e) => handleUpdateProgressField(note.id, "admissionDate", e.target.value)}
+                                        />
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`daysSinceAdmission-${note.id}`}>Days Since Admission</Label>
+                                        <Input
+                                          id={`daysSinceAdmission-${note.id}`}
+                                          value={note.progressData!.daysSinceAdmission}
+                                          onChange={(e) => handleUpdateProgressField(note.id, "daysSinceAdmission", e.target.value)}
+                                          placeholder="e.g., 3"
+                                        />
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Visit Information */}
+                                  <div className="space-y-4 border-t pt-6">
+                                    <div>
+                                      <h3 className="text-lg font-semibold mb-2">Visit Information</h3>
+                                    </div>
+                                    <div className="space-y-4">
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`visitType-${note.id}`}>Visit Type</Label>
+                                        <Select
+                                          value={note.progressData!.visitType}
+                                          onValueChange={(value) => handleUpdateProgressField(note.id, "visitType", value)}
+                                        >
+                                          <SelectTrigger>
+                                            <SelectValue placeholder="Select visit type" />
+                                          </SelectTrigger>
+                                          <SelectContent>
+                                            <SelectItem value="Daily progress">Daily progress</SelectItem>
+                                            <SelectItem value="Post-operative day X">Post-operative day X</SelectItem>
+                                            <SelectItem value="Hospitalization day X">Hospitalization day X</SelectItem>
+                                            <SelectItem value="Routine check">Routine check</SelectItem>
+                                            <SelectItem value="Status update">Status update</SelectItem>
+                                          </SelectContent>
+                                        </Select>
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`reasonForNote-${note.id}`}>Reason for Note</Label>
+                                        <Textarea
+                                          id={`reasonForNote-${note.id}`}
+                                          value={note.progressData!.reasonForNote}
+                                          onChange={(e) => handleUpdateProgressField(note.id, "reasonForNote", e.target.value)}
+                                          placeholder="Reason for this progress note"
+                                          className="min-h-[80px]"
+                                        />
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Clinical Status */}
+                                  <div className="space-y-4 border-t pt-6">
+                                    <div>
+                                      <h3 className="text-lg font-semibold mb-2">Clinical Status</h3>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4">
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`clinicalStatus-${note.id}`}>Clinical Status</Label>
+                                        <Select
+                                          value={note.progressData!.clinicalStatus}
+                                          onValueChange={(value) => handleUpdateProgressField(note.id, "clinicalStatus", value)}
+                                        >
+                                          <SelectTrigger>
+                                            <SelectValue placeholder="Select status" />
+                                          </SelectTrigger>
+                                          <SelectContent>
+                                            <SelectItem value="Stable">Stable</SelectItem>
+                                            <SelectItem value="Improving">Improving</SelectItem>
+                                            <SelectItem value="Deteriorating">Deteriorating</SelectItem>
+                                            <SelectItem value="Critical">Critical</SelectItem>
+                                            <SelectItem value="Guarded">Guarded</SelectItem>
+                                          </SelectContent>
+                                        </Select>
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`overallProgress-${note.id}`}>Overall Progress</Label>
+                                        <Select
+                                          value={note.progressData!.overallProgress}
+                                          onValueChange={(value) => handleUpdateProgressField(note.id, "overallProgress", value)}
+                                        >
+                                          <SelectTrigger>
+                                            <SelectValue placeholder="Select progress" />
+                                          </SelectTrigger>
+                                          <SelectContent>
+                                            <SelectItem value="Significant improvement">Significant improvement</SelectItem>
+                                            <SelectItem value="Moderate improvement">Moderate improvement</SelectItem>
+                                            <SelectItem value="Mild improvement">Mild improvement</SelectItem>
+                                            <SelectItem value="No change">No change</SelectItem>
+                                            <SelectItem value="Worsening">Worsening</SelectItem>
+                                          </SelectContent>
+                                        </Select>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Subjective */}
+                                  <div className="space-y-4 border-t pt-6">
+                                    <div>
+                                      <h3 className="text-lg font-semibold mb-2">Subjective</h3>
+                                    </div>
+                                    <div className="space-y-4">
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`ownerReport-${note.id}`}>Owner Report</Label>
+                                        <Textarea
+                                          id={`ownerReport-${note.id}`}
+                                          value={note.progressData!.ownerReport}
+                                          onChange={(e) => handleUpdateProgressField(note.id, "ownerReport", e.target.value)}
+                                          placeholder="Owner's report on patient status"
+                                          className="min-h-[80px]"
+                                        />
+                                      </div>
+                                      <div className="grid grid-cols-2 gap-4">
+                                        <div className="space-y-2">
+                                          <Label htmlFor={`patientBehavior-${note.id}`}>Patient Behavior</Label>
+                                          <Input
+                                            id={`patientBehavior-${note.id}`}
+                                            value={note.progressData!.patientBehavior}
+                                            onChange={(e) => handleUpdateProgressField(note.id, "patientBehavior", e.target.value)}
+                                            placeholder="e.g., Alert, Lethargic, Depressed"
+                                          />
+                                        </div>
+                                        <div className="space-y-2">
+                                          <Label htmlFor={`appetite-${note.id}`}>Appetite</Label>
+                                          <Input
+                                            id={`appetite-${note.id}`}
+                                            value={note.progressData!.appetite}
+                                            onChange={(e) => handleUpdateProgressField(note.id, "appetite", e.target.value)}
+                                            placeholder="e.g., Normal, Reduced, Anorexic"
+                                          />
+                                        </div>
+                                        <div className="space-y-2">
+                                          <Label htmlFor={`urination-${note.id}`}>Urination</Label>
+                                          <Input
+                                            id={`urination-${note.id}`}
+                                            value={note.progressData!.urination}
+                                            onChange={(e) => handleUpdateProgressField(note.id, "urination", e.target.value)}
+                                            placeholder="e.g., Normal, Increased, Decreased, Anuric"
+                                          />
+                                        </div>
+                                        <div className="space-y-2">
+                                          <Label htmlFor={`defecation-${note.id}`}>Defecation</Label>
+                                          <Input
+                                            id={`defecation-${note.id}`}
+                                            value={note.progressData!.defecation}
+                                            onChange={(e) => handleUpdateProgressField(note.id, "defecation", e.target.value)}
+                                            placeholder="e.g., Normal, Diarrhea, Constipated"
+                                          />
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Objective */}
+                                  <div className="space-y-4 border-t pt-6">
+                                    <div>
+                                      <h3 className="text-lg font-semibold mb-2">Objective</h3>
+                                    </div>
+                                    <div className="space-y-4">
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`physicalExamFindings-${note.id}`}>Physical Exam Findings</Label>
+                                        <Textarea
+                                          id={`physicalExamFindings-${note.id}`}
+                                          value={note.progressData!.physicalExamFindings}
+                                          onChange={(e) => handleUpdateProgressField(note.id, "physicalExamFindings", e.target.value)}
+                                          placeholder="Physical examination findings"
+                                          className="min-h-[100px]"
+                                        />
+                                      </div>
+                                      <div className="space-y-3">
+                                        <h4 className="text-sm font-medium">Vital Signs</h4>
+                                        <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
+                                          <div className="space-y-1">
+                                            <Label htmlFor={`temp-${note.id}`} className="text-xs">Temperature (°F)</Label>
+                                            <Input
+                                              id={`temp-${note.id}`}
+                                              value={note.progressData!.vitalSigns.temperature}
+                                              onChange={(e) => handleUpdateProgressVitalSign(note.id, "temperature", e.target.value)}
+                                              placeholder="°F"
+                                            />
+                                          </div>
+                                          <div className="space-y-1">
+                                            <Label htmlFor={`hr-${note.id}`} className="text-xs">Heart Rate (bpm)</Label>
+                                            <Input
+                                              id={`hr-${note.id}`}
+                                              value={note.progressData!.vitalSigns.heartRate}
+                                              onChange={(e) => handleUpdateProgressVitalSign(note.id, "heartRate", e.target.value)}
+                                              placeholder="bpm"
+                                            />
+                                          </div>
+                                          <div className="space-y-1">
+                                            <Label htmlFor={`rr-${note.id}`} className="text-xs">Respiratory Rate (rpm)</Label>
+                                            <Input
+                                              id={`rr-${note.id}`}
+                                              value={note.progressData!.vitalSigns.respiratoryRate}
+                                              onChange={(e) => handleUpdateProgressVitalSign(note.id, "respiratoryRate", e.target.value)}
+                                              placeholder="rpm"
+                                            />
+                                          </div>
+                                          <div className="space-y-1">
+                                            <Label htmlFor={`bp-${note.id}`} className="text-xs">Blood Pressure (mmHg)</Label>
+                                            <Input
+                                              id={`bp-${note.id}`}
+                                              value={note.progressData!.vitalSigns.bloodPressure}
+                                              onChange={(e) => handleUpdateProgressVitalSign(note.id, "bloodPressure", e.target.value)}
+                                              placeholder="mmHg"
+                                            />
+                                          </div>
+                                          <div className="space-y-1">
+                                            <Label htmlFor={`weight-${note.id}`} className="text-xs">Weight (kg)</Label>
+                                            <Input
+                                              id={`weight-${note.id}`}
+                                              value={note.progressData!.vitalSigns.weight}
+                                              onChange={(e) => handleUpdateProgressVitalSign(note.id, "weight", e.target.value)}
+                                              placeholder="kg"
+                                            />
+                                          </div>
+                                          <div className="space-y-1">
+                                            <Label htmlFor={`bcs-${note.id}`} className="text-xs">Body Condition Score</Label>
+                                            <Input
+                                              id={`bcs-${note.id}`}
+                                              value={note.progressData!.vitalSigns.bodyConditionScore}
+                                              onChange={(e) => handleUpdateProgressVitalSign(note.id, "bodyConditionScore", e.target.value)}
+                                              placeholder="1-9"
+                                            />
+                                          </div>
+                                        </div>
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`diagnosticResults-${note.id}`}>Diagnostic Results</Label>
+                                        <Textarea
+                                          id={`diagnosticResults-${note.id}`}
+                                          value={note.progressData!.diagnosticResults}
+                                          onChange={(e) => handleUpdateProgressField(note.id, "diagnosticResults", e.target.value)}
+                                          placeholder="Diagnostic test results"
+                                          className="min-h-[80px]"
+                                        />
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`labResults-${note.id}`}>Lab Results</Label>
+                                        <Textarea
+                                          id={`labResults-${note.id}`}
+                                          value={note.progressData!.labResults}
+                                          onChange={(e) => handleUpdateProgressField(note.id, "labResults", e.target.value)}
+                                          placeholder="Laboratory test results"
+                                          className="min-h-[80px]"
+                                        />
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`imagingResults-${note.id}`}>Imaging Results</Label>
+                                        <Textarea
+                                          id={`imagingResults-${note.id}`}
+                                          value={note.progressData!.imagingResults}
+                                          onChange={(e) => handleUpdateProgressField(note.id, "imagingResults", e.target.value)}
+                                          placeholder="Imaging study results"
+                                          className="min-h-[80px]"
+                                        />
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Assessment */}
+                                  <div className="space-y-4 border-t pt-6">
+                                    <div>
+                                      <h3 className="text-lg font-semibold mb-2">Assessment</h3>
+                                    </div>
+                                    <div className="space-y-4">
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`assessment-${note.id}`}>Assessment</Label>
+                                        <Textarea
+                                          id={`assessment-${note.id}`}
+                                          value={note.progressData!.assessment}
+                                          onChange={(e) => handleUpdateProgressField(note.id, "assessment", e.target.value)}
+                                          placeholder="Clinical assessment and interpretation"
+                                          className="min-h-[100px]"
+                                        />
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`currentDiagnosis-${note.id}`}>Current Diagnosis</Label>
+                                        <Input
+                                          id={`currentDiagnosis-${note.id}`}
+                                          value={note.progressData!.currentDiagnosis}
+                                          onChange={(e) => handleUpdateProgressField(note.id, "currentDiagnosis", e.target.value)}
+                                          placeholder="Current diagnosis"
+                                        />
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`progressNotes-${note.id}`}>Progress Notes</Label>
+                                        <Textarea
+                                          id={`progressNotes-${note.id}`}
+                                          value={note.progressData!.progressNotes}
+                                          onChange={(e) => handleUpdateProgressField(note.id, "progressNotes", e.target.value)}
+                                          placeholder="Notes on patient progress"
+                                          className="min-h-[100px]"
+                                        />
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label>Complications</Label>
+                                        <div className="flex flex-wrap gap-2 mb-2">
+                                          {note.progressData!.complications.map((complication, index) => (
+                                            <Badge key={index} variant="secondary" className="flex items-center gap-1">
+                                              {complication}
+                                              <X 
+                                                className="h-3 w-3 cursor-pointer" 
+                                                onClick={() => handleRemoveItemFromProgressList(note.id, "complications", index)}
+                                              />
+                                            </Badge>
+                                          ))}
+                                        </div>
+                                        <div className="flex gap-2">
+                                          <Input
+                                            placeholder="Add complication"
+                                            onKeyPress={(e) => {
+                                              if (e.key === 'Enter' && (e.target as HTMLInputElement).value.trim()) {
+                                                handleAddItemToProgressList(note.id, "complications", (e.target as HTMLInputElement).value);
+                                                (e.target as HTMLInputElement).value = "";
+                                              }
+                                            }}
+                                          />
+                                          <Button 
+                                            onClick={(e) => {
+                                              const input = e.currentTarget.previousElementSibling as HTMLInputElement;
+                                              if (input?.value.trim()) {
+                                                handleAddItemToProgressList(note.id, "complications", input.value);
+                                                input.value = "";
+                                              }
+                                            }}
+                                            variant="outline"
+                                            size="sm"
+                                          >
+                                            Add
+                                          </Button>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Plan */}
+                                  <div className="space-y-4 border-t pt-6">
+                                    <div>
+                                      <h3 className="text-lg font-semibold mb-2">Plan</h3>
+                                    </div>
+                                    <div className="space-y-4">
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`plan-${note.id}`}>Treatment Plan</Label>
+                                        <Textarea
+                                          id={`plan-${note.id}`}
+                                          value={note.progressData!.plan}
+                                          onChange={(e) => handleUpdateProgressField(note.id, "plan", e.target.value)}
+                                          placeholder="Treatment plan and recommendations"
+                                          className="min-h-[100px]"
+                                        />
+                                      </div>
+                                      <div className="space-y-3">
+                                        <Label>Medications</Label>
+                                        {note.progressData!.medications.map((med, index) => (
+                                          <Card key={index} className="p-4">
+                                            <div className="flex items-start justify-between mb-3">
+                                              <h4 className="font-medium">Medication {index + 1}</h4>
+                                              <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                onClick={() => handleRemoveProgressMedication(note.id, index)}
+                                              >
+                                                <Trash2 className="h-4 w-4" />
+                                              </Button>
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-3">
+                                              <div className="space-y-2">
+                                                <Label className="text-xs">Medication Name</Label>
+                                                <Input
+                                                  value={med.name}
+                                                  onChange={(e) => handleUpdateProgressMedication(note.id, index, "name", e.target.value)}
+                                                  placeholder="Medication name"
+                                                />
+                                              </div>
+                                              <div className="space-y-2">
+                                                <Label className="text-xs">Dosage</Label>
+                                                <Input
+                                                  value={med.dosage}
+                                                  onChange={(e) => handleUpdateProgressMedication(note.id, index, "dosage", e.target.value)}
+                                                  placeholder="e.g., 10 mg"
+                                                />
+                                              </div>
+                                              <div className="space-y-2">
+                                                <Label className="text-xs">Frequency</Label>
+                                                <Input
+                                                  value={med.frequency}
+                                                  onChange={(e) => handleUpdateProgressMedication(note.id, index, "frequency", e.target.value)}
+                                                  placeholder="e.g., Twice daily"
+                                                />
+                                              </div>
+                                              <div className="space-y-2">
+                                                <Label className="text-xs">Duration</Label>
+                                                <Input
+                                                  value={med.duration}
+                                                  onChange={(e) => handleUpdateProgressMedication(note.id, index, "duration", e.target.value)}
+                                                  placeholder="e.g., 7 days"
+                                                />
+                                              </div>
+                                              <div className="space-y-2">
+                                                <Label className="text-xs">Changes</Label>
+                                                <Select
+                                                  value={med.changes}
+                                                  onValueChange={(value) => handleUpdateProgressMedication(note.id, index, "changes", value)}
+                                                >
+                                                  <SelectTrigger>
+                                                    <SelectValue placeholder="Select change" />
+                                                  </SelectTrigger>
+                                                  <SelectContent>
+                                                    <SelectItem value="New">New</SelectItem>
+                                                    <SelectItem value="Increased">Increased</SelectItem>
+                                                    <SelectItem value="Decreased">Decreased</SelectItem>
+                                                    <SelectItem value="Discontinued">Discontinued</SelectItem>
+                                                    <SelectItem value="Continued">Continued</SelectItem>
+                                                    <SelectItem value="No change">No change</SelectItem>
+                                                  </SelectContent>
+                                                </Select>
+                                              </div>
+                                              <div className="space-y-2 col-span-2">
+                                                <Label className="text-xs">Instructions</Label>
+                                                <Textarea
+                                                  value={med.instructions}
+                                                  onChange={(e) => handleUpdateProgressMedication(note.id, index, "instructions", e.target.value)}
+                                                  placeholder="Special instructions"
+                                                  className="min-h-[60px]"
+                                                />
+                                              </div>
+                                            </div>
+                                          </Card>
+                                        ))}
+                                        <Button
+                                          variant="outline"
+                                          onClick={() => handleAddProgressMedication(note.id, {name: "", dosage: "", frequency: "", duration: "", instructions: "", changes: ""})}
+                                          className="w-full"
+                                        >
+                                          <Plus className="h-4 w-4 mr-2" />
+                                          Add Medication
+                                        </Button>
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label>Treatments</Label>
+                                        <div className="flex flex-wrap gap-2 mb-2">
+                                          {note.progressData!.treatments.map((treatment, index) => (
+                                            <Badge key={index} variant="secondary" className="flex items-center gap-1">
+                                              {treatment}
+                                              <X 
+                                                className="h-3 w-3 cursor-pointer" 
+                                                onClick={() => handleRemoveItemFromProgressList(note.id, "treatments", index)}
+                                              />
+                                            </Badge>
+                                          ))}
+                                        </div>
+                                        <div className="flex gap-2">
+                                          <Input
+                                            placeholder="Add treatment"
+                                            onKeyPress={(e) => {
+                                              if (e.key === 'Enter' && (e.target as HTMLInputElement).value.trim()) {
+                                                handleAddItemToProgressList(note.id, "treatments", (e.target as HTMLInputElement).value);
+                                                (e.target as HTMLInputElement).value = "";
+                                              }
+                                            }}
+                                          />
+                                          <Button 
+                                            onClick={(e) => {
+                                              const input = e.currentTarget.previousElementSibling as HTMLInputElement;
+                                              if (input?.value.trim()) {
+                                                handleAddItemToProgressList(note.id, "treatments", input.value);
+                                                input.value = "";
+                                              }
+                                            }}
+                                            variant="outline"
+                                            size="sm"
+                                          >
+                                            Add
+                                          </Button>
+                                        </div>
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label>Procedures</Label>
+                                        <div className="flex flex-wrap gap-2 mb-2">
+                                          {note.progressData!.procedures.map((procedure, index) => (
+                                            <Badge key={index} variant="secondary" className="flex items-center gap-1">
+                                              {procedure}
+                                              <X 
+                                                className="h-3 w-3 cursor-pointer" 
+                                                onClick={() => handleRemoveItemFromProgressList(note.id, "procedures", index)}
+                                              />
+                                            </Badge>
+                                          ))}
+                                        </div>
+                                        <div className="flex gap-2">
+                                          <Input
+                                            placeholder="Add procedure"
+                                            onKeyPress={(e) => {
+                                              if (e.key === 'Enter' && (e.target as HTMLInputElement).value.trim()) {
+                                                handleAddItemToProgressList(note.id, "procedures", (e.target as HTMLInputElement).value);
+                                                (e.target as HTMLInputElement).value = "";
+                                              }
+                                            }}
+                                          />
+                                          <Button 
+                                            onClick={(e) => {
+                                              const input = e.currentTarget.previousElementSibling as HTMLInputElement;
+                                              if (input?.value.trim()) {
+                                                handleAddItemToProgressList(note.id, "procedures", input.value);
+                                                input.value = "";
+                                              }
+                                            }}
+                                            variant="outline"
+                                            size="sm"
+                                          >
+                                            Add
+                                          </Button>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Monitoring */}
+                                  <div className="space-y-4 border-t pt-6">
+                                    <div>
+                                      <h3 className="text-lg font-semibold mb-2">Monitoring</h3>
+                                    </div>
+                                    <div className="space-y-4">
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`monitoringPlan-${note.id}`}>Monitoring Plan</Label>
+                                        <Textarea
+                                          id={`monitoringPlan-${note.id}`}
+                                          value={note.progressData!.monitoringPlan}
+                                          onChange={(e) => handleUpdateProgressField(note.id, "monitoringPlan", e.target.value)}
+                                          placeholder="Monitoring plan and frequency"
+                                          className="min-h-[80px]"
+                                        />
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label>Parameters to Watch</Label>
+                                        <div className="flex flex-wrap gap-2 mb-2">
+                                          {note.progressData!.parametersToWatch.map((param, index) => (
+                                            <Badge key={index} variant="secondary" className="flex items-center gap-1">
+                                              {param}
+                                              <X 
+                                                className="h-3 w-3 cursor-pointer" 
+                                                onClick={() => handleRemoveItemFromProgressList(note.id, "parametersToWatch", index)}
+                                              />
+                                            </Badge>
+                                          ))}
+                                        </div>
+                                        <div className="flex gap-2">
+                                          <Input
+                                            placeholder="Add parameter (e.g., Heart rate, Temperature)"
+                                            onKeyPress={(e) => {
+                                              if (e.key === 'Enter' && (e.target as HTMLInputElement).value.trim()) {
+                                                handleAddItemToProgressList(note.id, "parametersToWatch", (e.target as HTMLInputElement).value);
+                                                (e.target as HTMLInputElement).value = "";
+                                              }
+                                            }}
+                                          />
+                                          <Button 
+                                            onClick={(e) => {
+                                              const input = e.currentTarget.previousElementSibling as HTMLInputElement;
+                                              if (input?.value.trim()) {
+                                                handleAddItemToProgressList(note.id, "parametersToWatch", input.value);
+                                                input.value = "";
+                                              }
+                                            }}
+                                            variant="outline"
+                                            size="sm"
+                                          >
+                                            Add
+                                          </Button>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Discharge Planning */}
+                                  <div className="space-y-4 border-t pt-6">
+                                    <div>
+                                      <h3 className="text-lg font-semibold mb-2">Discharge Planning</h3>
+                                    </div>
+                                    <div className="space-y-4">
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`dischargeReadiness-${note.id}`}>Discharge Readiness</Label>
+                                        <Select
+                                          value={note.progressData!.dischargeReadiness}
+                                          onValueChange={(value) => handleUpdateProgressField(note.id, "dischargeReadiness", value)}
+                                        >
+                                          <SelectTrigger>
+                                            <SelectValue placeholder="Select readiness" />
+                                          </SelectTrigger>
+                                          <SelectContent>
+                                            <SelectItem value="Ready">Ready</SelectItem>
+                                            <SelectItem value="Not ready">Not ready</SelectItem>
+                                            <SelectItem value="Pending">Pending</SelectItem>
+                                            <SelectItem value="Conditional">Conditional</SelectItem>
+                                          </SelectContent>
+                                        </Select>
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label>Discharge Criteria</Label>
+                                        <div className="flex flex-wrap gap-2 mb-2">
+                                          {note.progressData!.dischargeCriteria.map((criteria, index) => (
+                                            <Badge key={index} variant="secondary" className="flex items-center gap-1">
+                                              {criteria}
+                                              <X 
+                                                className="h-3 w-3 cursor-pointer" 
+                                                onClick={() => handleRemoveItemFromProgressList(note.id, "dischargeCriteria", index)}
+                                              />
+                                            </Badge>
+                                          ))}
+                                        </div>
+                                        <div className="flex gap-2">
+                                          <Input
+                                            placeholder="Add discharge criteria"
+                                            onKeyPress={(e) => {
+                                              if (e.key === 'Enter' && (e.target as HTMLInputElement).value.trim()) {
+                                                handleAddItemToProgressList(note.id, "dischargeCriteria", (e.target as HTMLInputElement).value);
+                                                (e.target as HTMLInputElement).value = "";
+                                              }
+                                            }}
+                                          />
+                                          <Button 
+                                            onClick={(e) => {
+                                              const input = e.currentTarget.previousElementSibling as HTMLInputElement;
+                                              if (input?.value.trim()) {
+                                                handleAddItemToProgressList(note.id, "dischargeCriteria", input.value);
+                                                input.value = "";
+                                              }
+                                            }}
+                                            variant="outline"
+                                            size="sm"
+                                          >
+                                            Add
+                                          </Button>
+                                        </div>
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`estimatedDischargeDate-${note.id}`}>Estimated Discharge Date</Label>
+                                        <Input
+                                          id={`estimatedDischargeDate-${note.id}`}
+                                          type="date"
+                                          value={note.progressData!.estimatedDischargeDate}
+                                          onChange={(e) => handleUpdateProgressField(note.id, "estimatedDischargeDate", e.target.value)}
+                                        />
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Communication */}
+                                  <div className="space-y-4 border-t pt-6">
+                                    <div>
+                                      <h3 className="text-lg font-semibold mb-2">Owner Communication</h3>
+                                    </div>
+                                    <div className="space-y-4">
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`ownerCommunication-${note.id}`}>Owner Communication</Label>
+                                        <Textarea
+                                          id={`ownerCommunication-${note.id}`}
+                                          value={note.progressData!.ownerCommunication}
+                                          onChange={(e) => handleUpdateProgressField(note.id, "ownerCommunication", e.target.value)}
+                                          placeholder="Communication with owner"
+                                          className="min-h-[80px]"
+                                        />
+                                      </div>
+                                      <div className="space-y-2">
+                                        <Label htmlFor={`ownerUpdates-${note.id}`}>Owner Updates</Label>
+                                        <Textarea
+                                          id={`ownerUpdates-${note.id}`}
+                                          value={note.progressData!.ownerUpdates}
+                                          onChange={(e) => handleUpdateProgressField(note.id, "ownerUpdates", e.target.value)}
+                                          placeholder="Updates provided to owner"
+                                          className="min-h-[80px]"
+                                        />
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Additional Notes */}
+                                  <div className="space-y-4 border-t pt-6">
+                                    <div>
+                                      <h3 className="text-lg font-semibold mb-2">Additional Notes</h3>
+                                    </div>
+                                    <div className="space-y-2">
+                                      <Label htmlFor={`additionalNotes-${note.id}`}>Additional Notes</Label>
+                                      <Textarea
+                                        id={`additionalNotes-${note.id}`}
+                                        value={note.progressData!.additionalNotes}
+                                        onChange={(e) => handleUpdateProgressField(note.id, "additionalNotes", e.target.value)}
+                                        placeholder="Any additional relevant information"
+                                        className="min-h-[100px]"
+                                      />
+                                    </div>
+                                  </div>
+                                </div>
+                              ) : (
+                                // Render regular note content
+                                <Textarea
+                                  value={note.content}
+                                  onChange={(e) => handleUpdateClinicalNote(note.id, e.target.value)}
+                                  className="min-h-[100px]"
+                                />
+                              )}
+                            </CardContent>
+                            )}
+                          </Card>
+                        );
+                      })}
                     </div>
-
-                    {/* Follow-up Schedule */}
-                    <div className="space-y-2">
-                      <Label htmlFor="followUpSchedule" className="text-sm font-medium text-muted-foreground">Follow-up Schedule</Label>
-                      <Textarea
-                        id="followUpSchedule"
-                        placeholder="Recheck appointments, timeline, next steps..."
-                        className="min-h-[80px]"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Owner Instructions */}
-                  <div className="space-y-2">
-                    <Label htmlFor="ownerInstructions" className="text-sm font-medium text-muted-foreground">Owner Instructions</Label>
-                    <Textarea
-                      id="ownerInstructions"
-                      placeholder="Home care instructions, activity restrictions, when to call..."
-                      className="min-h-[100px]"
-                    />
-                  </div>
-
-                  {/* Expected Outcome */}
-                  <div className="space-y-2">
-                    <Label htmlFor="expectedOutcome" className="text-sm font-medium text-muted-foreground">Expected Outcome & Prognosis</Label>
-                    <Textarea
-                      id="expectedOutcome"
-                      placeholder="Anticipated response to treatment, timeline for improvement, prognosis..."
-                      className="min-h-[80px]"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="plan">Treatment Plan</Label>
-                    <Textarea
-                      id="plan"
-                      value={formData.plan}
-                      onChange={(e) => setFormData(prev => ({ ...prev, plan: e.target.value }))}
-                      placeholder="Describe the treatment plan, medications, follow-up care, and owner instructions"
-                      className="min-h-[120px]"
-                    />
-                  </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      No notes yet. Use the "Add Note" action to create SOAP, procedure, discharge, or
+                      other context-specific notes.
+                    </p>
+                  )}
                 </CardContent>
-                )}
               </Card>
             </TabsContent>
+
 
 
             {/* Treatment Plan Tab */}
@@ -2434,6 +6859,72 @@ const [newDifferentialDiagnosis, setNewDifferentialDiagnosis] = useState("");
           // Handle item click - could open details dialog, etc.
         }}
       />
+
+      {/* Add Clinical Note Dialog (triggered by action button) */}
+      <Dialog open={isAddNoteOpen} onOpenChange={setIsAddNoteOpen}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>Add Clinical Note</DialogTitle>
+            <DialogDescription>
+              Create a context-specific note for this encounter, such as a procedure or anesthesia record.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Note Type</Label>
+                <Select
+                  value={noteDraft.type}
+                  onValueChange={(value: NoteType) =>
+                    setNoteDraft((prev) => ({ ...prev, type: value }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {NOTE_TYPES.map((type) => (
+                      <SelectItem key={type.value} value={type.value}>
+                        {type.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Title (optional)</Label>
+                <Input
+                  placeholder="e.g., Procedure Note - TPLO"
+                  value={noteDraft.title}
+                  onChange={(e) =>
+                    setNoteDraft((prev) => ({ ...prev, title: e.target.value }))
+                  }
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Details</Label>
+              <Textarea
+                placeholder="Enter procedural details, anesthesia notes, discharge instructions, etc."
+                className="min-h-[140px]"
+                value={noteDraft.content}
+                onChange={(e) =>
+                  setNoteDraft((prev) => ({ ...prev, content: e.target.value }))
+                }
+              />
+            </div>
+          </div>
+          <DialogFooter className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setIsAddNoteOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleAddClinicalNote} disabled={!noteDraft.content.trim()}>
+              <Plus className="h-4 w-4 mr-1" />
+              Add Note
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
