@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { format, addDays, setHours, setMinutes } from "date-fns";
-import { Calendar, Clock, Plus, Search, Filter } from "lucide-react";
+import { Calendar, Clock, Plus, Search, Filter, Stethoscope } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MultiColumnCalendar, Appointment } from "@/components/MultiColumnCalendar";
 import { AppointmentList } from "@/components/AppointmentList";
 import { BookAppointmentDialog } from "@/components/BookAppointmentDialog";
+import { useNavigate } from "react-router-dom";
 
 // Mock resources (doctors, exam rooms, etc.)
 const mockResources = [
@@ -143,6 +144,7 @@ const mockAppointments: Appointment[] = [
 ];
 
 export default function Appointments() {
+  const navigate = useNavigate();
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [searchTerm, setSearchTerm] = useState("");
   const [isBookingDialogOpen, setIsBookingDialogOpen] = useState(false);
@@ -296,6 +298,26 @@ export default function Appointments() {
                               {appointment.status}
                             </Badge>
                             <div className="text-sm text-muted-foreground">{appointment.type}</div>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() =>
+                                navigate("/triage", {
+                                  state: {
+                                    patient: {
+                                      patientId: appointment.id,
+                                      name: appointment.petName,
+                                      owner: appointment.ownerName,
+                                      species: "Unknown",
+                                      breed: "Unknown",
+                                    },
+                                  },
+                                })
+                              }
+                            >
+                              <Stethoscope className="h-4 w-4 mr-1" />
+                              Triage
+                            </Button>
                           </div>
                         </div>
                       ))}

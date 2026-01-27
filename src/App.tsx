@@ -16,6 +16,7 @@ import ClinicalRecordDetails from "./pages/ClinicalRecordDetails";
 import Staff from "./pages/Staff";
 import Users from "./pages/Users";
 import Reports from "./pages/Reports";
+import Triage from "./pages/Triage";
 import Labs from "./pages/Labs";
 import AddLabResults from "./pages/AddLabResults";
 import Postmortem from "./pages/Postmortem";
@@ -56,6 +57,7 @@ const App = () => (
             <Route path="/treatments" element={<Treatments />} />
             <Route path="/inventory" element={<Inventory />} />
             <Route path="/reports" element={<Reports />} />
+            <Route path="/triage" element={<Triage />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

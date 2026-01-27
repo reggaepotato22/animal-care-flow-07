@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Calendar, MapPin, Phone, Heart } from "lucide-react";
+import { Calendar, MapPin, Phone, Heart, Stethoscope } from "lucide-react";
 
 interface Patient {
   id: string;
@@ -22,9 +22,10 @@ interface Patient {
 interface PatientCardProps {
   patient: Patient;
   onViewDetails: (patient: Patient) => void;
+  onTriage?: (patient: Patient) => void;
 }
 
-export function PatientCard({ patient, onViewDetails }: PatientCardProps) {
+export function PatientCard({ patient, onViewDetails, onTriage }: PatientCardProps) {
   const getStatusColor = (status: string) => {
     switch (status) {
       case "healthy":
@@ -91,7 +92,17 @@ export function PatientCard({ patient, onViewDetails }: PatientCardProps) {
           </div>
         </div>
         
-        <div className="pt-2">
+        <div className="pt-2 flex gap-2">
+          {onTriage && (
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={() => onTriage(patient)}
+            >
+              <Stethoscope className="h-4 w-4 mr-1" />
+              Triage
+            </Button>
+          )}
           <Button 
             variant="outline" 
             className="w-full"

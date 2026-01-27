@@ -100,10 +100,20 @@ export default function Records() {
           </p>
         </div>
         
-        <Button className="flex items-center gap-2" onClick={() => navigate('/records/new')}>
-          <Plus className="h-4 w-4" />
-          New Record
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            className="flex items-center gap-2"
+            onClick={() => navigate('/triage')}
+          >
+            <Stethoscope className="h-4 w-4" />
+            Triage
+          </Button>
+          <Button className="flex items-center gap-2" onClick={() => navigate('/records/new')}>
+            <Plus className="h-4 w-4" />
+            New Record
+          </Button>
+        </div>
       </div>
 
       {/* Search and Filters */}

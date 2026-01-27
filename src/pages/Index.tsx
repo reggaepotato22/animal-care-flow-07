@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { DashboardStats } from "@/components/DashboardStats";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Calendar, AlertCircle, Clock, Users } from "lucide-react";
+import { Calendar, AlertCircle, Clock, Users, Stethoscope } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
@@ -129,9 +129,32 @@ const Index = () => {
                     <p className="font-medium">{appointment.patient}</p>
                     <p className="text-sm text-muted-foreground">{appointment.owner}</p>
                   </div>
-                  <div className="text-right">
-                    <p className="font-medium">{appointment.time}</p>
-                    <Badge variant="outline">{appointment.type}</Badge>
+                  <div className="flex items-center gap-2">
+                    <div className="text-right">
+                      <p className="font-medium">{appointment.time}</p>
+                      <Badge variant="outline">{appointment.type}</Badge>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        navigate("/triage", {
+                          state: {
+                            patient: {
+                              patientId: appointment.id,
+                              name: appointment.patient,
+                              owner: appointment.owner,
+                              species: "Unknown",
+                              breed: "Unknown",
+                            },
+                          },
+                        });
+                      }}
+                    >
+                      <Stethoscope className="h-4 w-4 mr-1" />
+                      Triage
+                    </Button>
                   </div>
                 </div>
               ))}

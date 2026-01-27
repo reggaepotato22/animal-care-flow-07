@@ -2,7 +2,8 @@ import { format } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Calendar, Clock, User, Edit, Trash2 } from "lucide-react";
+import { Calendar, Clock, User, Edit, Trash2, Stethoscope } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 interface Appointment {
   id: string;
@@ -22,6 +23,7 @@ interface AppointmentListProps {
 }
 
 export function AppointmentList({ appointments, searchTerm }: AppointmentListProps) {
+  const navigate = useNavigate();
   const filteredAppointments = appointments.filter(
     (appointment) =>
       appointment.petName.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -101,6 +103,26 @@ export function AppointmentList({ appointments, searchTerm }: AppointmentListPro
                 </div>
                 
                 <div className="flex justify-end space-x-2 pt-4 border-t">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() =>
+                      navigate("/triage", {
+                        state: {
+                          patient: {
+                            patientId: appointment.id,
+                            name: appointment.petName,
+                            owner: appointment.ownerName,
+                            species: "Unknown",
+                            breed: "Unknown",
+                          },
+                        },
+                      })
+                    }
+                  >
+                    <Stethoscope className="h-4 w-4 mr-1" />
+                    Triage
+                  </Button>
                   <Button variant="outline" size="sm">
                     <Edit className="h-4 w-4 mr-1" />
                     Edit

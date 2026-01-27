@@ -16,6 +16,7 @@ import {
   Hospital,
   Pill,
   Warehouse,
+  Stethoscope,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -40,6 +41,11 @@ const navigationItems = [
     name: "Clinical Records",
     href: "/records",
     icon: FileText,
+  },
+  {
+    name: "Triage",
+    href: "/triage",
+    icon: Stethoscope,
   },
   {
     name: "Labs",

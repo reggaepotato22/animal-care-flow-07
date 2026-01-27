@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, Filter, Search, Grid3X3, List } from "lucide-react";
+import { Plus, Filter, Search, Grid3X3, List, Stethoscope } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PatientCard } from "@/components/PatientCard";
@@ -103,6 +103,10 @@ export default function Patients() {
     navigate(`/patients/${patient.id}`);
   };
 
+  const handleSendToTriage = (patient: any) => {
+    navigate("/triage", { state: { patient } });
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -183,6 +187,7 @@ export default function Patients() {
               key={patient.id}
               patient={patient}
               onViewDetails={handleViewDetails}
+              onTriage={handleSendToTriage}
             />
           ))}
         </div>
@@ -247,13 +252,23 @@ export default function Patients() {
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        onClick={() => handleViewDetails(patient)}
-                      >
-                        View Details
-                      </Button>
+                      <div className="flex justify-end gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleSendToTriage(patient)}
+                        >
+                          <Stethoscope className="h-3.5 w-3.5 mr-1" />
+                          Triage
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => handleViewDetails(patient)}
+                        >
+                          View Details
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 );

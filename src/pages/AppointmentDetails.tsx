@@ -151,6 +151,26 @@ export default function AppointmentDetails() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() =>
+              navigate("/triage", {
+                state: {
+                  patient: {
+                    patientId: appointment.patientId,
+                    name: appointment.petName,
+                    owner: appointment.ownerName,
+                    species: "Unknown",
+                    breed: "Unknown",
+                  },
+                },
+              })
+            }
+          >
+            <Stethoscope className="h-4 w-4 mr-1" />
+            Triage
+          </Button>
           <Badge className={getStatusColor(appointment.status)}>
             {appointment.status}
           </Badge>

@@ -540,6 +540,25 @@ export default function PatientDetails() {
           </div>
         </div>
         <div className="flex items-center space-x-2">
+          <Button
+            variant="outline"
+            onClick={() =>
+              navigate("/triage", {
+                state: {
+                  patient: {
+                    patientId: patient.patientId,
+                    name: patient.name,
+                    owner: patient.owner,
+                    species: patient.species,
+                    breed: patient.breed,
+                  },
+                },
+              })
+            }
+          >
+            <Stethoscope className="mr-2 h-4 w-4" />
+            Triage
+          </Button>
           <Button variant="destructive" className="hover:bg-destructive/90">
             <Trash2 className="mr-2 h-4 w-4" />
             Delete
