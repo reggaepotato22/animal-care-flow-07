@@ -17,6 +17,8 @@ import Staff from "./pages/Staff";
 import Users from "./pages/Users";
 import Reports from "./pages/Reports";
 import Triage from "./pages/Triage";
+import Notifications from "./pages/Notifications";
+import NotificationTemplates from "./pages/NotificationTemplates";
 import Labs from "./pages/Labs";
 import AddLabResults from "./pages/AddLabResults";
 import Postmortem from "./pages/Postmortem";
@@ -58,6 +60,8 @@ const App = () => (
             <Route path="/inventory" element={<Inventory />} />
             <Route path="/reports" element={<Reports />} />
             <Route path="/triage" element={<Triage />} />
+            <Route path="/notifications" element={<Notifications />} />
+            <Route path="/notifications/templates" element={<NotificationTemplates />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

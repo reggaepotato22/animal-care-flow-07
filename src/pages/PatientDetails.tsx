@@ -13,6 +13,7 @@ import { DischargeSummaryDialog } from "@/components/DischargeSummaryDialog";
 import { PostMortemReportDialog } from "@/components/PostMortemReportDialog";
 import { EditPatientDialog } from "@/components/EditPatientDialog";
 import { useState, useMemo } from "react";
+import { differenceInDays } from "date-fns";
 import { PatientHeader } from "@/components/PatientHeader";
 import { VitalsSparkline } from "@/components/VitalsSparkline";
 
@@ -503,6 +504,67 @@ export default function PatientDetails() {
 
   const weightTrend = useMemo(() => (patient.vitals || []).map(v => ({ date: v.date, value: Number((v.weight || "0").replace(/[^0-9.]/g, "")) })), [patient.vitals]);
 
+  const clinicalReminders = useMemo(() => {
+    const reminders: Array<{
+      id: string;
+      type: "critical" | "warning" | "info";
+      title: string;
+      detail: string;
+    }> = [];
+
+    const today = new Date();
+
+    (patient.vaccinations || []).forEach((vax, index) => {
+      const dueDate = new Date(vax.due);
+      const daysUntil = differenceInDays(dueDate, today);
+      if (daysUntil <= 30) {
+        reminders.push({
+          id: `vax-${index}`,
+          type: daysUntil < 0 ? "critical" : "warning",
+          title: `${vax.name} vaccine ${daysUntil < 0 ? "overdue" : "due soon"}`,
+          detail:
+            daysUntil < 0
+              ? `Overdue by ${Math.abs(daysUntil)} days (due ${vax.due}).`
+              : `Due in ${daysUntil} days (due ${vax.due}).`,
+        });
+      }
+    });
+
+    if (patient.nextAppointment) {
+      const nextDate = new Date(patient.nextAppointment);
+      const daysUntil = differenceInDays(nextDate, today);
+      if (daysUntil <= 14) {
+        reminders.push({
+          id: "follow-up",
+          type: "info",
+          title: "Upcoming follow-up appointment",
+          detail: `Scheduled for ${patient.nextAppointment} (${daysUntil} days).`,
+        });
+      }
+    }
+
+    const ageNumber = Number((patient.age || "").replace(/[^0-9.]/g, ""));
+    if (!Number.isNaN(ageNumber) && ageNumber >= 7) {
+      reminders.push({
+        id: "senior",
+        type: "info",
+        title: "Senior wellness screening",
+        detail: "Recommend annual senior wellness panel and monitoring.",
+      });
+    }
+
+    if (patient.allergies && patient.allergies.length > 0) {
+      reminders.push({
+        id: "allergies",
+        type: "warning",
+        title: "Allergy precautions",
+        detail: `Documented allergies: ${patient.allergies.join(", ")}.`,
+      });
+    }
+
+    return reminders;
+  }, [patient]);
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -631,6 +693,54 @@ export default function PatientDetails() {
         patient={patient}
         onStatusChipClass={getStatusColor}
       />
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center space-x-2">
+            <AlertCircle className="h-5 w-5 text-veterinary-teal" />
+            <span>Clinical Decision Support</span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {clinicalReminders.length > 0 ? (
+            <div className="space-y-3">
+              {clinicalReminders.map((reminder) => (
+                <div
+                  key={reminder.id}
+                  className={`p-3 rounded-lg border-l-4 ${
+                    reminder.type === "critical"
+                      ? "border-destructive bg-destructive/10"
+                      : reminder.type === "warning"
+                      ? "border-warning bg-warning/10"
+                      : "border-primary bg-primary/10"
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className="text-sm font-medium">{reminder.title}</p>
+                      <p className="text-xs text-muted-foreground">{reminder.detail}</p>
+                    </div>
+                    <Badge
+                      variant={
+                        reminder.type === "critical"
+                          ? "destructive"
+                          : reminder.type === "warning"
+                          ? "default"
+                          : "secondary"
+                      }
+                      className="text-xs"
+                    >
+                      {reminder.type}
+                    </Badge>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">No active reminders at this time.</p>
+          )}
+        </CardContent>
+      </Card>
       
       {/* Medical History Table */}
         <Card>

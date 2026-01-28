@@ -17,6 +17,7 @@ import {
   Pill,
   Warehouse,
   Stethoscope,
+  Bell,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -87,6 +88,17 @@ const navigationItems = [
     href: "/reports",
     icon: BarChart,
   },
+  {
+    name: "Notifications",
+    href: "/notifications",
+    icon: Bell,
+  },
+  {
+    name: "Templates",
+    href: "/notifications/templates",
+    icon: FileText,
+    isChild: true,
+  },
 ];
 
 export function Navigation() {
@@ -134,7 +146,8 @@ export function Navigation() {
                 isActive
                   ? "bg-accent text-accent-foreground border-r-2 border-primary"
                   : "text-muted-foreground",
-                collapsed && "justify-center px-2"
+                collapsed && "justify-center px-2",
+                item.isChild && !collapsed && "pl-10 text-xs"
               )
             }
           >
