@@ -1,4 +1,4 @@
-import { Bell, Search, User, AlertCircle } from "lucide-react";
+import { Bell, Search, User, AlertCircle, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { formatDistanceToNow, subMinutes, subHours, subSeconds } from "date-fns";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
 
 // Mock notifications data - in a real app this would come from a context or API
 const notifications = [
@@ -50,7 +51,13 @@ const notifications = [
 
 export function Header() {
   const navigate = useNavigate();
+  const { user, logout } = useAuth();
   const unreadCount = notifications.filter(n => n.type === 'critical' || n.type === 'warning').length;
+
+  const handleLogout = () => {
+    logout();
+    navigate("/login", { replace: true });
+  };
 
   const getNotificationColor = (type: string) => {
     switch (type) {
@@ -158,9 +165,20 @@ export function Header() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
+              <DropdownMenuLabel className="font-normal">
+                <div className="flex flex-col space-y-1">
+                  <p className="text-sm font-medium">{user?.name ?? "User"}</p>
+                  <p className="text-xs text-muted-foreground">{user?.email}</p>
+                </div>
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
               <DropdownMenuItem>Profile</DropdownMenuItem>
               <DropdownMenuItem>Settings</DropdownMenuItem>
-              <DropdownMenuItem>Logout</DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={handleLogout}>
+                <LogOut className="mr-2 h-4 w-4" />
+                Log out
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>

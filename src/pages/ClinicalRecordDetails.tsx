@@ -417,6 +417,53 @@ const mockRecord = {
         ownerEducation: "Gradual return to activity discussed",
         additionalNotes: ""
       }
+    },
+    {
+      id: "note-3",
+      type: "discharge" as NoteType,
+      title: "Discharge Summary",
+      content: "",
+      createdAt: "2024-01-27T15:30:00Z",
+      author: "Dr. Smith",
+      dischargeData: {
+        dischargingVeterinarian: "Dr. Smith",
+        patientName: "Max",
+        ownerName: "Sarah Johnson",
+        dischargeDate: "2024-01-27",
+        dischargeTime: "15:30",
+        admissionDate: "2024-01-20",
+        admissionTime: "09:10",
+        lengthOfStay: "0 days",
+        reasonForVisit: "Limping on left front leg",
+        chiefComplaint: "Left forelimb lameness",
+        primaryDiagnosis: "Mild sprain/strain of left carpal joint",
+        secondaryDiagnoses: [],
+        treatmentSummary: "Exam, pain control, and activity restriction. Follow-up exam completed.",
+        proceduresPerformed: [],
+        medications: [
+          {
+            name: "Carprofen",
+            dosage: "25mg",
+            frequency: "Twice daily",
+            duration: "5 days",
+            instructions: "Give with food. Monitor for vomiting or diarrhea."
+          }
+        ],
+        homeCareInstructions: "Restrict activity for 3-5 days. Leash walks only.",
+        activityRestrictions: "No running or jumping for 3-5 days.",
+        dietInstructions: "Normal diet.",
+        followUpAppointments: "Recheck if lameness persists or worsens.",
+        followUpInstructions: "Contact clinic if pain returns.",
+        recheckDate: "",
+        warningSigns: ["Worsening lameness", "Swelling", "Lethargy", "Loss of appetite"],
+        whenToSeekEmergencyCare: "Severe pain, inability to bear weight, or persistent vomiting.",
+        dischargeCondition: "Stable",
+        dischargeStatus: "Discharged to owner",
+        ownerEducation: "Post-discharge care reviewed. Owner verbalized understanding.",
+        questionsAnswered: true,
+        instructionsUnderstood: true,
+        additionalNotes: ""
+      }
     }
   ] as ClinicalNote[],
   medications: [
@@ -921,9 +968,19 @@ export default function ClinicalRecordDetails() {
               <p className="text-sm whitespace-pre-wrap">{dd.treatmentSummary}</p>
             </div>
           )}
+          <div className="border rounded-lg p-3 bg-muted/30 space-y-3">
+            <p className="text-sm font-medium">Discharge Packet</p>
+            <div className="text-xs text-muted-foreground">
+              Includes medication reconciliation, home care instructions, and warning signs.
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm">View Packet</Button>
+              <Button variant="outline" size="sm">Download PDF</Button>
+            </div>
+          </div>
           {dd.medications && dd.medications.length > 0 && (
             <div>
-              <p className="text-xs text-muted-foreground mb-2">Medications</p>
+              <p className="text-xs text-muted-foreground mb-2">Medication Reconciliation</p>
               <div className="space-y-2">
                 {dd.medications.map((med, idx) => (
                   <div key={idx} className="p-2 border rounded">
@@ -935,16 +992,53 @@ export default function ClinicalRecordDetails() {
               </div>
             </div>
           )}
-          {dd.homeCareInstructions && (
+          {(dd.homeCareInstructions || dd.activityRestrictions || dd.dietInstructions) && (
             <div>
-              <p className="text-xs text-muted-foreground mb-1">Home Care Instructions</p>
-              <p className="text-sm whitespace-pre-wrap">{dd.homeCareInstructions}</p>
+              <p className="text-xs text-muted-foreground mb-1">Client Instructions</p>
+              <div className="space-y-2 text-sm">
+                {dd.homeCareInstructions && (
+                  <div>
+                    <span className="font-medium">Home care:</span> {dd.homeCareInstructions}
+                  </div>
+                )}
+                {dd.activityRestrictions && (
+                  <div>
+                    <span className="font-medium">Activity:</span> {dd.activityRestrictions}
+                  </div>
+                )}
+                {dd.dietInstructions && (
+                  <div>
+                    <span className="font-medium">Diet:</span> {dd.dietInstructions}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+          {dd.warningSigns && dd.warningSigns.length > 0 && (
+            <div>
+              <p className="text-xs text-muted-foreground mb-1">Warning Signs</p>
+              <div className="flex flex-wrap gap-1">
+                {dd.warningSigns.map((sign) => (
+                  <Badge key={sign} variant="outline" className="text-xs">
+                    {sign}
+                  </Badge>
+                ))}
+              </div>
             </div>
           )}
           {dd.followUpAppointments && (
             <div>
               <p className="text-xs text-muted-foreground mb-1">Follow-up</p>
               <p className="text-sm">{dd.followUpAppointments}</p>
+            </div>
+          )}
+          {(dd.questionsAnswered || dd.instructionsUnderstood) && (
+            <div>
+              <p className="text-xs text-muted-foreground mb-1">Owner Understanding</p>
+              <div className="flex flex-wrap gap-2 text-xs">
+                {dd.questionsAnswered && <Badge variant="secondary">Questions answered</Badge>}
+                {dd.instructionsUnderstood && <Badge variant="secondary">Instructions understood</Badge>}
+              </div>
             </div>
           )}
         </div>
