@@ -1,4 +1,4 @@
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -617,6 +617,8 @@ const mockRecord = {
 
 export default function ClinicalRecordDetails() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const recordsBase = location.pathname.startsWith("/admin") ? "/admin/records" : "/records";
   const [activeTab, setActiveTab] = useState("soap");
   const [collapsedNotes, setCollapsedNotes] = useState<Set<string>>(new Set());
   const [noteSearch, setNoteSearch] = useState("");
@@ -1209,7 +1211,7 @@ export default function ClinicalRecordDetails() {
         <Button 
           variant="outline" 
           size="sm" 
-          onClick={() => navigate("/records")}
+          onClick={() => navigate(recordsBase)}
           className="flex items-center gap-2"
         >
           <ArrowLeft className="h-4 w-4" />

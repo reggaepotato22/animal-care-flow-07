@@ -2,10 +2,14 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation, Outlet } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { AdminAuthProvider, useAdminAuth } from "@/contexts/AdminAuthContext";
 import { Layout } from "@/components/Layout";
+import { AdminLayout } from "@/components/AdminLayout";
 import Login from "./pages/Login";
+import AdminLogin from "./pages/admin/AdminLogin";
+import AdminDashboard from "./pages/admin/AdminDashboard";
 import Index from "./pages/Index";
 import Patients from "./pages/Patients";
 import AddPatient from "./pages/AddPatient";
@@ -43,32 +47,36 @@ function ProtectedRoutes() {
     <Layout>
       <Routes>
         <Route path="/" element={<Index />} />
-            <Route path="/patients" element={<Patients />} />
-            <Route path="/patients/add" element={<AddPatient />} />
-            <Route path="/patients/:id" element={<PatientDetails />} />
-            <Route path="/appointments" element={<Appointments />} />
-            <Route path="/appointments/:id" element={<AppointmentDetails />} />
-            <Route path="/records" element={<Records />} />
-            <Route path="/records/new" element={<NewRecord />} />
-            <Route path="/records/:id" element={<ClinicalRecordDetails />} />
-            <Route path="/staff" element={<Staff />} />
-            <Route path="/users" element={<Users />} />
-            <Route path="/labs" element={<Labs />} />
-            <Route path="/labs/results/add/:orderId" element={<AddLabResults />} />
-            <Route path="/postmortem" element={<Postmortem />} />
-            <Route path="/postmortem/new" element={<NewPostMortem />} />
-            <Route path="/postmortem/:id" element={<PostmortemDetails />} />
-            <Route path="/hospitalization" element={<Hospitalization />} />
-            <Route path="/treatments" element={<Treatments />} />
-            <Route path="/inventory" element={<Inventory />} />
-            <Route path="/reports" element={<Reports />} />
-            <Route path="/triage" element={<Triage />} />
-            <Route path="/notifications" element={<Notifications />} />
-            <Route path="/notifications/templates" element={<NotificationTemplates />} />
-        {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+        <Route path="/patients" element={<Patients />} />
+        <Route path="/patients/add" element={<AddPatient />} />
+        <Route path="/patients/:id" element={<PatientDetails />} />
+        <Route path="/appointments" element={<Appointments />} />
+        <Route path="/appointments/:id" element={<AppointmentDetails />} />
+        <Route path="/labs" element={<Labs />} />
+        <Route path="/labs/results/add/:orderId" element={<AddLabResults />} />
+        <Route path="/postmortem" element={<Postmortem />} />
+        <Route path="/postmortem/new" element={<NewPostMortem />} />
+        <Route path="/postmortem/:id" element={<PostmortemDetails />} />
+        <Route path="/hospitalization" element={<Hospitalization />} />
+        <Route path="/treatments" element={<Treatments />} />
+        <Route path="/inventory" element={<Inventory />} />
+        <Route path="/triage" element={<Triage />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </Layout>
+  );
+}
+
+function ProtectedAdminLayout() {
+  const { isAuthenticated } = useAdminAuth();
+  const location = useLocation();
+  if (!isAuthenticated) {
+    return <Navigate to="/admin/login" state={{ from: location }} replace />;
+  }
+  return (
+    <AdminLayout>
+      <Outlet />
+    </AdminLayout>
   );
 }
 
@@ -79,10 +87,25 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <AuthProvider>
-          <Routes>
-            <Route path="/login" element={<Login />} />
-            <Route path="*" element={<ProtectedRoutes />} />
-          </Routes>
+          <AdminAuthProvider>
+            <Routes>
+              <Route path="/login" element={<Login />} />
+              <Route path="/admin/login" element={<AdminLogin />} />
+              <Route path="/admin" element={<ProtectedAdminLayout />}>
+                <Route index element={<AdminDashboard />} />
+                <Route path="staff" element={<Staff />} />
+                <Route path="users" element={<Users />} />
+                <Route path="reports" element={<Reports />} />
+                <Route path="notifications" element={<Notifications />} />
+                <Route path="notifications/templates" element={<NotificationTemplates />} />
+                <Route path="records" element={<Records />} />
+                <Route path="records/new" element={<NewRecord />} />
+                <Route path="records/:id" element={<ClinicalRecordDetails />} />
+                <Route path="*" element={<NotFound />} />
+              </Route>
+              <Route path="*" element={<ProtectedRoutes />} />
+            </Routes>
+          </AdminAuthProvider>
         </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>

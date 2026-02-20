@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -68,8 +68,9 @@ const mockRecords: ClinicalRecord[] = [{
   petImage: "/placeholder.svg"
 }];
 export default function Records() {
-  console.log("Records component loaded - templates refactored");
   const navigate = useNavigate();
+  const location = useLocation();
+  const recordsBase = location.pathname.startsWith("/admin") ? "/admin/records" : "/records";
   const [records] = useState<ClinicalRecord[]>(mockRecords);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedStatus, setSelectedStatus] = useState<string>("all");
@@ -109,7 +110,7 @@ export default function Records() {
             <Stethoscope className="h-4 w-4" />
             Triage
           </Button>
-          <Button className="flex items-center gap-2" onClick={() => navigate('/records/new')}>
+          <Button className="flex items-center gap-2" onClick={() => navigate(`${recordsBase}/new`)}>
             <Plus className="h-4 w-4" />
             New Record
           </Button>
@@ -173,30 +174,30 @@ export default function Records() {
                             </AvatarFallback>
                           </Avatar>
                         </TableCell>
-                        <TableCell className="w-32 font-medium cursor-pointer" onClick={() => navigate(`/records/${record.id}`)}>
+                        <TableCell className="w-32 font-medium cursor-pointer" onClick={() => navigate(`${recordsBase}/${record.id}`)}>
                           <div>
                             <div>{record.petName}</div>
                             <div className="text-xs font-mono text-muted-foreground">{record.patientId}</div>
                           </div>
                         </TableCell>
-                        <TableCell className="w-36 cursor-pointer" onClick={() => navigate(`/records/${record.id}`)}>
+                        <TableCell className="w-36 cursor-pointer" onClick={() => navigate(`${recordsBase}/${record.id}`)}>
                           {record.patientName}
                         </TableCell>
-                        <TableCell className="w-40 cursor-pointer" onClick={() => navigate(`/records/${record.id}`)}>
+                        <TableCell className="w-40 cursor-pointer" onClick={() => navigate(`${recordsBase}/${record.id}`)}>
                           {record.species}
                         </TableCell>
-                        <TableCell className="w-28 cursor-pointer" onClick={() => navigate(`/records/${record.id}`)}>
+                        <TableCell className="w-28 cursor-pointer" onClick={() => navigate(`${recordsBase}/${record.id}`)}>
                           {new Date(record.date).toLocaleDateString()}
                         </TableCell>
-                        <TableCell className="w-32 cursor-pointer" onClick={() => navigate(`/records/${record.id}`)}>
+                        <TableCell className="w-32 cursor-pointer" onClick={() => navigate(`${recordsBase}/${record.id}`)}>
                           {record.veterinarian}
                         </TableCell>
-                        <TableCell className="w-24 cursor-pointer" onClick={() => navigate(`/records/${record.id}`)}>
+                        <TableCell className="w-24 cursor-pointer" onClick={() => navigate(`${recordsBase}/${record.id}`)}>
                           <Badge className={getStatusColor(record.status)}>
                             {record.status}
                           </Badge>
                         </TableCell>
-                        <TableCell className="w-28 cursor-pointer" onClick={() => navigate(`/records/${record.id}`)}>
+                        <TableCell className="w-28 cursor-pointer" onClick={() => navigate(`${recordsBase}/${record.id}`)}>
                           {record.attachments > 0 && <Badge variant="outline" className="flex items-center gap-1 w-fit">
                               <Paperclip className="h-3 w-3" />
                               {record.attachments}

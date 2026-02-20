@@ -847,6 +847,7 @@ const mockPatientData = {
 export default function NewRecord() {
   const navigate = useNavigate();
   const location = useLocation();
+  const recordsBase = location.pathname.startsWith("/admin") ? "/admin/records" : "/records";
   const [templateSearch, setTemplateSearch] = useState("");
   const [activeTab, setActiveTab] = useState("soap");
   // Bottom panel state
@@ -1536,7 +1537,7 @@ const applyTemplate = (templateName: string, noteId?: string) => {
   const handleSaveRecord = () => {
     // Here you would typically save the record to your backend
     console.log("Saving record:", { medications, vaccination, attachments, clinicalNotes });
-    navigate("/records");
+    navigate(recordsBase);
   };
 
   const handleAddClinicalNote = () => {
@@ -2172,7 +2173,7 @@ const applyTemplate = (templateName: string, noteId?: string) => {
             <Button 
               variant="ghost" 
               size="sm" 
-              onClick={() => navigate("/records")}
+              onClick={() => navigate(recordsBase)}
               className="h-8 w-8 p-0"
             >
             <ArrowLeft className="h-4 w-4" />
@@ -6683,7 +6684,7 @@ const applyTemplate = (templateName: string, noteId?: string) => {
               <div className="flex justify-between">
                 <Button 
                   variant="outline" 
-                  onClick={() => navigate("/records")}
+                  onClick={() => navigate(recordsBase)}
                 >
                   Cancel
                 </Button>

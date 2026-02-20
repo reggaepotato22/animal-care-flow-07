@@ -2,85 +2,47 @@ import { useState } from "react";
 import { NavLink } from "react-router-dom";
 import {
   LayoutDashboard,
-  Calendar,
   FileText,
-  Package,
-  Heart,
+  UserCog,
+  UserCheck,
+  BarChart,
+  Bell,
   ChevronLeft,
   ChevronRight,
-  Hospital,
-  Pill,
-  Warehouse,
-  Stethoscope,
   Shield,
+  Heart,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-const navigationItems = [
-  {
-    name: "Dashboard",
-    href: "/",
-    icon: LayoutDashboard,
-  },
-  {
-    name: "Patients",
-    href: "/patients",
-    icon: Heart,
-  },
-  {
-    name: "Appointments",
-    href: "/appointments",
-    icon: Calendar,
-  },
-  {
-    name: "Triage",
-    href: "/triage",
-    icon: Stethoscope,
-  },
-  {
-    name: "Labs",
-    href: "/labs",
-    icon: Package,
-  },
-  {
-    name: "Post-Mortem",
-    href: "/postmortem",
-    icon: FileText,
-  },
-  {
-    name: "Hospitalization",
-    href: "/hospitalization",
-    icon: Hospital,
-  },
-  {
-    name: "Treatments",
-    href: "/treatments",
-    icon: Pill,
-  },
-  {
-    name: "Inventory",
-    href: "/inventory",
-    icon: Warehouse,
-  },
+const adminNavItems = [
+  { name: "Dashboard", href: "/admin", icon: LayoutDashboard },
+  { name: "Staff", href: "/admin/staff", icon: UserCog },
+  { name: "Users", href: "/admin/users", icon: UserCheck },
+  { name: "Reports", href: "/admin/reports", icon: BarChart },
+  { name: "Notifications", href: "/admin/notifications", icon: Bell },
+  { name: "Templates", href: "/admin/notifications/templates", icon: FileText, isChild: true },
+  { name: "Clinical Records", href: "/admin/records", icon: FileText },
 ];
 
-export function Navigation() {
+export function AdminNavigation() {
   const [collapsed, setCollapsed] = useState(false);
 
   return (
-    <nav className={cn(
-      "bg-card border-r border-border transition-all duration-300 flex flex-col",
-      collapsed ? "w-16" : "w-64"
-    )}>
+    <nav
+      className={cn(
+        "bg-card border-r border-border transition-all duration-300 flex flex-col",
+        collapsed ? "w-16" : "w-64"
+      )}
+    >
       <div className="p-4 border-b border-border">
         <div className="flex items-center justify-between">
           {!collapsed && (
             <div className="flex items-center space-x-2">
               <div className="w-8 h-8 bg-primary rounded flex items-center justify-center">
-                <Heart className="h-5 w-5 text-primary-foreground" />
+                <Shield className="h-5 w-5 text-primary-foreground" />
               </div>
-              <span className="font-semibold text-lg">VetCare</span>
+              <span className="font-semibold text-lg">Admin</span>
             </div>
           )}
           <Button
@@ -99,10 +61,11 @@ export function Navigation() {
       </div>
 
       <div className="flex-1 py-4">
-        {navigationItems.map((item) => (
+        {adminNavItems.map((item) => (
           <NavLink
             key={item.name}
             to={item.href}
+            end={item.href === "/admin"}
             className={({ isActive }) =>
               cn(
                 "flex items-center px-4 py-3 text-sm font-medium transition-colors relative",
@@ -110,7 +73,8 @@ export function Navigation() {
                 isActive
                   ? "bg-accent text-accent-foreground border-r-2 border-primary"
                   : "text-muted-foreground",
-                collapsed && "justify-center px-2"
+                collapsed && "justify-center px-2",
+                item.isChild && !collapsed && "pl-10 text-xs"
               )
             }
           >
@@ -119,18 +83,18 @@ export function Navigation() {
           </NavLink>
         ))}
       </div>
-      <div className="p-4 border-t border-border">
-        <NavLink
-          to="/admin"
-          className={cn(
-            "flex items-center text-sm text-muted-foreground hover:text-foreground",
-            collapsed && "justify-center"
-          )}
-        >
-          <Shield className={cn("h-4 w-4", !collapsed && "mr-2")} />
-          {!collapsed && <span>Admin portal</span>}
-        </NavLink>
-      </div>
+
+      {!collapsed && (
+        <div className="p-4 border-t border-border">
+          <NavLink
+            to="/"
+            className="flex items-center text-sm text-muted-foreground hover:text-foreground"
+          >
+            <Heart className="h-4 w-4 mr-2" />
+            Back to main app
+          </NavLink>
+        </div>
+      )}
     </nav>
   );
 }
