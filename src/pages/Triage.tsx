@@ -8,6 +8,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Heart, Stethoscope, AlertTriangle, ClipboardList } from "lucide-react";
+import { logChange } from "@/lib/audit";
+import { WorkflowProgress } from "@/components/WorkflowProgress";
+import { useWorkflow } from "@/hooks/useWorkflow";
+import { getStepRoute } from "@/config/workflow";
 
 type TriageStatus = "waiting" | "in-progress" | "ready";
 
@@ -102,7 +106,13 @@ export default function Triage() {
   const navigate = useNavigate();
   const [statusFilter, setStatusFilter] = useState<"all" | TriageStatus>("all");
   const [queue, setQueue] = useState<TriagePatient[]>(mockQueue);
-  const [selectedId, setSelectedId] = useState<string>(mockQueue[0]?.id || "");
+  const [selectedId, setSelectedId] = useState<string>(() => {
+    try {
+      return localStorage.getItem("acf_triage_selected") || (mockQueue[0]?.id || "");
+    } catch {
+      return mockQueue[0]?.id || "";
+    }
+  });
   const [intakeById, setIntakeById] = useState<Record<string, TriageIntake>>({});
 
   useEffect(() => {
@@ -128,8 +138,15 @@ export default function Triage() {
     setSelectedId(newId);
   }, [location.state]);
 
+  useEffect(() => {
+    try {
+      localStorage.setItem("acf_triage_selected", selectedId);
+    } catch {}
+  }, [selectedId]);
+
   const selectedPatient = queue.find((item) => item.id === selectedId);
   const intake = intakeById[selectedId] || { ...defaultIntake };
+  const patientWorkflow = useWorkflow({ patientId: selectedPatient?.patientId });
 
   const filteredQueue = useMemo(
     () => queue.filter((item) => (statusFilter === "all" ? true : item.status === statusFilter)),
@@ -164,7 +181,7 @@ export default function Triage() {
 
   const startRecord = () => {
     if (!selectedPatient) return;
-    navigate("/records/new", {
+    navigate("/admin/records/new", {
       state: {
         patientId: selectedPatient.patientId,
         veterinarian: intake.assignedVeterinarian,
@@ -176,6 +193,9 @@ export default function Triage() {
 
   return (
     <div className="space-y-6">
+      {selectedPatient?.patientId && (
+        <WorkflowProgress patientId={selectedPatient.patientId} />
+      )}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">Triage & Intake</h1>
@@ -183,7 +203,7 @@ export default function Triage() {
             Capture intake details and move patients into the clinical workflow.
           </p>
         </div>
-        <Button variant="outline" onClick={() => navigate("/records/new")}>
+        <Button variant="outline" onClick={() => navigate("/admin/records/new")}>
           Create Record Manually
         </Button>
       </div>
@@ -237,7 +257,7 @@ export default function Triage() {
           </CardContent>
         </Card>
 
-        <Card className="lg:col-span-2">
+        <Card className={`lg:col-span-2 ${intake.triageLevel === "1" ? "ring-2 ring-destructive/60 shadow-[0_0_25px_rgba(220,38,38,0.45)]" : ""}`}>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Stethoscope className="h-5 w-5" />
@@ -263,7 +283,18 @@ export default function Triage() {
                 <label className="text-sm font-medium">Triage level</label>
                 <Select
                   value={intake.triageLevel}
-                  onValueChange={(value) => updateIntake({ triageLevel: value })}
+                  onValueChange={(value) => {
+                    logChange({
+                      entityType: "Patient",
+                      entityId: selectedPatient?.patientId || "unknown",
+                      field: "Triage Level",
+                      previousValue: intake.triageLevel,
+                      newValue: value,
+                      changedBy: "triage-nurse",
+                      reason: "Updated during intake",
+                    });
+                    updateIntake({ triageLevel: value });
+                  }}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select triage level" />
@@ -416,6 +447,17 @@ export default function Triage() {
                 </Button>
                 <Button onClick={startRecord}>
                   Start Record
+                </Button>
+                <Button
+                  onClick={() => {
+                    if (!patientWorkflow.hasNext) return;
+                    const target = patientWorkflow.steps[patientWorkflow.currentIndex + 1];
+                    patientWorkflow.next();
+                    if (target) navigate(getStepRoute(target.id));
+                  }}
+                  disabled={!patientWorkflow.hasNext}
+                >
+                  Next Step
                 </Button>
               </div>
             </div>

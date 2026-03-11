@@ -1,4 +1,4 @@
-import { Bell, Search, User, AlertCircle, LogOut } from "lucide-react";
+import { Bell, Search as SearchIcon, User, AlertCircle, LogOut, Sun, Moon, Leaf, Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -14,6 +14,10 @@ import {
 import { formatDistanceToNow, subMinutes, subHours, subSeconds } from "date-fns";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { useTheme } from "next-themes";
+import { useRole } from "@/contexts/RoleContext";
+import * as React from "react";
+import { GlobalSearch } from "@/components/GlobalSearch";
 
 // Mock notifications data - in a real app this would come from a context or API
 const notifications = [
@@ -52,7 +56,21 @@ const notifications = [
 export function Header() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
+  const { theme, setTheme } = useTheme();
+  const { role, setRole } = useRole();
   const unreadCount = notifications.filter(n => n.type === 'critical' || n.type === 'warning').length;
+  const [searchOpen, setSearchOpen] = React.useState(false);
+  const [headerQuery, setHeaderQuery] = React.useState("");
+  React.useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setSearchOpen(true);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   const handleLogout = () => {
     logout();
@@ -76,15 +94,35 @@ export function Header() {
         <div className="flex items-center space-x-4">
           <h1 className="text-2xl font-bold text-primary">VetCare Pro</h1>
           <div className="relative w-96">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+            <SearchIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
             <Input
-              placeholder="Search patients, appointments, or records..."
+              placeholder="Search anything...  (Ctrl/Cmd + K)"
               className="pl-10"
+              value={headerQuery}
+              onChange={(e) => setHeaderQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") setSearchOpen(true);
+              }}
+              onFocus={() => setSearchOpen(true)}
             />
           </div>
         </div>
         
         <div className="flex items-center space-x-4">
+          <div className="flex items-center gap-1">
+            <Button variant="ghost" size="icon" onClick={() => setTheme("light")} title="Light">
+              <Sun className="h-4 w-4" />
+            </Button>
+            <Button variant="ghost" size="icon" onClick={() => setTheme("dark")} title="Dark">
+              <Moon className="h-4 w-4" />
+            </Button>
+            <Button variant="ghost" size="icon" onClick={() => setTheme("zen")} title="Zen Green">
+              <Leaf className="h-4 w-4" />
+            </Button>
+          </div>
+          <Button variant="ghost" size="icon" onClick={() => setSearchOpen(true)} title="Search">
+            <SearchIcon className="h-4 w-4" />
+          </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon" className="relative">
@@ -172,6 +210,15 @@ export function Header() {
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
+              <DropdownMenuItem className="gap-2">
+                <Shield className="h-4 w-4" />
+                Role: {role}
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setRole("SuperAdmin")}>Switch to SuperAdmin</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setRole("Vet")}>Switch to Vet</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setRole("Nurse")}>Switch to Nurse</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setRole("Receptionist")}>Switch to Receptionist</DropdownMenuItem>
+              <DropdownMenuSeparator />
               <DropdownMenuItem>Profile</DropdownMenuItem>
               <DropdownMenuItem>Settings</DropdownMenuItem>
               <DropdownMenuSeparator />
@@ -183,6 +230,7 @@ export function Header() {
           </DropdownMenu>
         </div>
       </div>
+      <GlobalSearch open={searchOpen} onOpenChange={setSearchOpen} initialQuery={headerQuery} />
     </header>
   );
 }

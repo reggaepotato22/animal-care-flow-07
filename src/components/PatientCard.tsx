@@ -2,6 +2,10 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Calendar, MapPin, Phone, Heart, Stethoscope } from "lucide-react";
+import { WorkflowProgress } from "@/components/WorkflowProgress";
+import { useWorkflow } from "@/hooks/useWorkflow";
+import { useNavigate } from "react-router-dom";
+import { getStepRoute } from "@/config/workflow";
 
 interface Patient {
   id: string;
@@ -39,6 +43,21 @@ export function PatientCard({ patient, onViewDetails, onTriage }: PatientCardPro
     }
   };
 
+  const navigate = useNavigate();
+  const wf = useWorkflow({ patientId: patient.patientId || patient.id });
+  const handleNext = () => {
+    if (!wf.hasNext) return;
+    const nextStep = wf.steps[wf.currentIndex + 1];
+    wf.next();
+    if (nextStep) navigate(getStepRoute(nextStep.id));
+  };
+  const handlePrev = () => {
+    if (!wf.hasPrev) return;
+    const prevStep = wf.steps[wf.currentIndex - 1];
+    wf.prev();
+    if (prevStep) navigate(getStepRoute(prevStep.id));
+  };
+
   return (
     <Card className="hover:shadow-md transition-shadow">
       <CardHeader className="pb-3">
@@ -63,6 +82,11 @@ export function PatientCard({ patient, onViewDetails, onTriage }: PatientCardPro
             {patient.status}
           </Badge>
         </div>
+        {patient.patientId && (
+          <div className="mt-3">
+            <WorkflowProgress patientId={patient.patientId} />
+          </div>
+        )}
       </CardHeader>
       
       <CardContent className="space-y-3">
@@ -91,7 +115,6 @@ export function PatientCard({ patient, onViewDetails, onTriage }: PatientCardPro
             <span>Last visit: {patient.lastVisit}</span>
           </div>
         </div>
-        
         <div className="pt-2 flex gap-2">
           {onTriage && (
             <Button
@@ -109,6 +132,21 @@ export function PatientCard({ patient, onViewDetails, onTriage }: PatientCardPro
             onClick={() => onViewDetails(patient)}
           >
             View Details
+          </Button>
+          <Button 
+            variant="outline" 
+            disabled={!hasPrev}
+            onClick={handlePrev}
+            title="Previous step"
+          >
+            Prev
+          </Button>
+          <Button 
+            onClick={handleNext}
+            disabled={!wf.hasNext}
+            title="Next step"
+          >
+            Next
           </Button>
         </div>
       </CardContent>

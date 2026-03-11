@@ -10,6 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
+import { useRole } from "@/contexts/RoleContext";
+import { PermissionGuard } from "@/components/PermissionGuard";
 
 interface LabOrder {
   id: string;
@@ -98,6 +100,8 @@ const mockLabOrders: LabOrder[] = [
 export default function AddLabResults() {
   const { orderId } = useParams<{ orderId: string }>();
   const navigate = useNavigate();
+  const { has } = useRole();
+  const canEdit = has("can_edit_medical_records");
   
   const [order, setOrder] = useState<LabOrder | null>(null);
   const [results, setResults] = useState<Record<string, string>>({});
@@ -191,10 +195,17 @@ export default function AddLabResults() {
             </p>
           </div>
         </div>
-        <Button onClick={handleSaveResults}>
-          <Save className="mr-2 h-4 w-4" />
-          Save Results
-        </Button>
+        <PermissionGuard permission="can_edit_medical_records" fallback={
+          <Button disabled title="Insufficient permissions">
+            <Save className="mr-2 h-4 w-4" />
+            Save Results
+          </Button>
+        }>
+          <Button onClick={handleSaveResults}>
+            <Save className="mr-2 h-4 w-4" />
+            Save Results
+          </Button>
+        </PermissionGuard>
       </div>
 
       {/* Order Information */}
@@ -299,6 +310,7 @@ export default function AddLabResults() {
                                 id={key}
                                 value={results[key] || ""}
                                 onChange={(e) => handleValueChange(testName, parameter, e.target.value)}
+                                disabled={!canEdit}
                                 placeholder={`Normal: ${normalRange}`}
                                 className="text-sm"
                               />
@@ -310,6 +322,7 @@ export default function AddLabResults() {
                       <Textarea
                         value={results[testName] || ""}
                         onChange={(e) => setResults(prev => ({ ...prev, [testName]: e.target.value }))}
+                        disabled={!canEdit}
                         placeholder="Enter test results..."
                         className="min-h-[100px]"
                       />
@@ -326,6 +339,7 @@ export default function AddLabResults() {
                   id="interpretation"
                   value={interpretation}
                   onChange={(e) => setInterpretation(e.target.value)}
+                  disabled={!canEdit}
                   placeholder="Enter clinical interpretation and notes..."
                   className="min-h-[200px]"
                 />
@@ -342,6 +356,7 @@ export default function AddLabResults() {
                       type="file"
                       multiple
                       onChange={handleFileUpload}
+                      disabled={!canEdit}
                       className="cursor-pointer"
                     />
                   </div>

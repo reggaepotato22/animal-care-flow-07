@@ -1,5 +1,6 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { ArrowLeft, Calendar, MapPin, Phone, Heart, Edit, Trash2, FileText, Pill, Stethoscope, Activity, MoreVertical, FileSearch, ChevronDown, AlertTriangle, Clock, TestTube, Mail, MessageSquare, User, Building2, MapPinIcon, DollarSign, CheckCircle, Circle, AlertCircle, XCircle } from "lucide-react";
+import { PermissionGuard } from "@/components/PermissionGuard";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -602,6 +603,10 @@ export default function PatientDetails() {
           </div>
         </div>
         <div className="flex items-center space-x-2">
+          <Button variant="outline" onClick={() => navigate(`/patients/${patient.id}/journey`)}>
+            <Activity className="mr-2 h-4 w-4" />
+            Patient Journey
+          </Button>
           <Button
             variant="outline"
             onClick={() =>
@@ -621,10 +626,12 @@ export default function PatientDetails() {
             <Stethoscope className="mr-2 h-4 w-4" />
             Triage
           </Button>
-          <Button variant="destructive" className="hover:bg-destructive/90">
-            <Trash2 className="mr-2 h-4 w-4" />
-            Delete
-          </Button>
+          <PermissionGuard permission="can_edit_medical_records" fallback={null} hide>
+            <Button variant="destructive" className="hover:bg-destructive/90">
+              <Trash2 className="mr-2 h-4 w-4" />
+              Delete
+            </Button>
+          </PermissionGuard>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline">
