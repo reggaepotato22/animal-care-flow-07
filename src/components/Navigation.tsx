@@ -2,71 +2,28 @@ import { useState } from "react";
 import { NavLink } from "react-router-dom";
 import {
   LayoutDashboard,
-  Calendar,
-  FileText,
-  Package,
   Heart,
   ChevronLeft,
   ChevronRight,
-  Hospital,
-  Pill,
-  Warehouse,
-  Stethoscope,
+  Users as UsersIcon,
+  ScrollText,
   Shield,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useRole } from "@/contexts/RoleContext";
 
 const navigationItems = [
-  {
-    name: "Dashboard",
-    href: "/",
-    icon: LayoutDashboard,
-  },
-  {
-    name: "Patients",
-    href: "/patients",
-    icon: Heart,
-  },
-  {
-    name: "Appointments",
-    href: "/appointments",
-    icon: Calendar,
-  },
-  {
-    name: "Triage",
-    href: "/triage",
-    icon: Stethoscope,
-  },
-  {
-    name: "Labs",
-    href: "/labs",
-    icon: Package,
-  },
-  {
-    name: "Post-Mortem",
-    href: "/postmortem",
-    icon: FileText,
-  },
-  {
-    name: "Hospitalization",
-    href: "/hospitalization",
-    icon: Hospital,
-  },
-  {
-    name: "Treatments",
-    href: "/treatments",
-    icon: Pill,
-  },
-  {
-    name: "Inventory",
-    href: "/inventory",
-    icon: Warehouse,
-  },
+  { name: "Dashboard", href: "/", icon: LayoutDashboard },
+  { name: "Patient Oversight", href: "/patients", icon: Heart },
+  { name: "Team Management", href: "/admin/staff", icon: UsersIcon },
+  { name: "Audit Trails", href: "/audit", icon: ScrollText },
+  { name: "Clinic Settings", href: "/admin/settings", icon: ScrollText },
 ];
 
 export function Navigation() {
   const [collapsed, setCollapsed] = useState(false);
+  const { has } = useRole();
 
   return (
     <nav className={cn(
@@ -77,10 +34,10 @@ export function Navigation() {
         <div className="flex items-center justify-between">
           {!collapsed && (
             <div className="flex items-center space-x-2">
-              <div className="w-8 h-8 bg-primary rounded flex items-center justify-center">
-                <Heart className="h-5 w-5 text-primary-foreground" />
+              <div className="w-8 h-8 bg-primary/10 rounded flex items-center justify-center border border-primary/30">
+                <Heart className="h-5 w-5 text-primary" />
               </div>
-              <span className="font-semibold text-lg">VetCare</span>
+              <span className="font-semibold text-lg">AnimalCare Flow</span>
             </div>
           )}
           <Button
@@ -99,25 +56,31 @@ export function Navigation() {
       </div>
 
       <div className="flex-1 py-4">
-        {navigationItems.map((item) => (
-          <NavLink
-            key={item.name}
-            to={item.href}
-            className={({ isActive }) =>
-              cn(
-                "flex items-center px-4 py-3 text-sm font-medium transition-colors relative",
-                "hover:bg-accent hover:text-accent-foreground",
-                isActive
-                  ? "bg-accent text-accent-foreground border-r-2 border-primary"
-                  : "text-muted-foreground",
-                collapsed && "justify-center px-2"
-              )
-            }
-          >
-            <item.icon className={cn("h-5 w-5", !collapsed && "mr-3")} />
-            {!collapsed && <span>{item.name}</span>}
-          </NavLink>
-        ))}
+        {navigationItems
+          .filter((item) => {
+            if (item.name === "Audit Trails") return has("can_view_audit");
+            if (item.name === "Clinic Settings") return has("can_manage_users");
+            return true;
+          })
+          .map((item) => (
+            <NavLink
+              key={item.name}
+              to={item.href}
+              className={({ isActive }) =>
+                cn(
+                  "flex items-center px-4 py-3 text-sm font-medium transition-colors relative",
+                  "hover:bg-accent hover:text-accent-foreground",
+                  isActive
+                    ? "bg-accent text-accent-foreground border-r-2 border-primary"
+                    : "text-muted-foreground",
+                  collapsed && "justify-center px-2"
+                )
+              }
+            >
+              <item.icon className={cn("h-5 w-5", !collapsed && "mr-3")} />
+              {!collapsed && <span>{item.name}</span>}
+            </NavLink>
+          ))}
       </div>
       <div className="p-4 border-t border-border">
         <NavLink

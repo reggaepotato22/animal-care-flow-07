@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { Plus, Filter, Search, Grid3X3, List, Stethoscope } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,73 +20,21 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-
-// Mock data
-const mockPatients = [
-  {
-    id: "1",
-    patientId: "P-2025-10234",
-    name: "Max",
-    species: "Dog",
-    breed: "Golden Retriever",
-    age: "3 years",
-    weight: "28kg",
-    owner: "Sarah Johnson",
-    phone: "+1 (555) 123-4567",
-    location: "Downtown Clinic",
-    lastVisit: "2024-01-15",
-    status: "healthy" as const,
-  },
-  {
-    id: "2",
-    patientId: "P-2025-10235",
-    name: "Whiskers",
-    species: "Cat",
-    breed: "Persian",
-    age: "5 years",
-    weight: "4.2kg",
-    owner: "Michael Chen",
-    phone: "+1 (555) 987-6543",
-    location: "North Branch",
-    lastVisit: "2024-01-18",
-    status: "treatment" as const,
-  },
-  {
-    id: "3",
-    patientId: "P-2025-10236",
-    name: "Luna",
-    species: "Cat",
-    breed: "Maine Coon",
-    age: "2 years",
-    weight: "5.1kg",
-    owner: "Emily Rodriguez",
-    phone: "+1 (555) 456-7890",
-    location: "Main Office",
-    lastVisit: "2024-01-20",
-    status: "healthy" as const,
-  },
-  {
-    id: "4",
-    patientId: "P-2025-10237",
-    name: "Rocky",
-    species: "Dog",
-    breed: "German Shepherd",
-    age: "7 years",
-    weight: "35kg",
-    owner: "David Thompson",
-    phone: "+1 (555) 321-0987",
-    location: "Emergency Center",
-    lastVisit: "2024-01-19",
-    status: "critical" as const,
-  },
-];
+import { mockPatients } from "@/data/patients";
 
 export default function Patients() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [speciesFilter, setSpeciesFilter] = useState("all");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const q = params.get("q") || params.get("search");
+    if (q) setSearchTerm(q);
+  }, [location.search]);
 
   const filteredPatients = mockPatients.filter((patient) => {
     const matchesSearch = patient.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -204,6 +152,7 @@ export default function Patients() {
                 <TableHead>Location</TableHead>
                 <TableHead>Last Visit</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead>Data</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -250,6 +199,9 @@ export default function Patients() {
                       <Badge className={getStatusColor(patient.status)}>
                         {patient.status}
                       </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline">Complete</Badge>
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">

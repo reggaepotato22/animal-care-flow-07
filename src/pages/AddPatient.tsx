@@ -22,6 +22,7 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
+import { commonBreedsKE } from "@/lib/kenya";
 
 const patientSchema = z.object({
   name: z.string().min(1, "Pet name is required"),
@@ -77,6 +78,7 @@ export default function AddPatient() {
       vaccinations: [],
     },
   });
+  const species = form.watch("species");
 
   const onSubmit = async (data: PatientFormData) => {
     setIsSubmitting(true);
@@ -85,6 +87,18 @@ export default function AddPatient() {
     await new Promise(resolve => setTimeout(resolve, 1000));
     
     console.log("Patient data:", { ...data, patientId });
+    try {
+      const { logChange } = await import("@/lib/audit");
+      logChange({
+        entityType: "Patient",
+        entityId: patientId,
+        field: "New Patient",
+        previousValue: "",
+        newValue: data.name,
+        changedBy: "receptionist",
+        reason: "Registration",
+      });
+    } catch {}
     
     toast({
       title: "Patient Added Successfully",
@@ -184,9 +198,24 @@ export default function AddPatient() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Breed</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Enter breed" {...field} />
-                      </FormControl>
+                      {species === "dog" || species === "cat" ? (
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select breed" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {(commonBreedsKE[species as "dog" | "cat"] || []).map((b) => (
+                              <SelectItem key={b} value={b}>{b}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <FormControl>
+                          <Input placeholder="Enter breed" {...field} />
+                        </FormControl>
+                      )}
                       <FormMessage />
                     </FormItem>
                   )}
