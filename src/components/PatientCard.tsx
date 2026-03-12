@@ -135,7 +135,7 @@ export function PatientCard({ patient, onViewDetails, onTriage }: PatientCardPro
           </Button>
           <Button 
             variant="outline" 
-            disabled={!hasPrev}
+            disabled={!wf.hasPrev}
             onClick={handlePrev}
             title="Previous step"
           >
