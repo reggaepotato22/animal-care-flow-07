@@ -1,8 +1,7 @@
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Calendar, MapPin, Phone, Heart, Stethoscope } from "lucide-react";
-import { WorkflowProgress } from "@/components/WorkflowProgress";
+import { MapPin, Phone, Heart, Stethoscope } from "lucide-react";
 import { useWorkflow } from "@/hooks/useWorkflow";
 import { useNavigate } from "react-router-dom";
 import { getStepRoute } from "@/config/workflow";
@@ -67,13 +66,13 @@ export function PatientCard({ patient, onViewDetails, onTriage }: PatientCardPro
               <Heart className="h-6 w-6 text-veterinary-teal" />
             </div>
             <div>
-              <h3 className="font-semibold text-lg">{patient.name}</h3>
-              <p className="text-sm text-muted-foreground">
+              <h3 className="font-semibold text-lg leading-none">{patient.name}</h3>
+              <p className="text-sm text-muted-foreground mt-1">
                 {patient.species} • {patient.breed}
               </p>
               {patient.patientId && (
                 <p className="text-xs font-mono text-muted-foreground mt-1">
-                  ID: {patient.patientId}
+                  {patient.patientId}
                 </p>
               )}
             </div>
@@ -82,72 +81,78 @@ export function PatientCard({ patient, onViewDetails, onTriage }: PatientCardPro
             {patient.status}
           </Badge>
         </div>
-        {patient.patientId && (
-          <div className="mt-3">
-            <WorkflowProgress patientId={patient.patientId} />
-          </div>
-        )}
       </CardHeader>
       
-      <CardContent className="space-y-3">
-        <div className="grid grid-cols-2 gap-4 text-sm">
-          <div>
-            <span className="text-muted-foreground">Age:</span>
-            <span className="ml-2 font-medium">{patient.age}</span>
+      <CardContent className="space-y-4">
+        <div className="grid grid-cols-2 gap-2 text-sm">
+          <div className="bg-muted/30 p-2 rounded-md">
+            <span className="text-muted-foreground block text-xs">Age</span>
+            <span className="font-medium">{patient.age}</span>
           </div>
-          <div>
-            <span className="text-muted-foreground">Weight:</span>
-            <span className="ml-2 font-medium">{patient.weight}</span>
+          <div className="bg-muted/30 p-2 rounded-md">
+            <span className="text-muted-foreground block text-xs">Weight</span>
+            <span className="font-medium">{patient.weight}</span>
           </div>
         </div>
         
         <div className="space-y-2 text-sm">
-          <div className="flex items-center text-muted-foreground">
-            <Phone className="h-4 w-4 mr-2" />
-            <span>{patient.owner} • {patient.phone}</span>
+          <div className="flex items-center text-muted-foreground bg-muted/20 p-2 rounded-md">
+            <Phone className="h-3.5 w-3.5 mr-2" />
+            <span className="truncate">{patient.owner} • {patient.phone}</span>
           </div>
-          <div className="flex items-center text-muted-foreground">
-            <MapPin className="h-4 w-4 mr-2" />
-            <span>{patient.location}</span>
-          </div>
-          <div className="flex items-center text-muted-foreground">
-            <Calendar className="h-4 w-4 mr-2" />
-            <span>Last visit: {patient.lastVisit}</span>
+          <div className="flex items-center text-muted-foreground bg-muted/20 p-2 rounded-md">
+            <MapPin className="h-3.5 w-3.5 mr-2" />
+            <span className="truncate">{patient.location}</span>
           </div>
         </div>
-        <div className="pt-2 flex gap-2">
+
+        <div className="pt-2 grid grid-cols-2 gap-2">
           {onTriage && (
             <Button
               variant="outline"
-              className="w-full"
+              size="sm"
               onClick={() => onTriage(patient)}
+              className="w-full"
             >
-              <Stethoscope className="h-4 w-4 mr-1" />
+              <Stethoscope className="h-4 w-4 mr-1.5" />
               Triage
             </Button>
           )}
           <Button 
             variant="outline" 
-            className="w-full"
+            size="sm"
             onClick={() => onViewDetails(patient)}
+            className="w-full"
           >
             View Details
           </Button>
-          <Button 
-            variant="outline" 
-            disabled={!wf.hasPrev}
-            onClick={handlePrev}
-            title="Previous step"
-          >
-            Prev
-          </Button>
-          <Button 
-            onClick={handleNext}
-            disabled={!wf.hasNext}
-            title="Next step"
-          >
-            Next
-          </Button>
+          
+          <div className="col-span-2 flex items-center gap-2 mt-1">
+            <Button 
+              variant="ghost" 
+              size="sm"
+              disabled={!wf.hasPrev}
+              onClick={handlePrev}
+              className="flex-1 h-8 text-xs"
+            >
+              Previous
+            </Button>
+            <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
+              <div 
+                className="h-full bg-primary transition-all duration-300" 
+                style={{ width: `${wf.progress}%` }}
+              />
+            </div>
+            <Button 
+              variant="ghost" 
+              size="sm"
+              disabled={!wf.hasNext}
+              onClick={handleNext}
+              className="flex-1 h-8 text-xs font-medium text-primary"
+            >
+              Next Step
+            </Button>
+          </div>
         </div>
       </CardContent>
     </Card>
