@@ -32,6 +32,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { toast } from "@/components/ui/use-toast";
+import { useWorkflowContext } from "@/contexts/WorkflowContext";
 
 const dischargeSummarySchema = z.object({
   dischargeDate: z.date({
@@ -50,10 +51,12 @@ type DischargeSummaryData = z.infer<typeof dischargeSummarySchema>;
 
 interface DischargeSummaryDialogProps {
   children?: React.ReactNode;
+  patientId?: string;
 }
 
-export function DischargeSummaryDialog({ children }: DischargeSummaryDialogProps) {
+export function DischargeSummaryDialog({ children, patientId }: DischargeSummaryDialogProps) {
   const [open, setOpen] = useState(false);
+  const { setPatientStatus, setStep } = useWorkflowContext();
   
   const form = useForm<DischargeSummaryData>({
     resolver: zodResolver(dischargeSummarySchema),
@@ -78,6 +81,11 @@ export function DischargeSummaryDialog({ children }: DischargeSummaryDialogProps
         title: "Discharge Summary Created",
         description: "The discharge summary has been successfully generated.",
       });
+
+      if (patientId) {
+        setPatientStatus(patientId, "Discharged");
+        setStep(patientId, "COMPLETED");
+      }
       
       setOpen(false);
       form.reset();

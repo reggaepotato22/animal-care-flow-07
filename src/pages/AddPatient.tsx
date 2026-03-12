@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useWorkflow } from "@/hooks/useWorkflow";
+import { useRole } from "@/contexts/RoleContext";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -51,10 +52,22 @@ type PatientFormData = z.infer<typeof patientSchema>;
 
 export default function AddPatient() {
   const navigate = useNavigate();
+  const { has } = useRole();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [patientId] = useState(() => generatePatientId());
   const wf = useWorkflow({ patientId });
+
+  useEffect(() => {
+    if (!has("can_register_patients")) {
+      toast({
+        title: "Access Denied",
+        description: "You do not have permission to add patients.",
+        variant: "destructive",
+      });
+      navigate("/patients");
+    }
+  }, [has, navigate, toast]);
 
   const form = useForm<PatientFormData>({
     resolver: zodResolver(patientSchema),

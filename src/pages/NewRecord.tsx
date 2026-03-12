@@ -1107,6 +1107,49 @@ export default function NewRecord() {
   const [selectedPatient, setSelectedPatient] = useState(visitData?.patientId || "");
   const [selectedVeterinarian, setSelectedVeterinarian] = useState(visitData?.veterinarian || "");
   const wf = useWorkflow({ patientId: selectedPatient });
+
+  // Auto-create SOAP note from Triage data
+  useEffect(() => {
+    if (visitData?.chiefComplaint || visitData?.vitals) {
+      const triageNoteId = "triage-soap-" + Date.now();
+      const triageSoapNote: ClinicalNote = {
+        id: triageNoteId,
+        type: "soap",
+        title: "Triage / Intake Note",
+        content: visitData.chiefComplaint ? `Chief Complaint: ${visitData.chiefComplaint}\n\nHistory: ${visitData.history || ""}` : "",
+        createdAt: new Date().toISOString(),
+        author: "Triage Nurse",
+        soapData: {
+          subjective: visitData.history || "",
+          objective: `Triage Level: ${visitData.triageLevel || "N/A"}\nTemperature: ${visitData.vitals?.temp || ""}°F\nHR: ${visitData.vitals?.hr || ""} bpm\nRR: ${visitData.vitals?.rr || ""} rpm\nWeight: ${visitData.vitals?.weight || ""} kg`,
+          assessment: `Primary Concern: ${visitData.chiefComplaint || "N/A"}`,
+          plan: "Awaiting veterinarian examination.",
+          temperature: visitData.vitals?.temp || "",
+          heartRate: visitData.vitals?.hr || "",
+          respiratoryRate: visitData.vitals?.rr || "",
+          weight: visitData.vitals?.weight || "",
+          bloodPressure: "",
+          bodyConditionScore: "",
+          otherObservations: "",
+          primaryDiagnosis: "",
+          differentialDiagnoses: [],
+          clinicalSummary: `Auto-populated from triage intake for ${visitData.chiefComplaint || "unknown complaint"}.`,
+          prognosis: "",
+          prognosisReason: "",
+          riskFactors: [],
+          notes: "",
+        }
+      };
+      
+      setClinicalNotes(prev => {
+        if (prev.some(n => n.id.startsWith("triage-soap-"))) return prev;
+        return [triageSoapNote, ...prev];
+      });
+      
+      // Ensure the newly created note is expanded
+      setCollapsedNotes(new Set()); 
+    }
+  }, [visitData]);
   
   // Scrollable tabs state
   const tabsScrollRef = useRef<HTMLDivElement>(null);
@@ -1539,6 +1582,12 @@ const applyTemplate = (templateName: string, noteId?: string) => {
   const handleSaveRecord = () => {
     // Here you would typically save the record to your backend
     console.log("Saving record:", { medications, vaccination, attachments, clinicalNotes });
+    
+    // Update workflow status to PHARMACY
+    if (selectedPatient) {
+      wf.goTo("PHARMACY");
+    }
+    
     navigate(recordsBase);
   };
 

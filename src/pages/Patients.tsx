@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Plus, Filter, Search, Grid3X3, List, Stethoscope } from "lucide-react";
+import { Plus, Filter, Search, Grid3X3, List, Stethoscope, CheckCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PatientCard } from "@/components/PatientCard";
+import { useToast } from "@/hooks/use-toast";
+import { useWorkflowContext } from "@/contexts/WorkflowContext";
 import {
   Table,
   TableBody,
@@ -13,22 +15,30 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { mockPatients } from "@/data/patients";
+import { useRole } from "@/contexts/RoleContext";
 
 export default function Patients() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { has } = useRole();
+  const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [speciesFilter, setSpeciesFilter] = useState("all");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+
+  // Workflow context for check-in action
+  const wf = useWorkflowContext();
+
+  const handleCheckIn = (patient: any) => {
+    wf.setStep(patient.patientId || patient.id, "TRIAGE");
+    toast({
+      title: "Checked-in",
+      description: `${patient.name} has been checked-in and moved to Triage.`,
+    });
+  };
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -64,13 +74,15 @@ export default function Patients() {
             Manage your animal patients and their records
           </p>
         </div>
-        <Button 
-          className="bg-primary hover:bg-primary/90"
-          onClick={() => navigate("/patients/add")}
-        >
-          <Plus className="mr-2 h-4 w-4" />
-          Add Patient
-        </Button>
+        {has("can_register_patients") && (
+          <Button 
+            className="bg-primary hover:bg-primary/90"
+            onClick={() => navigate("/patients/add")}
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            Add Patient
+          </Button>
+        )}
       </div>
 
       <div className="flex flex-col sm:flex-row gap-4">
@@ -205,14 +217,27 @@ export default function Patients() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleSendToTriage(patient)}
-                        >
-                          <Stethoscope className="h-3.5 w-3.5 mr-1" />
-                          Triage
-                        </Button>
+                        {has("can_triage") ? (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleSendToTriage(patient)}
+                          >
+                            <Stethoscope className="h-3.5 w-3.5 mr-1" />
+                            Triage
+                          </Button>
+                        ) : (
+                          has("can_register_patients") && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleCheckIn(patient)}
+                            >
+                              <CheckCircle className="h-3.5 w-3.5 mr-1" />
+                              Check-in
+                            </Button>
+                          )
+                        )}
                         <Button 
                           variant="outline" 
                           size="sm"

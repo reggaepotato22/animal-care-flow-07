@@ -1,10 +1,13 @@
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { MapPin, Phone, Heart, Stethoscope } from "lucide-react";
+import { MapPin, Phone, Heart, Stethoscope, CheckCircle } from "lucide-react";
 import { useWorkflow } from "@/hooks/useWorkflow";
+import { useRole } from "@/contexts/RoleContext";
 import { useNavigate } from "react-router-dom";
 import { getStepRoute } from "@/config/workflow";
+import { cn } from "@/lib/utils";
+import { useToast } from "@/hooks/use-toast";
 
 interface Patient {
   id: string;
@@ -43,7 +46,18 @@ export function PatientCard({ patient, onViewDetails, onTriage }: PatientCardPro
   };
 
   const navigate = useNavigate();
+  const { has } = useRole();
+  const { toast } = useToast();
   const wf = useWorkflow({ patientId: patient.patientId || patient.id });
+
+  const handleCheckIn = () => {
+    wf.goTo("TRIAGE");
+    toast({
+      title: "Checked-in",
+      description: `${patient.name} has been checked-in and moved to Triage.`,
+    });
+  };
+
   const handleNext = () => {
     if (!wf.hasNext) return;
     const nextStep = wf.steps[wf.currentIndex + 1];
@@ -107,22 +121,36 @@ export function PatientCard({ patient, onViewDetails, onTriage }: PatientCardPro
         </div>
 
         <div className="pt-2 grid grid-cols-2 gap-2">
-          {onTriage && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onTriage(patient)}
-              className="w-full"
-            >
-              <Stethoscope className="h-4 w-4 mr-1.5" />
-              Triage
-            </Button>
+          {has("can_triage") ? (
+            onTriage && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => onTriage(patient)}
+                className="w-full"
+              >
+                <Stethoscope className="h-4 w-4 mr-1.5" />
+                Triage
+              </Button>
+            )
+          ) : (
+            has("can_register_patients") && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleCheckIn}
+                className="w-full"
+              >
+                <CheckCircle className="h-4 w-4 mr-1.5" />
+                Check-in
+              </Button>
+            )
           )}
           <Button 
             variant="outline" 
             size="sm"
             onClick={() => onViewDetails(patient)}
-            className="w-full"
+            className={cn("w-full", !(has("can_triage") || has("can_register_patients")) && "col-span-2")}
           >
             View Details
           </Button>
