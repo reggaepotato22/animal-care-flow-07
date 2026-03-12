@@ -1,10 +1,9 @@
 export type WorkflowStepId =
-  | "Reception"
-  | "Triage"
-  | "Vet"
-  | "Surgery"
-  | "Recovery"
-  | "Billing";
+  | "REGISTERED"
+  | "TRIAGE"
+  | "CONSULTATION"
+  | "PHARMACY"
+  | "COMPLETED";
 
 export interface WorkflowStep {
   id: WorkflowStepId;
@@ -12,32 +11,35 @@ export interface WorkflowStep {
 }
 
 export const defaultWorkflow: WorkflowStep[] = [
-  { id: "Reception", label: "Reception" },
-  { id: "Triage", label: "Triage" },
-  { id: "Vet", label: "Consultation" },
-  { id: "Billing", label: "Billing/Pharmacy" },
+  { id: "REGISTERED", label: "Check-in" },
+  { id: "TRIAGE", label: "Triage" },
+  { id: "CONSULTATION", label: "Consultation" },
+  { id: "PHARMACY", label: "Pharmacy" },
+  { id: "COMPLETED", label: "Completed" },
 ];
 
 export function resolveWorkflow(steps?: WorkflowStepId[] | WorkflowStep[]) {
   if (!steps || steps.length === 0) return defaultWorkflow;
-  return steps.map((s) =>
-    typeof s === "string" ? { id: s, label: s } : s,
-  );
+  return steps.map((s) => {
+    if (typeof s === "string") {
+      const found = defaultWorkflow.find((d) => d.id === s);
+      return found || { id: s as WorkflowStepId, label: s };
+    }
+    return s;
+  });
 }
 
 export function getStepRoute(step: WorkflowStepId) {
   switch (step) {
-    case "Reception":
+    case "REGISTERED":
       return "/patients/add";
-    case "Triage":
+    case "TRIAGE":
       return "/triage";
-    case "Vet":
+    case "CONSULTATION":
       return "/admin/records/new";
-    case "Surgery":
-      return "/hospitalization";
-    case "Recovery":
-      return "/hospitalization";
-    case "Billing":
+    case "PHARMACY":
+      return "/inventory";
+    case "COMPLETED":
       return "/billing";
     default:
       return "/";

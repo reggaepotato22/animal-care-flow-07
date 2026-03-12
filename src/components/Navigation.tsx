@@ -30,6 +30,7 @@ const navigationItems = [
   { name: "Hospitalization", href: "/hospitalization", icon: Hospital },
   { name: "Treatments", href: "/treatments", icon: Stethoscope },
   { name: "Inventory", href: "/inventory", icon: Package },
+  { name: "Pharmacy", href: "/inventory", icon: Beaker }, // Added Pharmacy (reusing inventory/beaker for now)
   { name: "Billing", href: "/billing", icon: CreditCard },
   { name: "Postmortem", href: "/postmortem", icon: FileText },
   { name: "Team Management", href: "/admin/staff", icon: UsersIcon },
@@ -76,13 +77,17 @@ export function Navigation() {
           .filter((item) => {
             if (item.name === "Audit Trails") return has("can_view_audit");
             if (item.name === "Clinic Settings") return has("can_manage_users");
+            if (item.name === "Team Management") return has("can_manage_users");
             if (item.name === "Inventory") return has("can_manage_inventory");
+            if (item.name === "Pharmacy") return has("can_dispense");
             if (item.name === "Billing") return has("can_access_billing");
             if (item.name === "Triage") return has("can_triage");
             if (item.name === "Labs") return has("can_view_records");
             if (item.name === "Hospitalization") return has("can_view_records");
             if (item.name === "Treatments") return has("can_view_records");
             if (item.name === "Postmortem") return has("can_view_records");
+            if (item.name === "Patient Oversight") return has("can_view_records");
+            if (item.name === "Appointments") return has("can_register_patients") || has("can_view_records");
             return true;
           })
           .map((item) => (

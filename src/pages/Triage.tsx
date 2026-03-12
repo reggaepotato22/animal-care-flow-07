@@ -181,6 +181,8 @@ export default function Triage() {
 
   const startRecord = () => {
     if (!selectedPatient) return;
+    // Update workflow status to CONSULTATION
+    patientWorkflow.goTo("CONSULTATION");
     navigate("/admin/records/new", {
       state: {
         patientId: selectedPatient.patientId,
