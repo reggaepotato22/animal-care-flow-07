@@ -11,6 +11,7 @@ import { CalendarIcon, Bed } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+import { useWorkflowContext } from "@/contexts/WorkflowContext";
 
 interface AdmissionRequestDialogProps {
   children: React.ReactNode;
@@ -37,6 +38,7 @@ interface AdmissionRequest {
 export function AdmissionRequestDialog({ children, patientData }: AdmissionRequestDialogProps) {
   const [open, setOpen] = useState(false);
   const { toast } = useToast();
+  const { setPatientStatus } = useWorkflowContext();
   
   const [admissionRequest, setAdmissionRequest] = useState<AdmissionRequest>({
     scheduledDate: new Date(),
@@ -71,6 +73,11 @@ export function AdmissionRequestDialog({ children, patientData }: AdmissionReque
       title: "Admission Request Created",
       description: `Hospitalization request for ${patientData?.petName || 'patient'} has been submitted successfully.`
     });
+
+    // Automatically update patient status to Hospitalized
+    if (patientData?.patientId) {
+      setPatientStatus(patientData.patientId, "Hospitalized");
+    }
 
     setOpen(false);
     

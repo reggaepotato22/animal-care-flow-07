@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useWorkflow } from "@/hooks/useWorkflow";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -17,7 +17,9 @@ type LineItem = {
 
 export default function Billing() {
   const navigate = useNavigate();
-  const wf = useWorkflow(); // In a real app, you'd pass the specific patientId
+  const location = useLocation();
+  const patientId = new URLSearchParams(location.search).get("patientId") || "1"; // Default to "1" for demo
+  const wf = useWorkflow({ patientId });
   const [phone, setPhone] = useState("+2547XXXXXXXX");
   const [items] = useState<LineItem[]>([
     { id: "li1", description: "Consultation", amount: 1500 },

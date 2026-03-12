@@ -1,11 +1,30 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { DashboardStats } from "@/components/DashboardStats";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Calendar, AlertCircle, Clock, Users, Stethoscope } from "lucide-react";
+import {
+  ArrowUpRight,
+  ArrowDownRight,
+  Users,
+  Calendar,
+  DollarSign,
+  Activity,
+  Bell,
+  Search,
+  CheckCircle,
+  Clock,
+  AlertCircle,
+  ArrowLeft,
+  ChevronRight,
+  Stethoscope,
+} from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import { formatDistanceToNow, subMinutes, subHours, subDays, subSeconds } from "date-fns";
+import { useRole } from "@/contexts/RoleContext";
+import { useWorkflowContext } from "@/contexts/WorkflowContext";
+import { useToast } from "@/hooks/use-toast";
+import { WorkflowProgress } from "@/components/WorkflowProgress";
 import {
   Dialog,
   DialogContent,
@@ -17,7 +36,63 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 
 const Index = () => {
   const navigate = useNavigate();
+  const { has } = useRole();
+  const { toast } = useToast();
+  const wf = useWorkflowContext();
   const [isAlertsModalOpen, setIsAlertsModalOpen] = useState(false);
+
+  // Listen for real-time workflow updates from other roles
+  useEffect(() => {
+    const channel = new BroadcastChannel("acf_workflow_updates");
+    channel.onmessage = (event) => {
+      if (event.data.type === "STEP_UPDATE") {
+        const { patientId, step, petName, ownerName, vetName } = event.data.payload;
+        
+        // Find pet name from recent appointments for a better notification
+        const appt = recentAppointments.find(a => a.id === patientId);
+        const name = petName || (appt ? appt.patient : `Patient ${patientId}`);
+        
+        let description = `${name} is now at: ${step}`;
+        if (step === "TRIAGE") {
+           description = `${name} (${ownerName}) has arrived and is READY for triage.`;
+        } else if (step === "CONSULTATION" && vetName) {
+           description = `${name} is READY for consultation with ${vetName}.`;
+        } else if (step === "PHARMACY") {
+           description = `${name} is ready for medication collection.`;
+        }
+
+        toast({
+          title: "Real-time Update",
+          description: description,
+          variant: step === "TRIAGE" ? "default" : step === "CONSULTATION" ? "default" : "secondary",
+        });
+      }
+    };
+    return () => channel.close();
+  }, [toast]);
+
+  const handleCheckIn = (appointment: any) => {
+    const patientId = appointment.patientId || appointment.id;
+    wf.setStep(patientId, "TRIAGE");
+    
+    // Broadcast check-in for Triage nurse
+    const channel = new BroadcastChannel("acf_workflow_updates");
+    channel.postMessage({
+      type: "STEP_UPDATE",
+      payload: { 
+        patientId: patientId, 
+        step: "TRIAGE",
+        petName: appointment.patient,
+        ownerName: appointment.owner
+      }
+    });
+    channel.close();
+
+    toast({
+      title: "Checked-in",
+      description: `${appointment.patient} has been checked-in and moved to Triage.`,
+    });
+  };
   
   // Mock data for recent activities
   const recentAppointments = [
@@ -123,38 +198,83 @@ const Index = () => {
                 <div
                   key={appointment.id}
                   onClick={() => navigate(`/appointments/${appointment.id}`)}
-                  className="flex items-center justify-between p-3 border border-border rounded-lg cursor-pointer hover:bg-muted/50 transition-colors"
+                  className="flex flex-col p-4 border border-border rounded-lg cursor-pointer hover:bg-muted/50 transition-colors space-y-3"
                 >
-                  <div>
-                    <p className="font-medium">{appointment.patient}</p>
-                    <p className="text-sm text-muted-foreground">{appointment.owner}</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="text-right">
-                      <p className="font-medium">{appointment.time}</p>
-                      <Badge variant="outline">{appointment.type}</Badge>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-medium text-lg">{appointment.patient}</p>
+                      <p className="text-sm text-muted-foreground">{appointment.owner}</p>
                     </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        navigate("/triage", {
-                          state: {
-                            patient: {
-                              patientId: appointment.id,
-                              name: appointment.patient,
-                              owner: appointment.owner,
-                              species: "Unknown",
-                              breed: "Unknown",
-                            },
-                          },
-                        });
-                      }}
-                    >
-                      <Stethoscope className="h-4 w-4 mr-1" />
-                      Triage
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      <div className="text-right">
+                        <p className="font-medium">{appointment.time}</p>
+                        <Badge variant="outline">{appointment.type}</Badge>
+                      </div>
+                      {has("can_triage") ? (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            navigate("/triage", {
+                              state: {
+                                patient: {
+                                  patientId: appointment.id,
+                                  name: appointment.patient,
+                                  owner: appointment.owner,
+                                  species: "Unknown",
+                                  breed: "Unknown",
+                                },
+                              },
+                            });
+                          }}
+                        >
+                          <Stethoscope className="h-4 w-4 mr-1" />
+                          Triage
+                        </Button>
+                      ) : (
+                        has("can_register_patients") && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={(event) => {
+                               event.stopPropagation();
+                               handleCheckIn(appointment);
+                             }}
+                          >
+                            <CheckCircle className="h-4 w-4 mr-1" />
+                            Check-in
+                          </Button>
+                        )
+                      )}
+                    </div>
+                  </div>
+                  
+                  {/* Real-time Workflow Progress Highlight */}
+                  <div onClick={(e) => e.stopPropagation()} className="pt-2 border-t border-muted/30">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">Progress:</span>
+                        <Badge variant="secondary" className="bg-veterinary-teal/10 text-veterinary-teal border-veterinary-teal/20 text-[10px] px-2 py-0 h-5 font-medium">
+                          {wf.getStep(appointment.id)}
+                        </Badge>
+                      </div>
+                      <div className="flex gap-1">
+                        {wf.workflow.map((step, idx) => {
+                          const currentIdx = wf.getIndex(wf.getStep(appointment.id));
+                          const isActive = idx <= currentIdx;
+                          return (
+                            <div 
+                              key={step.id} 
+                              className={`h-1.5 w-6 rounded-full transition-colors duration-300 ${
+                                isActive ? 'bg-veterinary-teal' : 'bg-muted'
+                              }`}
+                              title={step.label}
+                            />
+                          );
+                        })}
+                      </div>
+                    </div>
                   </div>
                 </div>
               ))}

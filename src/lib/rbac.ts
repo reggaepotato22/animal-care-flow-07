@@ -10,7 +10,9 @@ export type Permission =
   | "can_view_records"
   | "can_prescribe"
   | "can_dispense"
-  | "can_register_patients";
+  | "can_register_patients"
+  | "can_view_patients"
+  | "can_edit_patients";
 
 export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
   SuperAdmin: [
@@ -24,25 +26,34 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     "can_prescribe",
     "can_dispense",
     "can_register_patients",
+    "can_view_patients",
+    "can_edit_patients",
   ],
   Vet: [
     "can_edit_medical_records",
     "can_view_records",
     "can_prescribe",
     "can_triage",
+    "can_view_patients",
+    "can_edit_patients",
   ],
   Nurse: [
     "can_triage",
     "can_view_records",
+    "can_view_patients",
+    "can_edit_patients",
   ],
   Receptionist: [
     "can_access_billing",
     "can_register_patients",
+    "can_view_patients",
+    "can_edit_patients",
   ],
   Pharmacist: [
     "can_dispense",
     "can_manage_inventory",
     "can_view_records",
+    "can_view_patients",
   ],
 };
 

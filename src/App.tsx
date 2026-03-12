@@ -71,6 +71,9 @@ function ProtectedRoutes() {
         <Route path="/triage" element={<Triage />} />
         <Route path="/audit" element={<Audit />} />
         <Route path="/billing" element={<Billing />} />
+        <Route path="/records" element={<Records />} />
+        <Route path="/records/new" element={<NewRecord />} />
+        <Route path="/records/:id" element={<ClinicalRecordDetails />} />
         <Route path="/patients/:id/journey" element={<PatientJourney />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
@@ -115,9 +118,6 @@ const App = () => (
                       <Route path="reports" element={<Reports />} />
                       <Route path="notifications" element={<Notifications />} />
                       <Route path="notifications/templates" element={<NotificationTemplates />} />
-                      <Route path="records" element={<Records />} />
-                      <Route path="records/new" element={<NewRecord />} />
-                      <Route path="records/:id" element={<ClinicalRecordDetails />} />
                       <Route path="*" element={<NotFound />} />
                     </Route>
                     <Route path="*" element={<ProtectedRoutes />} />

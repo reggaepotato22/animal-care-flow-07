@@ -5,6 +5,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { format } from "date-fns";
+import { useRole } from "@/contexts/RoleContext";
+import { useWorkflow } from "@/hooks/useWorkflow";
+import { useToast } from "@/hooks/use-toast";
+import { useState } from "react";
 
 // Mock appointment data - in a real app this would come from an API
 const mockAppointments: Record<string, any> = {
@@ -73,8 +77,12 @@ const mockAppointments: Record<string, any> = {
 export default function AppointmentDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { has, role } = useRole();
+  const { toast } = useToast();
   
-  const appointment = id ? mockAppointments[id] : null;
+  const initialAppointment = id ? mockAppointments[id] : null;
+  const [appointment, setAppointment] = useState(initialAppointment);
+  const wf = useWorkflow({ patientId: appointment?.patientId });
 
   if (!appointment) {
     return (
@@ -89,6 +97,31 @@ export default function AppointmentDetails() {
       </div>
     );
   }
+
+  const handleCheckIn = () => {
+    wf.goTo("TRIAGE");
+    toast({
+      title: "Checked-in",
+      description: `${appointment.petName} has been checked-in and moved to Triage.`,
+    });
+  };
+
+  const handleComplete = () => {
+    setAppointment(prev => prev ? { ...prev, status: "completed" } : null);
+    toast({
+      title: "Appointment Completed",
+      description: `Appointment for ${appointment.petName} has been marked as completed.`,
+    });
+  };
+
+  const handleCancel = () => {
+    setAppointment(prev => prev ? { ...prev, status: "cancelled" } : null);
+    toast({
+      title: "Appointment Cancelled",
+      description: `Appointment for ${appointment.petName} has been cancelled.`,
+      variant: "destructive",
+    });
+  };
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -151,26 +184,39 @@ export default function AppointmentDetails() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() =>
-              navigate("/triage", {
-                state: {
-                  patient: {
-                    patientId: appointment.patientId,
-                    name: appointment.petName,
-                    owner: appointment.ownerName,
-                    species: "Unknown",
-                    breed: "Unknown",
-                  },
-                },
-              })
-            }
-          >
-            <Stethoscope className="h-4 w-4 mr-1" />
-            Triage
-          </Button>
+          {appointment.status !== "completed" && appointment.status !== "cancelled" && (
+            has("can_triage") ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  navigate("/triage", {
+                    state: {
+                      patient: {
+                        patientId: appointment.patientId,
+                        name: appointment.petName,
+                        owner: appointment.ownerName,
+                        species: "Unknown",
+                        breed: "Unknown",
+                      },
+                    },
+                  })
+                }
+              >
+                <Stethoscope className="h-4 w-4 mr-1" />
+                Triage
+              </Button>
+            ) : (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleCheckIn}
+              >
+                <CheckCircle className="h-4 w-4 mr-1" />
+                Check-in for Triage
+              </Button>
+            )
+          )}
           <Badge className={getStatusColor(appointment.status)}>
             {appointment.status}
           </Badge>
@@ -320,26 +366,41 @@ export default function AppointmentDetails() {
         </CardHeader>
         <CardContent>
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline" onClick={() => navigate(`/records/new?patientId=${appointment.patientId}&appointmentId=${appointment.id}`)}>
-              <FileText className="mr-2 h-4 w-4" />
-              Create Clinical Record
-            </Button>
+            {has("can_edit_medical_records") && (
+              <Button variant="outline" onClick={() => navigate(`/admin/records/new?patientId=${appointment.patientId}&appointmentId=${appointment.id}`)}>
+                <FileText className="mr-2 h-4 w-4" />
+                Create Clinical Record
+              </Button>
+            )}
             <Button variant="outline" onClick={() => appointment.patientId && navigate(`/patients/${appointment.patientId}`)}>
               <User className="mr-2 h-4 w-4" />
               View Patient Profile
             </Button>
-            <Button variant="outline">
-              <Edit className="mr-2 h-4 w-4" />
-              Edit Appointment
-            </Button>
-            {appointment.status === "confirmed" && (
-              <Button variant="outline" className="text-green-600 hover:text-green-700">
+            {has("can_edit_patients") && (
+              <Button 
+                variant="outline"
+                onClick={() => toast({ title: "Edit Appointment", description: "Opening appointment editor..." })}
+              >
+                <Edit className="mr-2 h-4 w-4" />
+                Edit Appointment
+              </Button>
+            )}
+            {(appointment.status === "confirmed" || appointment.status === "pending") && (
+              <Button 
+                variant="outline" 
+                className="text-green-600 hover:text-green-700 hover:bg-green-50"
+                onClick={handleComplete}
+              >
                 <CheckCircle className="mr-2 h-4 w-4" />
                 Mark as Completed
               </Button>
             )}
-            {appointment.status !== "cancelled" && (
-              <Button variant="outline" className="text-red-600 hover:text-red-700">
+            {appointment.status !== "cancelled" && appointment.status !== "completed" && (
+              <Button 
+                variant="outline" 
+                className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                onClick={handleCancel}
+              >
                 <XCircle className="mr-2 h-4 w-4" />
                 Cancel Appointment
               </Button>

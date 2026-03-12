@@ -25,6 +25,7 @@ const navigationItems = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard },
   { name: "Patient Oversight", href: "/patients", icon: Heart },
   { name: "Appointments", href: "/appointments", icon: Calendar },
+  { name: "Clinical Records", href: "/records", icon: ScrollText },
   { name: "Triage", href: "/triage", icon: Activity },
   { name: "Labs", href: "/labs", icon: Beaker },
   { name: "Hospitalization", href: "/hospitalization", icon: Hospital },
@@ -75,6 +76,7 @@ export function Navigation() {
       <div className="flex-1 py-4 overflow-y-auto">
         {navigationItems
           .filter((item) => {
+            if (item.name === "Clinical Records") return has("can_view_records");
             if (item.name === "Audit Trails") return has("can_view_audit");
             if (item.name === "Clinic Settings") return has("can_manage_users");
             if (item.name === "Team Management") return has("can_manage_users");
@@ -86,8 +88,8 @@ export function Navigation() {
             if (item.name === "Hospitalization") return has("can_view_records");
             if (item.name === "Treatments") return has("can_view_records");
             if (item.name === "Postmortem") return has("can_view_records");
-            if (item.name === "Patient Oversight") return has("can_view_records");
-            if (item.name === "Appointments") return has("can_register_patients") || has("can_view_records");
+            if (item.name === "Patient Oversight") return has("can_view_patients");
+            if (item.name === "Appointments") return has("can_view_patients");
             return true;
           })
           .map((item) => (

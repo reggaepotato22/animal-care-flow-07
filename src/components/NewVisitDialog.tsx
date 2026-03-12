@@ -30,6 +30,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { FileText } from "lucide-react";
 import { toast } from "sonner";
+import { useWorkflowContext } from "@/contexts/WorkflowContext";
 
 const newVisitSchema = z.object({
   reason: z.string().min(1, "Reason for visit is required"),
@@ -70,6 +71,7 @@ export function NewVisitDialog({ children }: NewVisitDialogProps) {
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
   const { id: patientId } = useParams();
+  const { setStep, setPatientStatus } = useWorkflowContext();
 
   const form = useForm<NewVisitFormData>({
     resolver: zodResolver(newVisitSchema),
@@ -83,6 +85,12 @@ export function NewVisitDialog({ children }: NewVisitDialogProps) {
   const onSubmit = (data: NewVisitFormData) => {
     console.log("New visit data:", data);
     toast.success("New visit created successfully!");
+    
+    if (patientId) {
+      setPatientStatus(patientId, "Active");
+      setStep(patientId, "TRIAGE");
+    }
+
     setOpen(false);
     form.reset();
     

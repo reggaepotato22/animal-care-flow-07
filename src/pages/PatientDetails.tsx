@@ -1,5 +1,7 @@
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Calendar, MapPin, Phone, Heart, Edit, Trash2, FileText, Pill, Stethoscope, Activity, MoreVertical, FileSearch, ChevronDown, AlertTriangle, Clock, TestTube, Mail, MessageSquare, User, Building2, MapPinIcon, DollarSign, CheckCircle, Circle, AlertCircle, XCircle } from "lucide-react";
+import { useRole } from "@/contexts/RoleContext";
+import { useWorkflowContext, type PatientLifecycleStatus } from "@/contexts/WorkflowContext";
+import { ArrowLeft, Calendar, MapPin, Phone, Heart, Edit, Trash2, FileText, Pill, Stethoscope, Activity, MoreVertical, FileSearch, ChevronDown, AlertTriangle, Clock, TestTube, Mail, MessageSquare, User, Building2, MapPinIcon, DollarSign, CheckCircle, Circle, AlertCircle, XCircle, Hospital, ArrowUpRight } from "lucide-react";
 import { PermissionGuard } from "@/components/PermissionGuard";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,7 +18,7 @@ import { EditPatientDialog } from "@/components/EditPatientDialog";
 import { useState, useMemo } from "react";
 import { differenceInDays } from "date-fns";
 import { PatientHeader } from "@/components/PatientHeader";
-import { VitalsSparkline } from "@/components/VitalsSparkline";
+import { WorkflowProgress } from "@/components/WorkflowProgress";
 
 // Mock data - in a real app this would come from an API
 const mockPatients = {
@@ -414,9 +416,11 @@ const mockPatients = {
 export default function PatientDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { has } = useRole();
+  const { getPatientStatus, setPatientStatus } = useWorkflowContext();
   
   const patient = id ? mockPatients[id as keyof typeof mockPatients] : null;
-  const [currentStatus, setCurrentStatus] = useState<string>(patient?.status || "Active");
+  const currentStatus = id ? getPatientStatus(id) : "Active";
 
   if (!patient) {
     return (
@@ -582,23 +586,10 @@ export default function PatientDetails() {
           </Button>
           <Separator orientation="vertical" className="h-8" />
           <div className="flex items-center space-x-3">
-            
             <div className="flex items-center space-x-2">
               <Badge className={getStatusColor(currentStatus)}>
                 {currentStatus}
               </Badge>
-              <Select value={currentStatus} onValueChange={handleStatusChange}>
-                <SelectTrigger className="w-40">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Active">Active</SelectItem>
-                  <SelectItem value="Hospitalized">Hospitalized</SelectItem>
-                  <SelectItem value="Discharged">Discharged</SelectItem>
-                  <SelectItem value="Referred">Referred</SelectItem>
-                  <SelectItem value="Deceased">Deceased</SelectItem>
-                </SelectContent>
-              </Select>
             </div>
           </div>
         </div>
@@ -607,25 +598,27 @@ export default function PatientDetails() {
             <Activity className="mr-2 h-4 w-4" />
             Patient Journey
           </Button>
-          <Button
-            variant="outline"
-            onClick={() =>
-              navigate("/triage", {
-                state: {
-                  patient: {
-                    patientId: patient.patientId,
-                    name: patient.name,
-                    owner: patient.owner,
-                    species: patient.species,
-                    breed: patient.breed,
+          {has("can_triage") && (
+            <Button
+              variant="outline"
+              onClick={() =>
+                navigate("/triage", {
+                  state: {
+                    patient: {
+                      patientId: patient.patientId,
+                      name: patient.name,
+                      owner: patient.owner,
+                      species: patient.species,
+                      breed: patient.breed,
+                    },
                   },
-                },
-              })
-            }
-          >
-            <Stethoscope className="mr-2 h-4 w-4" />
-            Triage
-          </Button>
+                })
+              }
+            >
+              <Stethoscope className="mr-2 h-4 w-4" />
+              Triage
+            </Button>
+          )}
           <PermissionGuard permission="can_edit_medical_records" fallback={null} hide>
             <Button variant="destructive" className="hover:bg-destructive/90">
               <Trash2 className="mr-2 h-4 w-4" />
@@ -640,50 +633,101 @@ export default function PatientDetails() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48">
-              <DropdownMenuItem 
-                className="cursor-pointer"
-                onSelect={(e) => e.preventDefault()}
-              >
-                <NewVisitDialog>
-                  <div className="flex items-center w-full">
-                    <FileText className="mr-2 h-4 w-4" />
-                    New Visit
-                  </div>
-                </NewVisitDialog>
-              </DropdownMenuItem>
-              <DropdownMenuItem 
-                className="cursor-pointer"
-                onSelect={(e) => e.preventDefault()}
-              >
-                <DischargeSummaryDialog>
-                  <div className="flex items-center w-full">
-                    <FileText className="mr-2 h-4 w-4" />
-                    Discharge Patient
-                  </div>
-                </DischargeSummaryDialog>
-              </DropdownMenuItem>
-              <DropdownMenuItem 
-                className="cursor-pointer"
-                onSelect={(e) => e.preventDefault()}
-              >
-                <PostMortemReportDialog
-                  patientData={{
-                    id: patient.id,
-                    name: patient.name,
-                    species: patient.species,
-                    breed: patient.breed
-                  }}
+              {has("can_edit_patients") && (
+                <DropdownMenuItem 
+                  className="cursor-pointer"
+                  onSelect={(e) => e.preventDefault()}
                 >
-                  <div className="flex items-center w-full">
-                    <FileSearch className="mr-2 h-4 w-4" />
-                    Post Mortem Report
-                  </div>
-                </PostMortemReportDialog>
-              </DropdownMenuItem>
+                  <EditPatientDialog patient={patient}>
+                    <div className="flex items-center w-full">
+                      <Edit className="mr-2 h-4 w-4" />
+                      Edit Patient
+                    </div>
+                  </EditPatientDialog>
+                </DropdownMenuItem>
+              )}
+              {has("can_edit_medical_records") && (
+                <>
+                  <DropdownMenuItem 
+                    className="cursor-pointer"
+                    onSelect={(e) => e.preventDefault()}
+                  >
+                    <NewVisitDialog>
+                      <div className="flex items-center w-full">
+                        <FileText className="mr-2 h-4 w-4" />
+                        New Visit
+                      </div>
+                    </NewVisitDialog>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem 
+                    className="cursor-pointer"
+                    onSelect={(e) => e.preventDefault()}
+                  >
+                    <DischargeSummaryDialog patientId={id}>
+                      <div className="flex items-center w-full">
+                        <FileText className="mr-2 h-4 w-4" />
+                        Discharge Patient
+                      </div>
+                    </DischargeSummaryDialog>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem 
+                    className="cursor-pointer"
+                    onSelect={(e) => e.preventDefault()}
+                  >
+                    <AdmissionRequestDialog
+                      patientData={{
+                        patientId: id,
+                        patientName: patient.owner,
+                        petName: patient.name,
+                        species: patient.species,
+                      }}
+                    >
+                      <div className="flex items-center w-full">
+                        <Hospital className="mr-2 h-4 w-4" />
+                        Hospitalize Patient
+                      </div>
+                    </AdmissionRequestDialog>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem 
+                    className="cursor-pointer"
+                    onSelect={() => id && setPatientStatus(id, "Referred")}
+                  >
+                    <div className="flex items-center w-full">
+                      <ArrowUpRight className="mr-2 h-4 w-4" />
+                      Refer Patient
+                    </div>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem 
+                    className="cursor-pointer"
+                    onSelect={(e) => e.preventDefault()}
+                  >
+                    <PostMortemReportDialog
+                      patientData={{
+                        id: patient.id,
+                        name: patient.name,
+                        species: patient.species,
+                        breed: patient.breed
+                      }}
+                    >
+                      <div className="flex items-center w-full" onClick={() => id && setPatientStatus(id, "Deceased")}>
+                        <FileSearch className="mr-2 h-4 w-4" />
+                        Mark as Deceased
+                      </div>
+                    </PostMortemReportDialog>
+                  </DropdownMenuItem>
+                </>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
       </div>
+
+      {/* Workflow Progress Bar */}
+      {id && (
+        <Card className="p-6">
+          <WorkflowProgress patientId={id} />
+        </Card>
+      )}
 
       <PatientHeader
         name={patient.name}
@@ -701,60 +745,62 @@ export default function PatientDetails() {
         onStatusChipClass={getStatusColor}
       />
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <AlertCircle className="h-5 w-5 text-veterinary-teal" />
-            <span>Clinical Decision Support</span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {clinicalReminders.length > 0 ? (
-            <div className="space-y-3">
-              {clinicalReminders.map((reminder) => (
-                <div
-                  key={reminder.id}
-                  className={`p-3 rounded-lg border-l-4 ${
-                    reminder.type === "critical"
-                      ? "border-destructive bg-destructive/10"
-                      : reminder.type === "warning"
-                      ? "border-warning bg-warning/10"
-                      : "border-primary bg-primary/10"
-                  }`}
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <p className="text-sm font-medium">{reminder.title}</p>
-                      <p className="text-xs text-muted-foreground">{reminder.detail}</p>
+      {has("can_view_records") && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center space-x-2">
+              <AlertCircle className="h-5 w-5 text-veterinary-teal" />
+              <span>Clinical Decision Support</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {clinicalReminders.length > 0 ? (
+              <div className="space-y-3">
+                {clinicalReminders.map((reminder) => (
+                  <div
+                    key={reminder.id}
+                    className={`p-3 rounded-lg border-l-4 ${
+                      reminder.type === "critical"
+                        ? "border-destructive bg-destructive/10"
+                        : reminder.type === "warning"
+                        ? "border-warning bg-warning/10"
+                        : "border-primary bg-primary/10"
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <p className="text-sm font-medium">{reminder.title}</p>
+                        <p className="text-xs text-muted-foreground">{reminder.detail}</p>
+                      </div>
+                      <Badge
+                        variant={
+                          reminder.type === "critical"
+                            ? "destructive"
+                            : reminder.type === "warning"
+                            ? "default"
+                            : "secondary"
+                        }
+                        className="text-xs"
+                      >
+                        {reminder.type}
+                      </Badge>
                     </div>
-                    <Badge
-                      variant={
-                        reminder.type === "critical"
-                          ? "destructive"
-                          : reminder.type === "warning"
-                          ? "default"
-                          : "secondary"
-                      }
-                      className="text-xs"
-                    >
-                      {reminder.type}
-                    </Badge>
                   </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-sm text-muted-foreground">No active reminders at this time.</p>
-          )}
-        </CardContent>
-      </Card>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">No active reminders at this time.</p>
+            )}
+          </CardContent>
+        </Card>
+      )}
       
       {/* Medical History Table */}
         <Card>
           <CardHeader>
           <CardTitle className="flex items-center space-x-2">
             <FileText className="h-5 w-5 text-veterinary-teal" />
-            <span>Medical History</span>
+            <span>{has("can_view_records") ? "Medical History" : "Visit History"}</span>
           </CardTitle>
           </CardHeader>
         <CardContent>
@@ -769,7 +815,7 @@ export default function PatientDetails() {
                   <TableHead className="w-[80px] text-center">Qty</TableHead>
                   <TableHead className="w-[100px] text-right">Amount</TableHead>
                   <TableHead className="w-[100px]">Status</TableHead>
-                  <TableHead className="w-[200px]">Notes</TableHead>
+                  {has("can_view_records") && <TableHead className="w-[200px]">Notes</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -814,11 +860,13 @@ export default function PatientDetails() {
                         <span className="text-xs">{encounter.status}</span>
                       </Badge>
                     </TableCell>
-                    <TableCell>
-                      <div className="text-sm text-muted-foreground max-w-[200px] truncate" title={encounter.notes}>
-                        {encounter.notes}
-                      </div>
-                    </TableCell>
+                    {has("can_view_records") && (
+                      <TableCell>
+                        <div className="text-sm text-muted-foreground max-w-[200px] truncate" title={encounter.notes}>
+                          {encounter.notes}
+                        </div>
+                      </TableCell>
+                    )}
                   </TableRow>
                 ))}
               </TableBody>
