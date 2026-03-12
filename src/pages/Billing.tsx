@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useWorkflow } from "@/hooks/useWorkflow";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -14,6 +16,8 @@ type LineItem = {
 };
 
 export default function Billing() {
+  const navigate = useNavigate();
+  const wf = useWorkflow(); // In a real app, you'd pass the specific patientId
   const [phone, setPhone] = useState("+2547XXXXXXXX");
   const [items] = useState<LineItem[]>([
     { id: "li1", description: "Consultation", amount: 1500 },
@@ -33,7 +37,11 @@ export default function Billing() {
       accountReference: "ACF-Invoice-001",
       description: "Vet services",
     });
-    setTimeout(() => setStatus("success"), 2000);
+    setTimeout(() => {
+      setStatus("success");
+      // Update workflow status to COMPLETED
+      wf.goTo("COMPLETED");
+    }, 2000);
   };
 
   return (

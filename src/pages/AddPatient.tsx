@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { useWorkflow } from "@/hooks/useWorkflow";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -53,6 +54,7 @@ export default function AddPatient() {
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [patientId] = useState(() => generatePatientId());
+  const wf = useWorkflow({ patientId });
 
   const form = useForm<PatientFormData>({
     resolver: zodResolver(patientSchema),
@@ -104,6 +106,9 @@ export default function AddPatient() {
       title: "Patient Added Successfully",
       description: `${data.name} has been added with ID: ${patientId}`,
     });
+    
+    // Set workflow to TRIAGE (Check-in)
+    wf.goTo("TRIAGE");
     
     setIsSubmitting(false);
     navigate("/patients");

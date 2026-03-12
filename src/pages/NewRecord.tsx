@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
+import { useWorkflow } from "@/hooks/useWorkflow";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -1105,6 +1106,7 @@ export default function NewRecord() {
   // Patient and veterinarian state
   const [selectedPatient, setSelectedPatient] = useState(visitData?.patientId || "");
   const [selectedVeterinarian, setSelectedVeterinarian] = useState(visitData?.veterinarian || "");
+  const wf = useWorkflow({ patientId: selectedPatient });
   
   // Scrollable tabs state
   const tabsScrollRef = useRef<HTMLDivElement>(null);
@@ -6692,7 +6694,14 @@ const applyTemplate = (templateName: string, noteId?: string) => {
                   <Button variant="outline">
                     Save as Draft
                   </Button>
-                  <Button onClick={handleSaveRecord}>
+                  <Button onClick={() => {
+                    // Update workflow status to PHARMACY
+                    if (selectedPatient) {
+                      wf.goTo("PHARMACY");
+                    }
+                    console.log("Saving clinical record...");
+                    navigate(recordsBase);
+                  }}>
                     Save Record
                   </Button>
                 </div>

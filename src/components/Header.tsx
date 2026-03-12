@@ -1,4 +1,4 @@
-import { Bell, Search as SearchIcon, User, AlertCircle, LogOut, Sun, Moon, Leaf, Shield } from "lucide-react";
+import { Bell, Search as SearchIcon, User, AlertCircle, LogOut, Sun, Moon, Leaf, Shield, Activity } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -12,12 +12,13 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { formatDistanceToNow, subMinutes, subHours, subSeconds } from "date-fns";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "next-themes";
 import { useRole } from "@/contexts/RoleContext";
 import * as React from "react";
 import { GlobalSearch } from "@/components/GlobalSearch";
+import { WorkflowProgress } from "@/components/WorkflowProgress";
 
 // Mock notifications data - in a real app this would come from a context or API
 const notifications = [
@@ -55,12 +56,20 @@ const notifications = [
 
 export function Header() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, logout } = useAuth();
   const { theme, setTheme } = useTheme();
   const { role, setRole } = useRole();
   const unreadCount = notifications.filter(n => n.type === 'critical' || n.type === 'warning').length;
   const [searchOpen, setSearchOpen] = React.useState(false);
   const [headerQuery, setHeaderQuery] = React.useState("");
+
+  // Extract patientId from URL if present (e.g., /patients/1 or /patients/1/journey)
+  const patientIdFromPath = React.useMemo(() => {
+    const match = location.pathname.match(/\/patients\/([^/]+)/);
+    return match ? match[1] : null;
+  }, [location.pathname]);
+
   React.useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
@@ -88,147 +97,170 @@ export function Header() {
     }
   };
 
+  const isDev = process.env.NODE_ENV === 'development' || true; // Always show for demo
+
   return (
-    <header className="bg-card border-b border-border px-6 py-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-4">
-          <h1 className="text-2xl font-bold text-primary">VetCare Pro</h1>
-          <div className="relative w-96">
-            <SearchIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
-            <Input
-              placeholder="Search anything...  (Ctrl/Cmd + K)"
-              className="pl-10"
-              value={headerQuery}
-              onChange={(e) => setHeaderQuery(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") setSearchOpen(true);
-              }}
-              onFocus={() => setSearchOpen(true)}
-            />
+    <header className="bg-card border-b border-border px-6 py-4 sticky top-0 z-30">
+      <div className="flex flex-col gap-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-4">
+            <h1 className="text-2xl font-bold text-primary flex items-center gap-2">
+              <Activity className="h-6 w-6" />
+              VetCare Pro
+            </h1>
+            <div className="relative w-96 hidden lg:block">
+              <SearchIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+              <Input
+                placeholder="Search anything...  (Ctrl/Cmd + K)"
+                className="pl-10"
+                value={headerQuery}
+                onChange={(e) => setHeaderQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") setSearchOpen(true);
+                }}
+                onFocus={() => setSearchOpen(true)}
+              />
+            </div>
+          </div>
+          
+          <div className="flex items-center space-x-4">
+            <div className="flex items-center gap-1">
+              <Button variant="ghost" size="icon" onClick={() => setTheme("light")} title="Light">
+                <Sun className="h-4 w-4" />
+              </Button>
+              <Button variant="ghost" size="icon" onClick={() => setTheme("dark")} title="Dark">
+                <Moon className="h-4 w-4" />
+              </Button>
+              <Button variant="ghost" size="icon" onClick={() => setTheme("zen")} title="Zen Green">
+                <Leaf className="h-4 w-4" />
+              </Button>
+            </div>
+            <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setSearchOpen(true)} title="Search">
+              <SearchIcon className="h-4 w-4" />
+            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="relative">
+                  <Bell className="h-5 w-5" />
+                  {unreadCount > 0 && (
+                    <span className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                      {unreadCount}
+                    </span>
+                  )}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-80 p-0">
+                <DropdownMenuLabel className="flex items-center justify-between px-4 py-3">
+                  <span className="flex items-center gap-2">
+                    <AlertCircle className="h-4 w-4" />
+                    Notifications
+                  </span>
+                  <Badge variant="secondary" className="text-xs">
+                    {notifications.length}
+                  </Badge>
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <ScrollArea className="h-[400px]">
+                  {notifications.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground text-sm">
+                      No notifications
+                    </div>
+                  ) : (
+                    <div className="p-2">
+                      {notifications.map((notification) => (
+                        <div
+                          key={notification.id}
+                          className={`p-3 rounded-lg border-l-4 mb-2 cursor-pointer hover:bg-muted/50 transition-colors ${getNotificationColor(notification.type)}`}
+                          onClick={() => navigate("/")}
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <p className="text-sm flex-1">{notification.message}</p>
+                            <span className="text-xs text-muted-foreground whitespace-nowrap">
+                              {formatDistanceToNow(notification.timestamp, { addSuffix: true })}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2 mt-2">
+                            <Badge
+                              variant={
+                                notification.type === 'critical'
+                                  ? 'destructive'
+                                  : notification.type === 'warning'
+                                  ? 'default'
+                                  : 'secondary'
+                              }
+                              className="text-xs"
+                            >
+                              {notification.type}
+                            </Badge>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </ScrollArea>
+                <DropdownMenuSeparator />
+                <div className="p-2">
+                  <Button
+                    variant="ghost"
+                    className="w-full justify-center text-sm"
+                    onClick={() => navigate("/")}
+                  >
+                    View All Notifications
+                  </Button>
+                </div>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon">
+                  <User className="h-5 w-5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuLabel className="font-normal">
+                  <div className="flex flex-col space-y-1">
+                    <p className="text-sm font-medium">{user?.name ?? "User"}</p>
+                    <p className="text-xs text-muted-foreground">{user?.email}</p>
+                  </div>
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem className="gap-2">
+                  <Shield className="h-4 w-4" />
+                  Role: {role}
+                </DropdownMenuItem>
+                {isDev && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuLabel className="text-xs text-muted-foreground">Demo Role Switch</DropdownMenuLabel>
+                    <DropdownMenuItem onClick={() => setRole("SuperAdmin")}>Switch to SuperAdmin</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setRole("Vet")}>Switch to Vet</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setRole("Nurse")}>Switch to Nurse</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setRole("Receptionist")}>Switch to Receptionist</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setRole("Pharmacist")}>Switch to Pharmacist</DropdownMenuItem>
+                  </>
+                )}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem>Profile</DropdownMenuItem>
+                <DropdownMenuItem>Settings</DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleLogout}>
+                  <LogOut className="mr-2 h-4 w-4" />
+                  Log out
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
         
-        <div className="flex items-center space-x-4">
-          <div className="flex items-center gap-1">
-            <Button variant="ghost" size="icon" onClick={() => setTheme("light")} title="Light">
-              <Sun className="h-4 w-4" />
-            </Button>
-            <Button variant="ghost" size="icon" onClick={() => setTheme("dark")} title="Dark">
-              <Moon className="h-4 w-4" />
-            </Button>
-            <Button variant="ghost" size="icon" onClick={() => setTheme("zen")} title="Zen Green">
-              <Leaf className="h-4 w-4" />
-            </Button>
+        {patientIdFromPath && (
+          <div className="pt-2 border-t border-border/50">
+            <div className="flex items-center gap-4">
+              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Patient Workflow</span>
+              <WorkflowProgress patientId={patientIdFromPath} className="flex-1 max-w-2xl" />
+            </div>
           </div>
-          <Button variant="ghost" size="icon" onClick={() => setSearchOpen(true)} title="Search">
-            <SearchIcon className="h-4 w-4" />
-          </Button>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="relative">
-                <Bell className="h-5 w-5" />
-                {unreadCount > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground text-xs rounded-full h-5 w-5 flex items-center justify-center">
-                    {unreadCount}
-                  </span>
-                )}
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-80 p-0">
-              <DropdownMenuLabel className="flex items-center justify-between px-4 py-3">
-                <span className="flex items-center gap-2">
-                  <AlertCircle className="h-4 w-4" />
-                  Notifications
-                </span>
-                <Badge variant="secondary" className="text-xs">
-                  {notifications.length}
-                </Badge>
-              </DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <ScrollArea className="h-[400px]">
-                {notifications.length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground text-sm">
-                    No notifications
-                  </div>
-                ) : (
-                  <div className="p-2">
-                    {notifications.map((notification) => (
-                      <div
-                        key={notification.id}
-                        className={`p-3 rounded-lg border-l-4 mb-2 cursor-pointer hover:bg-muted/50 transition-colors ${getNotificationColor(notification.type)}`}
-                        onClick={() => navigate("/")}
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <p className="text-sm flex-1">{notification.message}</p>
-                          <span className="text-xs text-muted-foreground whitespace-nowrap">
-                            {formatDistanceToNow(notification.timestamp, { addSuffix: true })}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2 mt-2">
-                          <Badge
-                            variant={
-                              notification.type === 'critical'
-                                ? 'destructive'
-                                : notification.type === 'warning'
-                                ? 'default'
-                                : 'secondary'
-                            }
-                            className="text-xs"
-                          >
-                            {notification.type}
-                          </Badge>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </ScrollArea>
-              <DropdownMenuSeparator />
-              <div className="p-2">
-                <Button
-                  variant="ghost"
-                  className="w-full justify-center text-sm"
-                  onClick={() => navigate("/")}
-                >
-                  View All Notifications
-                </Button>
-              </div>
-            </DropdownMenuContent>
-          </DropdownMenu>
-          
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon">
-                <User className="h-5 w-5" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuLabel className="font-normal">
-                <div className="flex flex-col space-y-1">
-                  <p className="text-sm font-medium">{user?.name ?? "User"}</p>
-                  <p className="text-xs text-muted-foreground">{user?.email}</p>
-                </div>
-              </DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem className="gap-2">
-                <Shield className="h-4 w-4" />
-                Role: {role}
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setRole("SuperAdmin")}>Switch to SuperAdmin</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setRole("Vet")}>Switch to Vet</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setRole("Nurse")}>Switch to Nurse</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setRole("Receptionist")}>Switch to Receptionist</DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem>Profile</DropdownMenuItem>
-              <DropdownMenuItem>Settings</DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={handleLogout}>
-                <LogOut className="mr-2 h-4 w-4" />
-                Log out
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
+        )}
       </div>
       <GlobalSearch open={searchOpen} onOpenChange={setSearchOpen} initialQuery={headerQuery} />
     </header>
