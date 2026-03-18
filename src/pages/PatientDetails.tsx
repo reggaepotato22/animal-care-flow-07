@@ -19,6 +19,7 @@ import { useState, useMemo } from "react";
 import { differenceInDays } from "date-fns";
 import { PatientHeader } from "@/components/PatientHeader";
 import { WorkflowProgress } from "@/components/WorkflowProgress";
+import { AdmissionRequestDialog } from "@/components/AdmissionRequestDialog";
 
 // Mock data - in a real app this would come from an API
 const mockPatients = {
