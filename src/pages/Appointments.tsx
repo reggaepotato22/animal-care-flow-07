@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { format, addDays, setHours, setMinutes } from "date-fns";
-import { Calendar, Clock, Plus, Search, Filter, Stethoscope } from "lucide-react";
+import { Calendar, Clock, Plus, Search, Filter, CheckCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,6 +10,9 @@ import { MultiColumnCalendar, Appointment } from "@/components/MultiColumnCalend
 import { AppointmentList } from "@/components/AppointmentList";
 import { BookAppointmentDialog } from "@/components/BookAppointmentDialog";
 import { useNavigate } from "react-router-dom";
+import { useEncounter } from "@/contexts/EncounterContext";
+import { useWorkflow } from "@/hooks/useWorkflow";
+import { useToast } from "@/hooks/use-toast";
 
 // Mock resources (doctors, exam rooms, etc.)
 const mockResources = [
@@ -22,124 +25,90 @@ const mockResources = [
 ];
 
 // Mock data for appointments
-const mockAppointments: Appointment[] = [
+export const mockAppointments: Appointment[] = [
   {
     id: "1",
-    petName: "Buddy",
-    ownerName: "John Smith",
+    petName: "Max",
+    ownerName: "Sarah Johnson",
     date: setMinutes(setHours(new Date(), 9), 0),
     time: "09:00",
     duration: 30,
     type: "Checkup",
     vet: "dr-johnson",
-    status: "confirmed",
+    status: "CONFIRMED",
     examRoom: "exam-room-1",
-    location: "Main Clinic"
+    location: "Main Clinic",
+    patientId: "1"
   },
   {
     id: "2",
-    petName: "Luna",
-    ownerName: "Sarah Wilson",
+    petName: "Whiskers",
+    ownerName: "Michael Chen",
     date: setMinutes(setHours(new Date(), 10), 30),
     time: "10:30",
     duration: 45,
     type: "Vaccination",
     vet: "dr-smith",
-    status: "confirmed",
+    status: "CONFIRMED",
     examRoom: "exam-room-2",
-    location: "Main Clinic"
+    location: "Main Clinic",
+    patientId: "2"
   },
   {
     id: "3",
-    petName: "Max",
-    ownerName: "Mike Brown",
+    petName: "Luna",
+    ownerName: "Emily Rodriguez",
     date: setMinutes(setHours(new Date(), 11), 15),
     time: "11:15",
     duration: 60,
     type: "Surgery",
     vet: "dr-johnson",
-    status: "confirmed",
+    status: "CONFIRMED",
     examRoom: "surgery-suite",
-    location: "Main Clinic"
+    location: "Main Clinic",
+    patientId: "3"
   },
   {
     id: "4",
-    petName: "Charlie",
-    ownerName: "Lisa Anderson",
+    petName: "Rocky",
+    ownerName: "David Thompson",
     date: setMinutes(setHours(new Date(), 13), 0),
     time: "13:00",
     duration: 30,
     type: "Checkup",
     vet: "dr-wilson",
-    status: "pending",
+    status: "SCHEDULED",
     examRoom: "exam-room-1",
-    location: "Main Clinic"
+    location: "Main Clinic",
+    patientId: "4"
   },
   {
     id: "5",
-    petName: "Milo",
-    ownerName: "David Lee",
-    date: setMinutes(setHours(new Date(), 14), 0),
-    time: "14:00",
+    petName: "Bella",
+    ownerName: "Lisa Anderson",
+    date: setMinutes(setHours(new Date(), 14), 30),
+    time: "14:30",
     duration: 30,
-    type: "Followup",
+    type: "Follow-up",
     vet: "dr-smith",
-    status: "confirmed",
+    status: "CONFIRMED",
     examRoom: "exam-room-2",
-    location: "Main Clinic"
+    location: "Main Clinic",
+    patientId: "5"
   },
   {
     id: "6",
-    petName: "Bella",
-    ownerName: "Jennifer Martinez",
-    date: setMinutes(setHours(new Date(), 15), 30),
-    time: "15:30",
-    duration: 45,
+    petName: "Oliver",
+    ownerName: "James Wilson",
+    date: setMinutes(setHours(new Date(), 15), 45),
+    time: "15:45",
+    duration: 30,
     type: "Emergency",
-    vet: "dr-johnson",
-    status: "confirmed",
-    examRoom: "exam-room-1",
-    location: "Main Clinic"
-  },
-  {
-    id: "7",
-    petName: "Rocky",
-    ownerName: "Robert Taylor",
-    date: setMinutes(setHours(new Date(), 16), 0),
-    time: "16:00",
-    duration: 30,
-    type: "Vaccination",
     vet: "dr-wilson",
-    status: "confirmed",
-    examRoom: "exam-room-2",
-    location: "Main Clinic"
-  },
-  // Tomorrow's appointments
-  {
-    id: "8",
-    petName: "Daisy",
-    ownerName: "Amanda White",
-    date: setMinutes(setHours(addDays(new Date(), 1), 9), 0),
-    time: "09:00",
-    duration: 30,
-    type: "Checkup",
-    vet: "dr-smith",
-    status: "confirmed",
+    status: "SCHEDULED",
     examRoom: "exam-room-1",
-    location: "Main Clinic"
-  },
-  {
-    id: "9",
-    petName: "Zeus",
-    ownerName: "Christopher Brown",
-    date: setMinutes(setHours(addDays(new Date(), 1), 10), 30),
-    time: "10:30",
-    duration: 60,
-    type: "Surgery",
-    vet: "dr-johnson",
-    status: "confirmed",
-    examRoom: "surgery-suite",
-    location: "Main Clinic"
+    location: "Main Clinic",
+    patientId: "6"
   },
 ];
 
@@ -148,14 +117,41 @@ export default function Appointments() {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [searchTerm, setSearchTerm] = useState("");
   const [isBookingDialogOpen, setIsBookingDialogOpen] = useState(false);
+  const { createEncounter } = useEncounter();
+  const wf = useWorkflow();
+  const { toast } = useToast();
 
-  const todayAppointments = mockAppointments.filter(
+  const [appointments, setAppointments] = useState(mockAppointments);
+
+  const todayAppointments = appointments.filter(
     apt => format(apt.date, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd')
   );
 
-  const upcomingAppointments = mockAppointments.filter(
+  const upcomingAppointments = appointments.filter(
     apt => apt.date > new Date()
   );
+
+  const handleCheckIn = (appointment: Appointment) => {
+    // Create encounter from appointment data
+    const encounter = createEncounter(appointment.patientId || "1", {
+      reason: appointment.type,
+      chiefComplaint: appointment.reason || appointment.notes || "",
+      veterinarian: appointment.vet,
+    });
+
+    // Update appointment status
+    setAppointments(prev => prev.map(apt => 
+      apt.id === appointment.id ? { ...apt, status: "CHECKED_IN" as const } : apt
+    ));
+    
+    // Move workflow to triage
+    wf.goTo("TRIAGE");
+    
+    toast({
+      title: "Checked-in",
+      description: `${appointment.petName} has been checked-in and moved to Triage.`,
+    });
+  };
 
   return (
     <div className="space-y-6">
@@ -200,18 +196,18 @@ export default function Appointments() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {mockAppointments.filter(apt => apt.status === 'confirmed').length}
+              {appointments.filter(apt => apt.status === 'CONFIRMED').length}
             </div>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Pending</CardTitle>
+            <CardTitle className="text-sm font-medium">Scheduled</CardTitle>
             <Badge variant="secondary" className="text-xs">Review</Badge>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {mockAppointments.filter(apt => apt.status === 'pending').length}
+              {appointments.filter(apt => apt.status === 'SCHEDULED').length}
             </div>
           </CardContent>
         </Card>
@@ -244,14 +240,13 @@ export default function Appointments() {
 
         <TabsContent value="calendar" className="space-y-6">
           <MultiColumnCalendar
-            appointments={mockAppointments}
+            appointments={appointments}
             resources={mockResources}
             timeSlotInterval={30}
             startHour={8}
             endHour={18}
             onAppointmentClick={(appointment) => {
-              console.log("Appointment clicked:", appointment);
-              // You can open a dialog here to view/edit appointment
+              navigate(`/appointments/${appointment.id}`);
             }}
             onTimeSlotClick={(date, resourceId, time) => {
               console.log("Time slot clicked:", { date, resourceId, time });
@@ -263,11 +258,12 @@ export default function Appointments() {
 
         <TabsContent value="list" className="space-y-6">
           <AppointmentList 
-            appointments={mockAppointments.map(apt => ({
+            appointments={appointments.map(apt => ({
               ...apt,
               vet: mockResources.find(r => r.id === apt.vet)?.name || apt.vet
             }))}
             searchTerm={searchTerm}
+            onCheckIn={handleCheckIn}
           />
         </TabsContent>
 
@@ -285,7 +281,11 @@ export default function Appointments() {
                     {todayAppointments
                       .sort((a, b) => a.time.localeCompare(b.time))
                       .map((appointment) => (
-                        <div key={appointment.id} className="flex items-center justify-between p-4 border rounded-lg">
+                        <div 
+                          key={appointment.id} 
+                          className="flex items-center justify-between p-4 border rounded-lg cursor-pointer hover:bg-muted/50 transition-colors"
+                          onClick={() => navigate(`/appointments/${appointment.id}`)}
+                        >
                           <div className="flex items-center space-x-4">
                             <div className="text-sm font-medium">{appointment.time}</div>
                             <div>
@@ -294,30 +294,23 @@ export default function Appointments() {
                             </div>
                           </div>
                           <div className="flex items-center space-x-2">
-                            <Badge variant={appointment.status === 'confirmed' ? 'default' : 'secondary'}>
+                            <Badge variant={appointment.status === 'CONFIRMED' ? 'default' : appointment.status === 'CHECKED_IN' ? 'outline' : 'secondary'}>
                               {appointment.status}
                             </Badge>
                             <div className="text-sm text-muted-foreground">{appointment.type}</div>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() =>
-                                navigate("/triage", {
-                                  state: {
-                                    patient: {
-                                      patientId: appointment.id,
-                                      name: appointment.petName,
-                                      owner: appointment.ownerName,
-                                      species: "Unknown",
-                                      breed: "Unknown",
-                                    },
-                                  },
-                                })
-                              }
-                            >
-                              <Stethoscope className="h-4 w-4 mr-1" />
-                              Triage
-                            </Button>
+                            {appointment.status !== 'CHECKED_IN' && appointment.status !== 'CANCELLED' && appointment.status !== 'NO_SHOW' && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleCheckIn(appointment);
+                                }}
+                              >
+                                <CheckCircle className="h-4 w-4 mr-1" />
+                                Check-in
+                              </Button>
+                            )}
                           </div>
                         </div>
                       ))}

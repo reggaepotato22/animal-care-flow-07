@@ -34,11 +34,14 @@ import {
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
+import { useEncounter } from "@/contexts/EncounterContext";
+
 const Index = () => {
   const navigate = useNavigate();
   const { has } = useRole();
   const { toast } = useToast();
   const wf = useWorkflowContext();
+  const { createEncounter } = useEncounter();
   const [isAlertsModalOpen, setIsAlertsModalOpen] = useState(false);
 
   // Listen for real-time workflow updates from other roles
@@ -73,6 +76,14 @@ const Index = () => {
 
   const handleCheckIn = (appointment: any) => {
     const patientId = appointment.patientId || appointment.id;
+    
+    // Create encounter from appointment data
+    createEncounter(patientId, {
+      reason: appointment.type,
+      chiefComplaint: appointment.reason || appointment.notes || "",
+      veterinarian: appointment.vet,
+    });
+
     wf.setStep(patientId, "TRIAGE");
     
     // Broadcast check-in for Triage nurse

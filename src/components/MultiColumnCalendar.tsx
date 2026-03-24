@@ -23,10 +23,13 @@ export interface Appointment {
   duration: number; // minutes
   type: string;
   vet: string;
-  status: "confirmed" | "pending" | "cancelled" | "completed";
+  status: "SCHEDULED" | "CONFIRMED" | "CHECKED_IN" | "NO_SHOW" | "CANCELLED";
   examRoom?: string;
   location?: string;
   color?: string; // Optional custom color
+  patientId?: string;
+  notes?: string;
+  reason?: string;
 }
 
 interface MultiColumnCalendarProps {
@@ -120,10 +123,11 @@ export function MultiColumnCalendar({
 
     // Color by status
     const statusColors: Record<string, string> = {
-      confirmed: "bg-blue-500",
-      pending: "bg-yellow-500",
-      cancelled: "bg-gray-400",
-      completed: "bg-green-500",
+      CONFIRMED: "bg-blue-500",
+      SCHEDULED: "bg-yellow-500",
+      CANCELLED: "bg-gray-400",
+      CHECKED_IN: "bg-green-500",
+      NO_SHOW: "bg-orange-500",
     };
 
     // Color by type
