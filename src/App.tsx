@@ -36,6 +36,7 @@ import Treatments from "./pages/Treatments";
 import Inventory from "./pages/Inventory";
 import NotFound from "./pages/NotFound";
 import { WorkflowProvider } from "@/contexts/WorkflowContext";
+import { EncounterProvider } from "@/contexts/EncounterContext";
 import Audit from "./pages/Audit";
 import Billing from "./pages/Billing";
 import { RoleProvider } from "@/contexts/RoleContext";
@@ -105,23 +106,25 @@ const App = () => (
             <AdminAuthProvider>
               <RoleProvider>
                 <WorkflowProvider>
-                <Routes>
-                    <Route path="/login" element={<Login />} />
-                    <Route path="/admin/login" element={<AdminLogin />} />
-                    <Route path="/admin" element={<ProtectedAdminLayout />}>
-                      <Route index element={<AdminDashboard />} />
-                    <Route element={<PermissionRoute permission="can_manage_users" />}>
-                      <Route path="settings" element={<ClinicSettings />} />
-                      <Route path="users" element={<Users />} />
-                    </Route>
-                    <Route path="staff" element={<Staff />} />
-                      <Route path="reports" element={<Reports />} />
-                      <Route path="notifications" element={<Notifications />} />
-                      <Route path="notifications/templates" element={<NotificationTemplates />} />
-                      <Route path="*" element={<NotFound />} />
-                    </Route>
-                    <Route path="*" element={<ProtectedRoutes />} />
-                  </Routes>
+                  <EncounterProvider>
+                    <Routes>
+                      <Route path="/login" element={<Login />} />
+                      <Route path="/admin/login" element={<AdminLogin />} />
+                      <Route path="/admin" element={<ProtectedAdminLayout />}>
+                        <Route index element={<AdminDashboard />} />
+                        <Route element={<PermissionRoute permission="can_manage_users" />}>
+                          <Route path="settings" element={<ClinicSettings />} />
+                          <Route path="users" element={<Users />} />
+                        </Route>
+                        <Route path="staff" element={<Staff />} />
+                        <Route path="reports" element={<Reports />} />
+                        <Route path="notifications" element={<Notifications />} />
+                        <Route path="notifications/templates" element={<NotificationTemplates />} />
+                        <Route path="*" element={<NotFound />} />
+                      </Route>
+                      <Route path="*" element={<ProtectedRoutes />} />
+                    </Routes>
+                  </EncounterProvider>
                 </WorkflowProvider>
               </RoleProvider>
             </AdminAuthProvider>

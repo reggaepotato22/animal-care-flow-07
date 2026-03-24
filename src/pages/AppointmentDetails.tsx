@@ -9,6 +9,7 @@ import { useRole } from "@/contexts/RoleContext";
 import { useWorkflow } from "@/hooks/useWorkflow";
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
+import { useEncounter } from "@/contexts/EncounterContext";
 
 // Mock appointment data - in a real app this would come from an API
 const mockAppointments: Record<string, any> = {
@@ -25,12 +26,12 @@ const mockAppointments: Record<string, any> = {
     type: "Checkup",
     vet: "Dr. Sarah Johnson",
     vetId: "dr-johnson",
-    status: "confirmed",
+    status: "CONFIRMED",
     examRoom: "Exam Room 1",
     location: "Main Clinic",
     notes: "Annual wellness checkup. Owner reports pet is healthy and active.",
     reason: "Annual wellness examination",
-    patientId: "P-2025-10234",
+    patientId: "1",
   },
   "2": {
     id: "2",
@@ -45,12 +46,12 @@ const mockAppointments: Record<string, any> = {
     type: "Vaccination",
     vet: "Dr. Michael Smith",
     vetId: "dr-smith",
-    status: "confirmed",
+    status: "CONFIRMED",
     examRoom: "Exam Room 2",
     location: "Main Clinic",
     notes: "Routine vaccination appointment. No special instructions.",
     reason: "Annual vaccination booster",
-    patientId: "P-2025-10235",
+    patientId: "2",
   },
   "3": {
     id: "3",
@@ -65,12 +66,12 @@ const mockAppointments: Record<string, any> = {
     type: "Surgery",
     vet: "Dr. Sarah Johnson",
     vetId: "dr-johnson",
-    status: "confirmed",
+    status: "CONFIRMED",
     examRoom: "Surgery Suite",
     location: "Main Clinic",
     notes: "Spay surgery scheduled. Patient should fast 12 hours before procedure.",
     reason: "Spay surgery",
-    patientId: "P-2025-10236",
+    patientId: "3",
   },
 };
 
@@ -83,6 +84,7 @@ export default function AppointmentDetails() {
   const initialAppointment = id ? mockAppointments[id] : null;
   const [appointment, setAppointment] = useState(initialAppointment);
   const wf = useWorkflow({ patientId: appointment?.patientId });
+  const { createEncounter } = useEncounter();
 
   if (!appointment) {
     return (
@@ -99,23 +101,27 @@ export default function AppointmentDetails() {
   }
 
   const handleCheckIn = () => {
+    // Create encounter from appointment data
+    const encounter = createEncounter(appointment.patientId, {
+      reason: appointment.type,
+      chiefComplaint: appointment.reason || appointment.notes || "",
+      veterinarian: appointment.vet,
+    });
+
+    // Update appointment status
+    setAppointment(prev => prev ? { ...prev, status: "CHECKED_IN" as const } : null);
+    
+    // Move workflow to triage
     wf.goTo("TRIAGE");
+    
     toast({
       title: "Checked-in",
       description: `${appointment.petName} has been checked-in and moved to Triage.`,
     });
   };
 
-  const handleComplete = () => {
-    setAppointment(prev => prev ? { ...prev, status: "completed" } : null);
-    toast({
-      title: "Appointment Completed",
-      description: `Appointment for ${appointment.petName} has been marked as completed.`,
-    });
-  };
-
   const handleCancel = () => {
-    setAppointment(prev => prev ? { ...prev, status: "cancelled" } : null);
+    setAppointment(prev => prev ? { ...prev, status: "CANCELLED" as const } : null);
     toast({
       title: "Appointment Cancelled",
       description: `Appointment for ${appointment.petName} has been cancelled.`,
@@ -125,14 +131,16 @@ export default function AppointmentDetails() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case "confirmed":
+      case "CONFIRMED":
         return "bg-green-100 text-green-800 border-green-200";
-      case "pending":
-        return "bg-yellow-100 text-yellow-800 border-yellow-200";
-      case "cancelled":
-        return "bg-red-100 text-red-800 border-red-200";
-      case "completed":
+      case "CHECKED_IN":
         return "bg-blue-100 text-blue-800 border-blue-200";
+      case "SCHEDULED":
+        return "bg-yellow-100 text-yellow-800 border-yellow-200";
+      case "CANCELLED":
+        return "bg-red-100 text-red-800 border-red-200";
+      case "NO_SHOW":
+        return "bg-orange-100 text-orange-800 border-orange-200";
       default:
         return "bg-gray-100 text-gray-800 border-gray-200";
     }
@@ -184,38 +192,15 @@ export default function AppointmentDetails() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {appointment.status !== "completed" && appointment.status !== "cancelled" && (
-            has("can_triage") ? (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() =>
-                  navigate("/triage", {
-                    state: {
-                      patient: {
-                        patientId: appointment.patientId,
-                        name: appointment.petName,
-                        owner: appointment.ownerName,
-                        species: "Unknown",
-                        breed: "Unknown",
-                      },
-                    },
-                  })
-                }
-              >
-                <Stethoscope className="h-4 w-4 mr-1" />
-                Triage
-              </Button>
-            ) : (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleCheckIn}
-              >
-                <CheckCircle className="h-4 w-4 mr-1" />
-                Check-in for Triage
-              </Button>
-            )
+          {appointment.status !== "CHECKED_IN" && appointment.status !== "CANCELLED" && appointment.status !== "NO_SHOW" && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleCheckIn}
+            >
+              <CheckCircle className="h-4 w-4 mr-1" />
+              Check-in for Triage
+            </Button>
           )}
           <Badge className={getStatusColor(appointment.status)}>
             {appointment.status}

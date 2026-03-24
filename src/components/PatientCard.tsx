@@ -8,6 +8,7 @@ import { useNavigate } from "react-router-dom";
 import { getStepRoute } from "@/config/workflow";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+import { useEncounter } from "@/contexts/EncounterContext";
 
 interface Patient {
   id: string;
@@ -29,9 +30,11 @@ interface PatientCardProps {
   patient: Patient;
   onViewDetails: (patient: Patient) => void;
   onTriage?: (patient: Patient) => void;
+  hasAppointmentToday?: boolean;
+  appointmentDetails?: { time: string; vet: string };
 }
 
-export function PatientCard({ patient, onViewDetails, onTriage }: PatientCardProps) {
+export function PatientCard({ patient, onViewDetails, onTriage, hasAppointmentToday, appointmentDetails }: PatientCardProps) {
   const getStatusColor = (status: string) => {
     switch (status) {
       case "healthy":
@@ -49,8 +52,15 @@ export function PatientCard({ patient, onViewDetails, onTriage }: PatientCardPro
   const { has } = useRole();
   const { toast } = useToast();
   const wf = useWorkflow({ patientId: patient.patientId || patient.id });
+  const { createEncounter } = useEncounter();
 
   const handleCheckIn = () => {
+    // Create encounter for the patient
+    createEncounter(patient.id, {
+      reason: "General Visit",
+      chiefComplaint: "",
+    });
+
     wf.goTo("TRIAGE");
     toast({
       title: "Checked-in",
@@ -72,7 +82,10 @@ export function PatientCard({ patient, onViewDetails, onTriage }: PatientCardPro
   };
 
   return (
-    <Card className="hover:shadow-md transition-shadow">
+    <Card 
+      className="hover:shadow-md transition-shadow cursor-pointer"
+      onClick={() => onViewDetails(patient)}
+    >
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between">
           <div className="flex items-center space-x-3">
@@ -91,13 +104,28 @@ export function PatientCard({ patient, onViewDetails, onTriage }: PatientCardPro
               )}
             </div>
           </div>
-          <Badge className={getStatusColor(patient.status)}>
-            {patient.status}
-          </Badge>
+          <div className="flex flex-col items-end gap-2">
+            <Badge className={getStatusColor(patient.status)}>
+              {patient.status}
+            </Badge>
+          </div>
         </div>
       </CardHeader>
       
       <CardContent className="space-y-4">
+        {hasAppointmentToday && appointmentDetails && (
+          <div className="bg-blue-50/50 border border-blue-100 rounded-md p-2.5 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="h-2 w-2 rounded-full bg-blue-500 animate-pulse" />
+              <span className="text-xs font-medium text-blue-900">Appointment Today</span>
+            </div>
+            <div className="text-right">
+              <div className="text-xs font-semibold text-blue-900">{appointmentDetails.time}</div>
+              <div className="text-[10px] text-blue-700/80">{appointmentDetails.vet}</div>
+            </div>
+          </div>
+        )}
+
         <div className="grid grid-cols-2 gap-2 text-sm">
           <div className="bg-muted/30 p-2 rounded-md">
             <span className="text-muted-foreground block text-xs">Age</span>
@@ -120,13 +148,16 @@ export function PatientCard({ patient, onViewDetails, onTriage }: PatientCardPro
           </div>
         </div>
 
-        <div className="pt-2 grid grid-cols-2 gap-2">
+        <div className="pt-2">
           {has("can_triage") ? (
             onTriage && (
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => onTriage(patient)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onTriage(patient);
+                }}
                 className="w-full"
               >
                 <Stethoscope className="h-4 w-4 mr-1.5" />
@@ -138,29 +169,29 @@ export function PatientCard({ patient, onViewDetails, onTriage }: PatientCardPro
               <Button
                 variant="outline"
                 size="sm"
-                onClick={handleCheckIn}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleCheckIn();
+                }}
                 className="w-full"
+                disabled={!hasAppointmentToday}
+                title={!hasAppointmentToday ? "No appointment scheduled for today" : ""}
               >
                 <CheckCircle className="h-4 w-4 mr-1.5" />
                 Check-in
               </Button>
             )
           )}
-          <Button 
-            variant="outline" 
-            size="sm"
-            onClick={() => onViewDetails(patient)}
-            className={cn("w-full", !(has("can_triage") || has("can_register_patients")) && "col-span-2")}
-          >
-            View Details
-          </Button>
           
-          <div className="col-span-2 flex items-center gap-2 mt-1">
+          <div className="flex items-center gap-2 mt-4">
             <Button 
               variant="ghost" 
               size="sm"
               disabled={!wf.hasPrev}
-              onClick={handlePrev}
+              onClick={(e) => {
+                e.stopPropagation();
+                handlePrev();
+              }}
               className="flex-1 h-8 text-xs"
             >
               Previous
@@ -175,7 +206,10 @@ export function PatientCard({ patient, onViewDetails, onTriage }: PatientCardPro
               variant="ghost" 
               size="sm"
               disabled={!wf.hasNext}
-              onClick={handleNext}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleNext();
+              }}
               className="flex-1 h-8 text-xs font-medium text-primary"
             >
               Next Step

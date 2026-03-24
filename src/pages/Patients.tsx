@@ -18,12 +18,16 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { mockPatients } from "@/data/patients";
 import { useRole } from "@/contexts/RoleContext";
+import { useEncounter } from "@/contexts/EncounterContext";
+import { mockAppointments } from "@/pages/Appointments";
+import { format } from "date-fns";
 
 export default function Patients() {
   const navigate = useNavigate();
   const location = useLocation();
   const { has } = useRole();
   const { toast } = useToast();
+  const { encounters } = useEncounter();
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [speciesFilter, setSpeciesFilter] = useState("all");
@@ -32,7 +36,15 @@ export default function Patients() {
   // Workflow context for check-in action
   const wf = useWorkflowContext();
 
+  const { createEncounter } = useEncounter();
+
   const handleCheckIn = (patient: any) => {
+    // Create encounter for the patient
+    createEncounter(patient.id, {
+      reason: "General Visit",
+      chiefComplaint: "",
+    });
+
     wf.setStep(patient.patientId || patient.id, "TRIAGE");
     toast({
       title: "Checked-in",
@@ -142,14 +154,27 @@ export default function Patients() {
 
       {viewMode === "grid" ? (
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {filteredPatients.map((patient) => (
-            <PatientCard
-              key={patient.id}
-              patient={patient}
-              onViewDetails={handleViewDetails}
-              onTriage={handleSendToTriage}
-            />
-          ))}
+          {filteredPatients.map((patient) => {
+            const hasActiveVisit = encounters.some(
+              (enc) => enc.patientId === patient.id && ["WAITING", "IN_TRIAGE", "TRIAGED"].includes(enc.status)
+            );
+            
+            const todayAppointment = mockAppointments.find(
+              (apt) => apt.patientId === patient.id && format(apt.date, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd')
+            );
+            const hasAppointmentToday = !!todayAppointment;
+            
+            return (
+              <PatientCard
+                key={patient.id}
+                patient={patient}
+                onViewDetails={handleViewDetails}
+                onTriage={hasActiveVisit ? handleSendToTriage : undefined}
+                hasAppointmentToday={hasAppointmentToday}
+                appointmentDetails={todayAppointment ? { time: todayAppointment.time, vet: todayAppointment.vet } : undefined}
+              />
+            );
+          })}
         </div>
       ) : (
         <div className="rounded-md border">
@@ -163,6 +188,7 @@ export default function Patients() {
                 <TableHead>Owner</TableHead>
                 <TableHead>Location</TableHead>
                 <TableHead>Last Visit</TableHead>
+                <TableHead>Appt Today</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Data</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
@@ -183,8 +209,14 @@ export default function Patients() {
                   }
                 };
 
+                const todayAppointment = mockAppointments.find(apt => apt.patientId === patient.id && format(apt.date, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd'));
+
                 return (
-                  <TableRow key={patient.id}>
+                  <TableRow 
+                    key={patient.id} 
+                    className="hover:bg-muted/50 transition-colors cursor-pointer"
+                    onClick={() => handleViewDetails(patient)}
+                  >
                     <TableCell className="font-mono text-xs text-muted-foreground">{patient.patientId}</TableCell>
                     <TableCell className="font-medium">{patient.name}</TableCell>
                     <TableCell>
@@ -208,6 +240,24 @@ export default function Patients() {
                     <TableCell className="text-sm">{patient.location}</TableCell>
                     <TableCell className="text-sm">{patient.lastVisit}</TableCell>
                     <TableCell>
+                      {todayAppointment ? (
+                        <div className="flex flex-col gap-0.5 min-w-[120px]">
+                          <div className="flex items-center gap-1.5 text-xs font-semibold text-blue-900">
+                            <div className="h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse" />
+                            {todayAppointment.time}
+                          </div>
+                          <div className="text-[10px] text-muted-foreground flex flex-col">
+                            <span>{todayAppointment.vet}</span>
+                            <Badge variant="outline" className="text-[9px] h-3.5 px-1 w-fit mt-0.5 border-blue-100 bg-blue-50/50 text-blue-700">
+                              {todayAppointment.type}
+                            </Badge>
+                          </div>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-muted-foreground italic">No appointment</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
                       <Badge className={getStatusColor(patient.status)}>
                         {patient.status}
                       </Badge>
@@ -217,11 +267,14 @@ export default function Patients() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
-                        {has("can_triage") ? (
+                        {has("can_triage") && encounters.some(enc => enc.patientId === patient.id && ["WAITING", "IN_TRIAGE", "TRIAGED"].includes(enc.status)) ? (
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => handleSendToTriage(patient)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleSendToTriage(patient);
+                            }}
                           >
                             <Stethoscope className="h-3.5 w-3.5 mr-1" />
                             Triage
@@ -231,20 +284,18 @@ export default function Patients() {
                             <Button
                               variant="outline"
                               size="sm"
-                              onClick={() => handleCheckIn(patient)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleCheckIn(patient);
+                              }}
+                              disabled={!todayAppointment}
+                              title={!todayAppointment ? "No appointment scheduled for today" : ""}
                             >
                               <CheckCircle className="h-3.5 w-3.5 mr-1" />
                               Check-in
                             </Button>
                           )
                         )}
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={() => handleViewDetails(patient)}
-                        >
-                          View Details
-                        </Button>
                       </div>
                     </TableCell>
                   </TableRow>

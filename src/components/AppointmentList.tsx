@@ -2,7 +2,7 @@ import { format } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Calendar, Clock, User, Edit, Trash2, Stethoscope } from "lucide-react";
+import { Calendar, Clock, User, Edit, Trash2, Stethoscope, CheckCircle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 interface Appointment {
@@ -14,15 +14,19 @@ interface Appointment {
   duration: number;
   type: string;
   vet: string;
-  status: string;
+  status: "SCHEDULED" | "CONFIRMED" | "CHECKED_IN" | "NO_SHOW" | "CANCELLED";
+  patientId?: string;
+  notes?: string;
+  reason?: string;
 }
 
 interface AppointmentListProps {
   appointments: Appointment[];
   searchTerm: string;
+  onCheckIn?: (appointment: Appointment) => void;
 }
 
-export function AppointmentList({ appointments, searchTerm }: AppointmentListProps) {
+export function AppointmentList({ appointments, searchTerm, onCheckIn }: AppointmentListProps) {
   const navigate = useNavigate();
   const filteredAppointments = appointments.filter(
     (appointment) =>
@@ -58,11 +62,11 @@ export function AppointmentList({ appointments, searchTerm }: AppointmentListPro
       ) : (
         <div className="grid gap-4">
           {sortedAppointments.map((appointment) => (
-            <Card key={appointment.id}>
+            <Card key={appointment.id} className="cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => navigate(`/appointments/${appointment.id}`)}>
               <CardHeader className="pb-4">
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-lg">{appointment.petName}</CardTitle>
-                  <Badge variant={appointment.status === 'confirmed' ? 'default' : 'secondary'}>
+                  <Badge variant={appointment.status === 'CONFIRMED' ? 'default' : appointment.status === 'CHECKED_IN' ? 'outline' : 'secondary'}>
                     {appointment.status}
                   </Badge>
                 </div>
@@ -103,31 +107,26 @@ export function AppointmentList({ appointments, searchTerm }: AppointmentListPro
                 </div>
                 
                 <div className="flex justify-end space-x-2 pt-4 border-t">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() =>
-                      navigate("/triage", {
-                        state: {
-                          patient: {
-                            patientId: appointment.id,
-                            name: appointment.petName,
-                            owner: appointment.ownerName,
-                            species: "Unknown",
-                            breed: "Unknown",
-                          },
-                        },
-                      })
-                    }
-                  >
-                    <Stethoscope className="h-4 w-4 mr-1" />
-                    Triage
-                  </Button>
-                  <Button variant="outline" size="sm">
+                  {appointment.status !== 'CHECKED_IN' && appointment.status !== 'CANCELLED' && appointment.status !== 'NO_SHOW' && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (onCheckIn) {
+                          onCheckIn(appointment);
+                        }
+                      }}
+                    >
+                      <CheckCircle className="h-4 w-4 mr-1" />
+                      Check-in
+                    </Button>
+                  )}
+                  <Button variant="outline" size="sm" onClick={(e) => e.stopPropagation()}>
                     <Edit className="h-4 w-4 mr-1" />
                     Edit
                   </Button>
-                  <Button variant="outline" size="sm">
+                  <Button variant="outline" size="sm" onClick={(e) => e.stopPropagation()}>
                     <Trash2 className="h-4 w-4 mr-1" />
                     Cancel
                   </Button>

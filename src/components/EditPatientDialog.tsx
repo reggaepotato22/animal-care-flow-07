@@ -46,7 +46,7 @@ export function EditPatientDialog({ patient, children, onPatientUpdate }: EditPa
     phone: patient.phone,
     email: patient.email,
     address: patient.address,
-    allergies: patient.allergies.join(", ")
+    allergies: patient.allergies?.join(", ") || ""
   });
 
   const { toast } = useToast();

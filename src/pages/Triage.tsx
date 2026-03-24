@@ -7,7 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Heart, Stethoscope, AlertTriangle, ClipboardList, CheckCircle, ChevronRight, FileText } from "lucide-react";
+import { Heart, Stethoscope, AlertTriangle, List as ClipboardList, Check as CheckCircle, ChevronRight, FileText } from "lucide-react";
+import { EncounterHeader } from "@/components/EncounterHeader";
 import { logChange } from "@/lib/audit";
 import { WorkflowProgress } from "@/components/WorkflowProgress";
 import { useWorkflow } from "@/hooks/useWorkflow";
@@ -15,19 +16,6 @@ import { useToast } from "@/hooks/use-toast";
 import { getStepRoute } from "@/config/workflow";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-
-type TriageStatus = "waiting" | "in-progress" | "ready";
-
-type TriagePatient = {
-  id: string;
-  patientId: string;
-  patientName: string;
-  petName: string;
-  species: string;
-  ownerName: string;
-  arrivalTime: string;
-  status: TriageStatus;
-};
 
 type TriageIntake = {
   chiefComplaint: string;
@@ -45,39 +33,6 @@ type TriageIntake = {
   riskFlags: string[];
   assignedVeterinarian: string;
 };
-
-const mockQueue: TriagePatient[] = [
-  {
-    id: "triage-1",
-    patientId: "P-10231",
-    patientName: "Sarah Johnson",
-    petName: "Max",
-    species: "Dog (Golden Retriever)",
-    ownerName: "Sarah Johnson",
-    arrivalTime: "09:10 AM",
-    status: "waiting",
-  },
-  {
-    id: "triage-2",
-    patientId: "P-10232",
-    patientName: "Mike Wilson",
-    petName: "Whiskers",
-    species: "Cat (Persian)",
-    ownerName: "Mike Wilson",
-    arrivalTime: "09:25 AM",
-    status: "in-progress",
-  },
-  {
-    id: "triage-3",
-    patientId: "P-10233",
-    patientName: "Emily Davis",
-    petName: "Bella",
-    species: "Dog (Labrador)",
-    ownerName: "Emily Davis",
-    arrivalTime: "09:40 AM",
-    status: "ready",
-  },
-];
 
 const defaultIntake: TriageIntake = {
   chiefComplaint: "",
@@ -104,19 +59,50 @@ const riskFlags = [
   "Pregnant/lactating",
 ];
 
+import { useEncounter } from "@/contexts/EncounterContext";
+import { mockPatients } from "@/data/patients";
+import { EncounterStatus } from "@/lib/types";
+
 export default function Triage() {
   const location = useLocation();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [statusFilter, setStatusFilter] = useState<"all" | TriageStatus>("all");
-  const [queue, setQueue] = useState<TriagePatient[]>(mockQueue);
+  const { encounters, updateEncounterStatus } = useEncounter();
+  const [statusFilter, setStatusFilter] = useState<EncounterStatus | "all">("all");
+
+  // Get only patients who have active encounters in triage-relevant statuses
+  const triageQueue = useMemo(() => {
+    return encounters
+      .filter(enc => ["WAITING", "IN_TRIAGE", "TRIAGED"].includes(enc.status))
+      .map(enc => {
+        const patient = mockPatients.find(p => p.id === enc.patientId || p.patientId === enc.patientId);
+        return {
+          id: enc.id,
+          patientId: enc.patientId,
+          petName: patient?.name || "Unknown Patient",
+          species: patient ? `${patient.species} (${patient.breed})` : "Unknown",
+          ownerName: patient?.owner || "Unknown Owner",
+          arrivalTime: new Date(enc.startTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+          status: enc.status
+        };
+      });
+  }, [encounters]);
+
   const [selectedId, setSelectedId] = useState<string>(() => {
     try {
-      return localStorage.getItem("acf_triage_selected") || (mockQueue[0]?.id || "");
+      return localStorage.getItem("acf_triage_selected") || "";
     } catch {
-      return mockQueue[0]?.id || "";
+      return "";
     }
   });
+
+  // Set initial selected ID when queue becomes available
+  useEffect(() => {
+    if (!selectedId && triageQueue.length > 0) {
+      setSelectedId(triageQueue[0].id);
+    }
+  }, [triageQueue, selectedId]);
+
   const [intakeById, setIntakeById] = useState<Record<string, TriageIntake>>(() => {
     try {
       const saved = localStorage.getItem("acf_triage_data");
@@ -131,46 +117,25 @@ export default function Triage() {
   }, [intakeById]);
 
   useEffect(() => {
-    const incoming = (location.state as { patient?: any } | undefined)?.patient;
-    if (!incoming) return;
-    const newId = `triage-${Date.now()}`;
-    setQueue((prev) => {
-      if (prev.some((item) => item.patientId === incoming.patientId)) {
-        return prev;
-      }
-      const entry: TriagePatient = {
-        id: newId,
-        patientId: incoming.patientId,
-        patientName: incoming.owner,
-        petName: incoming.name,
-        species: `${incoming.species} (${incoming.breed})`,
-        ownerName: incoming.owner,
-        arrivalTime: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-        status: "waiting",
-      };
-      return [entry, ...prev];
-    });
-    setSelectedId(newId);
-  }, [location.state]);
-
-  useEffect(() => {
     try {
       localStorage.setItem("acf_triage_selected", selectedId);
     } catch {}
   }, [selectedId]);
 
-  const selectedPatient = queue.find((item) => item.id === selectedId);
+  const selectedEncounter = encounters.find((item) => item.id === selectedId);
+  const patientDetails = mockPatients.find(p => p.id === selectedEncounter?.patientId || p.patientId === selectedEncounter?.patientId);
+
   const intake = intakeById[selectedId] || { ...defaultIntake };
-  const patientWorkflow = useWorkflow({ patientId: selectedPatient?.patientId });
+  const patientWorkflow = useWorkflow({ patientId: selectedEncounter?.patientId });
 
   const filteredQueue = useMemo(
-    () => queue.filter((item) => (statusFilter === "all" ? true : item.status === statusFilter)),
-    [queue, statusFilter],
+    () => triageQueue.filter((item) => (statusFilter === "all" ? true : item.status === statusFilter)),
+    [triageQueue, statusFilter],
   );
 
-  const getStatusBadge = (status: TriageStatus) => {
-    if (status === "ready") return "bg-success/10 text-success border-success/20";
-    if (status === "in-progress") return "bg-warning/10 text-warning border-warning/20";
+  const getStatusBadge = (status: EncounterStatus) => {
+    if (status === "TRIAGED") return "bg-success/10 text-success border-success/20";
+    if (status === "IN_TRIAGE") return "bg-warning/10 text-warning border-warning/20";
     return "bg-muted/10 text-muted-foreground border-muted/20";
   };
 
@@ -188,24 +153,24 @@ export default function Triage() {
     });
   };
 
-  const markStatus = (status: TriageStatus) => {
-    setQueue((prev) =>
-      prev.map((item) => (item.id === selectedId ? { ...item, status } : item)),
-    );
-    
-    // If marking as in-progress, ensure workflow reflects TRIAGE
-    if (status === "in-progress" && selectedPatient?.patientId) {
-      patientWorkflow.goTo("TRIAGE");
+  const markStatus = (status: EncounterStatus) => {
+    if (selectedId) {
+      updateEncounterStatus(selectedId, status);
+      
+      // If marking as in-progress, ensure workflow reflects TRIAGE
+      if (status === "IN_TRIAGE" && selectedEncounter?.patientId) {
+        patientWorkflow.goTo("TRIAGE");
+      }
     }
   };
 
   const handleMarkAsReady = () => {
-    if (!selectedPatient) return;
+    if (!selectedEncounter) return;
     
-    markStatus("ready");
+    markStatus("TRIAGED");
     
     // Transition workflow to CONSULTATION as it's "ready" for vet
-    if (selectedPatient.patientId) {
+    if (selectedEncounter.patientId) {
       patientWorkflow.goTo("CONSULTATION");
       
       // Broadcast update for notifications
@@ -213,10 +178,10 @@ export default function Triage() {
       channel.postMessage({
         type: "STEP_UPDATE",
         payload: {
-          patientId: selectedPatient.patientId,
+          patientId: selectedEncounter.patientId,
           step: "CONSULTATION",
-          petName: selectedPatient.petName,
-          ownerName: selectedPatient.ownerName,
+          petName: selectedEncounter.petName,
+          ownerName: selectedEncounter.ownerName,
           vetName: intake.assignedVeterinarian
         }
       });
@@ -225,24 +190,25 @@ export default function Triage() {
 
     toast({
       title: "Triage Completed",
-      description: `${selectedPatient.petName} is now ready for consultation.`,
+      description: `${selectedEncounter.petName} is now ready for consultation.`,
     });
   };
 
   const startRecord = () => {
-    if (!selectedPatient) return;
+    if (!selectedEncounter) return;
     
     // Ensure workflow status is CONSULTATION
     patientWorkflow.goTo("CONSULTATION");
     
     toast({
       title: "Creating Clinical Record",
-      description: `Transitioning ${selectedPatient.petName} to consultation record.`,
+      description: `Transitioning ${selectedEncounter.petName} to consultation record.`,
     });
 
     navigate("/records/new", {
       state: {
-        patientId: selectedPatient.patientId,
+        encounterId: selectedEncounter.id,
+        patientId: selectedEncounter.patientId,
         veterinarian: intake.assignedVeterinarian,
         visitReason: "Triage/Intake",
         chiefComplaint: intake.chiefComplaint,
@@ -260,11 +226,25 @@ export default function Triage() {
 
   return (
     <div className="flex flex-col h-[calc(100vh-theme(spacing.16))] overflow-hidden">
-      <div className="flex-none pb-4">
-        {selectedPatient?.patientId && (
-          <WorkflowProgress patientId={selectedPatient.patientId} />
-        )}
-        <div className="flex items-center justify-between mt-4">
+      {selectedEncounter && (
+        <div className="mb-4">
+          <EncounterHeader 
+            encounter={selectedEncounter}
+            onStatusChipClass={(s) => 
+              s === "WAITING" ? "bg-yellow-100 text-yellow-800" :
+              s === "IN_TRIAGE" ? "bg-orange-100 text-orange-800" :
+              s === "TRIAGED" ? "bg-green-100 text-green-800" :
+              s === "IN_CONSULTATION" ? "bg-blue-100 text-blue-800" :
+              s === "IN_SURGERY" ? "bg-red-100 text-red-800" :
+              s === "RECOVERY" ? "bg-purple-100 text-purple-800" :
+              s === "DISCHARGED" ? "bg-green-100 text-green-800" :
+              "bg-gray-100 text-gray-800"
+            }
+          />
+        </div>
+      )}
+      <div className="flex-none pb-4 pt-2">
+        <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold">Triage & Intake</h1>
             <p className="text-muted-foreground">
@@ -293,9 +273,9 @@ export default function Triage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All statuses</SelectItem>
-                <SelectItem value="waiting">Waiting</SelectItem>
-                <SelectItem value="in-progress">In progress</SelectItem>
-                <SelectItem value="ready">Ready</SelectItem>
+                <SelectItem value="WAITING">Waiting</SelectItem>
+                <SelectItem value="IN_TRIAGE">In progress</SelectItem>
+                <SelectItem value="TRIAGED">Ready</SelectItem>
               </SelectContent>
             </Select>
 
@@ -337,13 +317,13 @@ export default function Triage() {
                   Intake Details
                 </CardTitle>
                 <CardDescription className="font-medium text-veterinary-teal/80">
-                  {selectedPatient
-                    ? `${selectedPatient.petName} • ${selectedPatient.ownerName} (${selectedPatient.patientId})`
+                  {patientDetails
+                    ? `${patientDetails.name} • ${patientDetails.owner} (${patientDetails.patientId})`
                     : "Select a patient to begin intake"}
                 </CardDescription>
               </div>
               
-              {selectedPatient && (
+              {selectedEncounter && (
                 <div className="flex flex-wrap items-center gap-3 bg-background/50 p-1.5 rounded-lg border shadow-sm">
                   <div className="flex items-center gap-2 px-2 border-r pr-4">
                     <span className="text-[10px] font-bold uppercase text-muted-foreground whitespace-nowrap tracking-tighter">Assigned Vet:</span>
@@ -368,10 +348,10 @@ export default function Triage() {
                       variant="ghost" 
                       size="sm"
                       onClick={() => {
-                        markStatus("in-progress");
+                        markStatus("IN_TRIAGE");
                         toast({ title: "In Progress", description: "Patient intake is now in progress." });
                       }}
-                      className={`h-8 text-xs font-semibold ${selectedPatient.status === "in-progress" ? "bg-warning/20 text-warning hover:bg-warning/30" : "hover:bg-muted"}`}
+                      className={`h-8 text-xs font-semibold ${selectedEncounter.status === "IN_TRIAGE" ? "bg-warning/20 text-warning hover:bg-warning/30" : "hover:bg-muted"}`}
                     >
                       Mark In Progress
                     </Button>
@@ -379,7 +359,7 @@ export default function Triage() {
                       variant="ghost" 
                       size="sm"
                       onClick={handleMarkAsReady}
-                      className={`h-8 text-xs font-semibold ${selectedPatient.status === "ready" ? "bg-success/20 text-success hover:bg-success/30" : "hover:bg-muted"}`}
+                      className={`h-8 text-xs font-semibold ${selectedEncounter.status === "TRIAGED" ? "bg-success/20 text-success hover:bg-success/30" : "hover:bg-muted"}`}
                     >
                       <CheckCircle className="h-3.5 w-3.5 mr-1.5" />
                       Mark as Ready
@@ -388,7 +368,7 @@ export default function Triage() {
                     <Button 
                       size="sm"
                       onClick={startRecord}
-                      disabled={selectedPatient.status !== "ready"}
+                      disabled={selectedEncounter.status !== "TRIAGED"}
                       className="h-8 px-4 text-xs font-bold shadow-md bg-veterinary-teal hover:bg-veterinary-teal/90"
                     >
                       <FileText className="h-3.5 w-3.5 mr-1.5" />
@@ -418,7 +398,7 @@ export default function Triage() {
                     onValueChange={(value) => {
                       logChange({
                         entityType: "Patient",
-                        entityId: selectedPatient?.patientId || "unknown",
+                        entityId: selectedEncounter?.patientId || "unknown",
                         field: "Triage Level",
                         previousValue: intake.triageLevel,
                         newValue: value,

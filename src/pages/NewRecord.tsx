@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, FileText, Calendar as CalendarIcon, User, Pill, Download, X, ArrowLeft, Plus, Paperclip, Upload, History, AlertTriangle, Syringe, Heart, MoreVertical, Bed, TestTube, ChevronLeft, ChevronRight, DollarSign, Trash2, ChevronDown } from "lucide-react";
+import { Search, FileText, Calendar as CalendarIcon, User, Pill, Download, X, ArrowLeft, Plus, Paperclip, Upload, History, AlertTriangle, Syringe, Heart, MoreVertical, Bed, TestTube, ChevronLeft, ChevronRight, DollarSign, Trash2, ChevronDown, Clock, Stethoscope, Check } from "lucide-react";
 import { LabOrderDialog } from "@/components/LabOrderDialog";
 import { AdmissionRequestDialog } from "@/components/AdmissionRequestDialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -19,7 +19,7 @@ import { TreatmentSelector, EncounterItem } from "@/components/TreatmentSelector
 import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import jsPDF from 'jspdf';
-import { format } from "date-fns";
+import { format, addDays } from "date-fns";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
@@ -31,6 +31,9 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import { useEncounter } from "@/contexts/EncounterContext";
+import { EncounterHeader } from "@/components/EncounterHeader";
+import { Separator } from "@/components/ui/separator";
 
 const NOTE_TYPES = [
   { value: "soap", label: "SOAP" },
@@ -831,6 +834,8 @@ const mockPatientData = {
   sex: "Male (Neutered)",
   age: "5 years 3 months",
   weight: "32.5 kg",
+  color: "Golden",
+  microchip: "985112345678901",
   microchipId: "985112345678901",
   owner: {
     name: "Sarah Johnson",
@@ -838,6 +843,10 @@ const mockPatientData = {
     email: "sarah.johnson@email.com",
     address: "123 Oak Street, Springfield, IL 62701"
   },
+  phone: "(555) 123-4567",
+  email: "sarah.johnson@email.com",
+  address: "123 Oak Street, Springfield, IL 62701",
+  allergies: ["Penicillin", "Bee stings"],
   emergencyContact: {
     name: "Mike Johnson",
     phone: "(555) 987-6543",
@@ -848,9 +857,36 @@ const mockPatientData = {
 export default function NewRecord() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { encounters, activeEncounter, setActiveEncounter, updateEncounterStatus, getEncountersByPatient } = useEncounter();
   const recordsBase = location.pathname.startsWith("/admin") ? "/admin/records" : "/records";
   const [templateSearch, setTemplateSearch] = useState("");
-  const [activeTab, setActiveTab] = useState("soap");
+  const [activeTab, setActiveTab] = useState("overview");
+
+  // Get encounterId from location state or activeEncounter
+  const stateEncounterId = (location.state as any)?.encounterId;
+  const statePatientId = (location.state as any)?.patientId;
+
+  useEffect(() => {
+    if (stateEncounterId) {
+      const enc = encounters.find(e => e.id === stateEncounterId);
+      if (enc) setActiveEncounter(enc);
+    }
+  }, [stateEncounterId, encounters]);
+
+  const patientEncounters = statePatientId ? getEncountersByPatient(statePatientId) : [];
+
+  const handleEncounterChange = (id: string) => {
+    const enc = encounters.find(e => e.id === id);
+    if (enc) setActiveEncounter(enc);
+  };
+
+  const isDischarged = activeEncounter?.status === "DISCHARGED";
+  const isWaiting = activeEncounter?.status === "WAITING";
+  const isInTriage = activeEncounter?.status === "IN_TRIAGE";
+  const isTriaged = activeEncounter?.status === "TRIAGED";
+  const isInConsultation = activeEncounter?.status === "IN_CONSULTATION";
+  const canEdit = !isDischarged && !isWaiting && !isInTriage && !isTriaged;
+
   // Bottom panel state
   const [isBottomOpen, setIsBottomOpen] = useState(false);
   const [bottomTab, setBottomTab] = useState<'history' | 'labs' | 'notes'>('history');
@@ -1101,6 +1137,14 @@ export default function NewRecord() {
     veterinarian?: string;
     visitReason?: string;
     chiefComplaint?: string;
+    vitals?: {
+      temp?: string;
+      hr?: string;
+      rr?: string;
+      weight?: string;
+    };
+    history?: string;
+    triageLevel?: string;
   } | null;
   
   // Patient and veterinarian state
@@ -1322,12 +1366,6 @@ const vaccineScheduleDays: Record<string, number> = {
   Rabies: 365,
   DHLPP: 365,
   Bordetella: 365,
-};
-
-const addDays = (date: Date, days: number) => {
-  const d = new Date(date);
-  d.setDate(d.getDate() + days);
-  return d;
 };
 
 const recalcNextDue = (name: string, administeredOn: Date) => {
@@ -2281,70 +2319,57 @@ const applyTemplate = (templateName: string, noteId?: string) => {
         </DropdownMenu>
       </div>
 
-      {/* Patient Summary */}
-      <Card>
-        <CardHeader>
-          <div className="flex justify-between items-start">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <Heart className="h-5 w-5 text-primary" />
-                Patient Summary
-              </CardTitle>
-              <CardDescription>Basic patient information and visit overview</CardDescription>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-start gap-6">
-            {/* Patient Photo and Basic Info */}
-            <div className="flex items-center gap-4">
-              <div className="w-16 h-16 bg-veterinary-light rounded-full flex items-center justify-center">
-                <Heart className="h-8 w-8 text-veterinary-teal" />
-              </div>
-              <div>
-                <h3 className="text-xl font-semibold">{mockPatientData.name}</h3>
-                <p className="text-muted-foreground">{mockPatientData.species} • {mockPatientData.breed}</p>
-              </div>
-            </div>
-            
-            {/* Patient Details Grid */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 flex-1">
-              <div>
-                <p className="text-sm font-medium">Sex</p>
-                <p className="text-muted-foreground">{mockPatientData.sex}</p>
-              </div>
-              <div>
-                <p className="text-sm font-medium">Age</p>
-                <p className="text-muted-foreground">{mockPatientData.age}</p>
-              </div>
-              <div>
-                <p className="text-sm font-medium">Weight</p>
-                <p className="text-muted-foreground">{mockPatientData.weight}</p>
-              </div>
-              <div>
-                <p className="text-sm font-medium">Microchip</p>
-                <p className="text-muted-foreground text-xs">{mockPatientData.microchipId}</p>
-              </div>
-            </div>
-            
-            {/* Owner Button */}
-            <div className="flex-shrink-0">
-              <Button 
-                variant="outline" 
-                size="sm"
-                onClick={() => {/* Handle owner details view */}}
-                className="flex items-center gap-2"
-              >
-                <User className="h-4 w-4" />
-                {mockPatientData.owner.name}
-              </Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      {/* Persistent Encounter Header */}
+      {activeEncounter && (
+        <div className="mb-4">
+          <EncounterHeader 
+            encounter={activeEncounter}
+            onStatusChange={(status) => updateEncounterStatus(activeEncounter.id, status)}
+            onStatusChipClass={(s) => 
+              s === "WAITING" ? "bg-yellow-100 text-yellow-800" :
+              s === "IN_TRIAGE" ? "bg-orange-100 text-orange-800" :
+              s === "TRIAGED" ? "bg-green-100 text-green-800" :
+              s === "IN_CONSULTATION" ? "bg-blue-100 text-blue-800" :
+              s === "IN_SURGERY" ? "bg-red-100 text-red-800" :
+              s === "RECOVERY" ? "bg-purple-100 text-purple-800" :
+              s === "DISCHARGED" ? "bg-green-100 text-green-800" :
+              "bg-gray-100 text-gray-800"
+            }
+          />
+        </div>
+      )}
 
-      {/* Global tabs menu bar spanning full width */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+      {!activeEncounter ? (
+        <Card className="p-12 text-center">
+          <div className="flex flex-col items-center gap-4">
+            <AlertTriangle className="h-12 w-12 text-yellow-500" />
+            <h2 className="text-xl font-bold">No Active Visit</h2>
+            <p className="text-muted-foreground">Please select an existing visit or create a new one to start clinical work.</p>
+            <Button onClick={() => navigate("/patients")}>Go to Patients</Button>
+          </div>
+        </Card>
+      ) : (isWaiting || isInTriage) ? (
+        <Card className="p-12 text-center">
+          <div className="flex flex-col items-center gap-4">
+            <Clock className="h-12 w-12 text-blue-500" />
+            <h2 className="text-xl font-bold">Patient in Triage</h2>
+            <p className="text-muted-foreground">This visit is currently in the triage phase. Please complete triage before starting clinical work.</p>
+            <Button onClick={() => navigate("/triage", { state: { patient: mockPatientData } })}>Go to Triage Page</Button>
+          </div>
+        </Card>
+      ) : isTriaged ? (
+        <Card className="p-12 text-center">
+          <div className="flex flex-col items-center gap-4">
+            <Check className="h-12 w-12 text-green-500" />
+            <h2 className="text-xl font-bold">Triage Completed</h2>
+            <p className="text-muted-foreground">Triage assessment has been finalized. You can now start the formal consultation.</p>
+            <Button size="lg" onClick={() => updateEncounterStatus(activeEncounter.id, "IN_CONSULTATION")}>Start Consultation</Button>
+          </div>
+        </Card>
+      ) : (
+      <div className={cn("transition-opacity", !isInConsultation && "opacity-50 pointer-events-none")}>
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          {/* Tabs UI... */}
         <div className="relative">
           {/* Left Arrow */}
           {showLeftArrow && (
@@ -2376,40 +2401,58 @@ const applyTemplate = (templateName: string, noteId?: string) => {
           >
             <TabsList className="flex w-full h-11 items-center justify-start gap-2 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
               <TabsTrigger 
-                value="soap"
+                value="triage"
                 className="h-11 px-4 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-foreground hover:bg-muted/50"
               >
-                Notes
+                Triage
+              </TabsTrigger>
+              <TabsTrigger 
+                value="overview"
+                className="h-11 px-4 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-foreground hover:bg-muted/50"
+              >
+                Overview
+              </TabsTrigger>
+              <TabsTrigger 
+                value="history"
+                className="h-11 px-4 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-foreground hover:bg-muted/50"
+              >
+                History
+              </TabsTrigger>
+              <TabsTrigger 
+                value="physical-exam"
+                className="h-11 px-4 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-foreground hover:bg-muted/50"
+              >
+                Physical Exam
+              </TabsTrigger>
+              <TabsTrigger 
+                value="diagnostics"
+                className="h-11 px-4 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-foreground hover:bg-muted/50"
+              >
+                Diagnostics
+              </TabsTrigger>
+              <TabsTrigger 
+                value="diagnosis"
+                className="h-11 px-4 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-foreground hover:bg-muted/50"
+              >
+                Diagnosis
               </TabsTrigger>
               <TabsTrigger 
                 value="treatment"
                 className="h-11 px-4 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-foreground hover:bg-muted/50"
               >
-                Treatments
+                Treatment
               </TabsTrigger>
               <TabsTrigger 
-                value="vaccination"
+                value="notes"
                 className="h-11 px-4 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-foreground hover:bg-muted/50"
               >
-                Vaccination
+                Notes
               </TabsTrigger>
               <TabsTrigger 
-                value="medications"
+                value="discharge"
                 className="h-11 px-4 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-foreground hover:bg-muted/50"
               >
-                Medications
-              </TabsTrigger>
-              <TabsTrigger 
-                value="summary"
-                className="h-11 px-4 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-foreground hover:bg-muted/50"
-              >
-                Summary & Billing
-              </TabsTrigger>
-              <TabsTrigger 
-                value="attachments"
-                className="h-11 px-4 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-foreground hover:bg-muted/50"
-              >
-                Attachments
+                Discharge
               </TabsTrigger>
             </TabsList>
           </div>
@@ -2420,8 +2463,8 @@ const applyTemplate = (templateName: string, noteId?: string) => {
         {/* Left Panel - Quick Templates and Medical History */}
         <ResizablePanel defaultSize={35} minSize={25}>
           <div className="h-full p-6 space-y-6 overflow-y-auto">
-            {/* Quick Templates Section - visible on SOAP Notes tab where clinical notes are managed */}
-            <TabsContent value="soap" className="space-y-6">
+            {/* Quick Templates Section - visible on Notes tab where clinical notes are managed */}
+            <TabsContent value="notes" className="space-y-6">
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -2509,6 +2552,58 @@ const applyTemplate = (templateName: string, noteId?: string) => {
               </CardContent>
             </Card>
           </TabsContent>
+
+          {/* Default sidebar for other tabs */}
+          {["overview", "history", "physical-exam", "diagnostics", "diagnosis", "discharge"].map(tab => (
+            <TabsContent key={tab} value={tab} className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                    <AlertTriangle className="h-4 w-4 text-red-500" />
+                    Alerts & Critical Info
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <Label className="text-xs text-muted-foreground">Allergies</Label>
+                    <div className="flex flex-wrap gap-2">
+                      {mockMedicalHistory.allergies.map(a => (
+                        <Badge key={a.id} variant="destructive" className="text-xs">{a.allergen} ({a.severity})</Badge>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs text-muted-foreground">Current Medications</Label>
+                    <div className="space-y-1">
+                      {mockMedicalHistory.currentMedications.map(m => (
+                        <p key={m.id} className="text-xs">• {m.name} {m.dosage} ({m.frequency})</p>
+                      ))}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-sm font-semibold">Visit Details</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-muted-foreground">Patient:</span>
+                    <span className="font-medium">{mockPatientData.name}</span>
+                  </div>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-muted-foreground">Reason:</span>
+                    <span className="font-medium">{activeEncounter?.reason}</span>
+                  </div>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-muted-foreground">Vet:</span>
+                    <span className="font-medium">{activeEncounter?.veterinarian}</span>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          ))}
           </div>
         </ResizablePanel>
 
@@ -2517,9 +2612,551 @@ const applyTemplate = (templateName: string, noteId?: string) => {
         {/* Right Panel - Notes */}
         <ResizablePanel defaultSize={65} minSize={40}>
           <div ref={rightPanelRef} className="h-full p-6 overflow-y-auto">
-            {/* SOAP Notes Tab */}
-            <TabsContent value="soap" className="space-y-6">
-              {/* Additional Clinical Notes (dynamic) */}
+            {/* Overview Tab */}
+            {/* Triage Tab */}
+            <TabsContent value="triage" className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Stethoscope className="h-5 w-5" />
+                    Triage Results
+                  </CardTitle>
+                  <CardDescription>Initial clinical assessment from the triage phase</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div className="space-y-4">
+                      <div>
+                        <Label className="text-xs text-muted-foreground uppercase tracking-wider">Chief Complaint</Label>
+                        <p className="text-sm font-medium mt-1">{activeEncounter?.chiefComplaint}</p>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <Label className="text-xs text-muted-foreground uppercase tracking-wider">Triage Level</Label>
+                          <div className="mt-1">
+                            <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">Level 3 - Urgent</Badge>
+                          </div>
+                        </div>
+                        <div>
+                          <Label className="text-xs text-muted-foreground uppercase tracking-wider">Pain Score</Label>
+                          <p className="text-sm font-medium mt-1">2 / 10</p>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="space-y-4">
+                      <Label className="text-xs text-muted-foreground uppercase tracking-wider">Vital Signs</Label>
+                      <div className="grid grid-cols-2 gap-y-4 gap-x-8">
+                        <div>
+                          <p className="text-xs text-muted-foreground">Temperature</p>
+                          <p className="text-sm font-semibold">38.5 °C</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">Weight</p>
+                          <p className="text-sm font-semibold">10.0 kg</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">Heart Rate</p>
+                          <p className="text-sm font-semibold">100 bpm</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">Resp. Rate</p>
+                          <p className="text-sm font-semibold">24 brpm</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="overview" className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                      <Clock className="h-4 w-4" />
+                      Visit Information
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Reason for Visit</Label>
+                        <p className="text-sm font-medium">{activeEncounter?.reason}</p>
+                      </div>
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Attending Vet</Label>
+                        <p className="text-sm font-medium">{activeEncounter?.veterinarian}</p>
+                      </div>
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Start Time</Label>
+                        <p className="text-sm font-medium">{activeEncounter && format(new Date(activeEncounter.startTime), "PPp")}</p>
+                      </div>
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Status</Label>
+                        <Badge variant="outline" className="text-xs">{activeEncounter?.status}</Badge>
+                      </div>
+                    </div>
+                    <Separator />
+                    <div>
+                      <Label className="text-xs text-muted-foreground">Chief Complaint</Label>
+                      <p className="text-sm mt-1">{activeEncounter?.chiefComplaint || "No complaint recorded."}</p>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                      <AlertTriangle className="h-4 w-4 text-red-500" />
+                      Alerts & Critical Info
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-2">
+                      <Label className="text-xs text-muted-foreground">Allergies</Label>
+                      <div className="flex flex-wrap gap-2">
+                        {mockMedicalHistory.allergies.map(a => (
+                          <Badge key={a.id} variant="destructive" className="text-xs">{a.allergen} ({a.severity})</Badge>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-xs text-muted-foreground">Current Medications</Label>
+                      <div className="space-y-1">
+                        {mockMedicalHistory.currentMedications.map(m => (
+                          <p key={m.id} className="text-xs">• {m.name} {m.dosage} ({m.frequency})</p>
+                        ))}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            </TabsContent>
+
+            {/* History Tab */}
+            <TabsContent value="history" className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <History className="h-5 w-5" />
+                    Patient Medical History
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="rounded-md border">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Date</TableHead>
+                          <TableHead>Type</TableHead>
+                          <TableHead>Clinician</TableHead>
+                          <TableHead>Description</TableHead>
+                          <TableHead>Notes</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {historyRows.map((row) => (
+                          <TableRow key={row.id}>
+                            <TableCell className="text-sm">{new Date(row.date).toLocaleDateString()}</TableCell>
+                            <TableCell><Badge variant="outline" className="text-xs">{row.type}</Badge></TableCell>
+                            <TableCell className="text-sm">{row.clinician}</TableCell>
+                            <TableCell>
+                              <div className="text-sm font-medium">{row.title}</div>
+                              {row.subtitle && <div className="text-xs text-muted-foreground">{row.subtitle}</div>}
+                            </TableCell>
+                            <TableCell className="text-sm text-muted-foreground">{row.notes || "—"}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* Physical Exam Tab */}
+            <TabsContent value="physical-exam" className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Physical Examination</CardTitle>
+                  <CardDescription>Record findings from the physical exam and vital signs.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-muted-foreground mb-4 italic">
+                    Note: For detailed structured entry, use the "Notes" tab to add a SOAP record. This tab provides a summary of the current visit's findings.
+                  </p>
+                  {/* Summary of findings if a SOAP note exists */}
+                  {clinicalNotes.find(n => n.type === "soap") ? (
+                    <div className="space-y-6">
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-4 bg-muted/30 p-4 rounded-lg">
+                        {/* Vitals summary */}
+                        {clinicalNotes.filter(n => n.type === "soap").map(n => n.soapData).map((sd, i) => (
+                          <React.Fragment key={i}>
+                            <div className="space-y-1">
+                              <span className="text-xs text-muted-foreground">Temp</span>
+                              <p className="text-sm font-medium">{sd?.temperature || "—"} °F</p>
+                            </div>
+                            <div className="space-y-1">
+                              <span className="text-xs text-muted-foreground">HR</span>
+                              <p className="text-sm font-medium">{sd?.heartRate || "—"} bpm</p>
+                            </div>
+                            <div className="space-y-1">
+                              <span className="text-xs text-muted-foreground">RR</span>
+                              <p className="text-sm font-medium">{sd?.respiratoryRate || "—"} rpm</p>
+                            </div>
+                            <div className="space-y-1">
+                              <span className="text-xs text-muted-foreground">Weight</span>
+                              <p className="text-sm font-medium">{sd?.weight || "—"} kg</p>
+                            </div>
+                            <div className="space-y-1">
+                              <span className="text-xs text-muted-foreground">BCS</span>
+                              <p className="text-sm font-medium">{sd?.bodyConditionScore || "—"}/9</p>
+                            </div>
+                          </React.Fragment>
+                        ))}
+                      </div>
+                      <div className="space-y-4">
+                        <div className="space-y-2">
+                          <Label className="text-sm font-semibold">Subjective Findings</Label>
+                          <div className="p-3 bg-muted/20 rounded border text-sm">
+                            {clinicalNotes.find(n => n.type === "soap")?.soapData?.subjective || "No subjective data recorded."}
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-sm font-semibold">Objective Findings</Label>
+                          <div className="p-3 bg-muted/20 rounded border text-sm">
+                            {clinicalNotes.find(n => n.type === "soap")?.soapData?.objective || "No objective data recorded."}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-center py-12">
+                      <Button onClick={() => handleAddClinicalNoteDirectly("soap")}>
+                        <Plus className="h-4 w-4 mr-2" />
+                        Start Physical Exam (SOAP)
+                      </Button>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* Diagnostics Tab */}
+            <TabsContent value="diagnostics" className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <Card>
+                  <CardHeader>
+                    <div className="flex justify-between items-center">
+                      <CardTitle className="text-sm font-semibold">Lab Requests</CardTitle>
+                      <LabOrderDialog 
+                        prefillData={{
+                          patientId: selectedPatient,
+                          veterinarian: selectedVeterinarian,
+                        }}
+                        onLabOrderCreated={handleLabOrderCreated}
+                      >
+                        <Button size="sm" variant="outline"><Plus className="h-4 w-4 mr-1" /> New Lab</Button>
+                      </LabOrderDialog>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2">
+                      {encounterItems.filter(i => i.type === 'lab').length > 0 ? (
+                        encounterItems.filter(i => i.type === 'lab').map(item => (
+                          <div key={item.id} className="flex items-center justify-between p-2 border rounded text-sm">
+                            <span>{item.title}</span>
+                            <Badge variant="outline">{item.status}</Badge>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-xs text-muted-foreground text-center py-4">No lab orders for this visit.</p>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-sm font-semibold">Imaging & Results</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex flex-col items-center justify-center py-8 border-2 border-dashed rounded-lg">
+                      <Paperclip className="h-8 w-8 text-muted-foreground mb-2" />
+                      <p className="text-xs text-muted-foreground">Upload images or diagnostic reports</p>
+                      <Button variant="ghost" size="sm" className="mt-2">Browse Files</Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Paperclip className="h-5 w-5" />
+                    Diagnostic Attachments
+                  </CardTitle>
+                  <CardDescription>
+                    Upload lab results, X-rays, photos, or other diagnostic files
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  {/* File Upload */}
+                  <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6 text-center">
+                    <Upload className="h-8 w-8 text-muted-foreground mx-auto mb-4" />
+                    <div className="space-y-2">
+                      <h3 className="text-sm font-medium">Upload diagnostic files</h3>
+                      <p className="text-sm text-muted-foreground">
+                        Drag and drop files here, or click to browse
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Supports: PDF, JPG, PNG, TIFF, DICOM (Max 10MB per file)
+                      </p>
+                    </div>
+                    <input
+                      type="file"
+                      multiple
+                      accept=".pdf,.jpg,.jpeg,.png,.tiff,.dcm"
+                      onChange={handleFileUpload}
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                    />
+                  </div>
+
+                  {/* Uploaded Files List */}
+                  {attachments.length > 0 && (
+                    <div className="space-y-4">
+                      <h4 className="text-lg font-semibold">Uploaded Files</h4>
+                      <div className="space-y-2">
+                        {attachments.map((file, index) => (
+                          <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
+                            <div className="flex items-center gap-3">
+                              <div className="p-2 rounded bg-muted">
+                                <FileText className="h-4 w-4" />
+                              </div>
+                              <div>
+                                <p className="font-medium text-sm">{file.name}</p>
+                                <p className="text-xs text-muted-foreground">
+                                  {(file.size / 1024 / 1024).toFixed(2)} MB
+                                </p>
+                              </div>
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => removeAttachment(index)}
+                              className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* Diagnosis Tab */}
+            <TabsContent value="diagnosis" className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Diagnosis & Assessment</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  {clinicalNotes.find(n => n.type === "soap") ? (
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <Label className="text-sm font-semibold">Primary Diagnosis</Label>
+                        <div className="p-3 bg-primary/5 border-primary/20 rounded border font-medium">
+                          {clinicalNotes.find(n => n.type === "soap")?.soapData?.primaryDiagnosis || "Not yet determined."}
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-sm font-semibold">Differential Diagnoses</Label>
+                        <div className="flex flex-wrap gap-2">
+                          {clinicalNotes.find(n => n.type === "soap")?.soapData?.differentialDiagnoses.map((d, i) => (
+                            <Badge key={i} variant="secondary">{d}</Badge>
+                          )) || <p className="text-xs text-muted-foreground">None recorded.</p>}
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-sm font-semibold">Clinical Summary</Label>
+                        <div className="p-3 bg-muted/20 rounded border text-sm">
+                          {clinicalNotes.find(n => n.type === "soap")?.soapData?.clinicalSummary || "No summary recorded."}
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-center text-muted-foreground py-12">Please complete the assessment in a SOAP note.</p>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* Treatment Tab */}
+            <TabsContent value="treatment" className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="md:col-span-2 space-y-6">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-sm font-semibold">Applied Treatments & Procedures</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-2">
+                        {encounterItems.filter(item => item.type === 'treatment').map((item) => (
+                          <div key={item.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg border">
+                            <div className="flex-1">
+                              <div className="font-medium text-sm">{item.title}</div>
+                              <div className="text-xs text-muted-foreground">Qty: {item.quantity} • {item.status}</div>
+                            </div>
+                            <div className="font-semibold text-sm">${item.total.toFixed(2)}</div>
+                          </div>
+                        ))}
+                        {encounterItems.filter(item => item.type === 'treatment').length === 0 && (
+                          <p className="text-sm text-muted-foreground text-center py-8">No treatments added.</p>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-sm font-semibold">Prescribed Medications</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-2">
+                        {medications.map(m => (
+                          <div key={m.id} className="p-2 border rounded text-sm flex justify-between">
+                            <div>
+                              <span className="font-medium">{m.name}</span> {m.dosage}
+                              <p className="text-xs text-muted-foreground">{m.frequency} • {m.duration}</p>
+                            </div>
+                          </div>
+                        ))}
+                        {medications.length === 0 && (
+                          <p className="text-sm text-muted-foreground text-center py-8">No medications prescribed.</p>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                        <Syringe className="h-4 w-4" />
+                        Vaccination
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-4">
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="space-y-1">
+                            <Label className="text-xs">Vaccine</Label>
+                            <Select
+                              value={vaccination.vaccineName}
+                              onValueChange={(value) =>
+                                setVaccination((prev) => ({
+                                  ...prev,
+                                  vaccineName: value,
+                                  nextDueDate: recalcNextDue(value, prev.dateAdministered || new Date()),
+                                }))
+                              }
+                            >
+                              <SelectTrigger className="h-8">
+                                <SelectValue placeholder="Select" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="Rabies">Rabies</SelectItem>
+                                <SelectItem value="DHLPP">DHLPP</SelectItem>
+                                <SelectItem value="Bordetella">Bordetella</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs">Batch/Lot</Label>
+                            <Input
+                              className="h-8"
+                              value={vaccination.lotNumber}
+                              onChange={(e) => setVaccination((prev) => ({ ...prev, lotNumber: e.target.value }))}
+                              placeholder="Lot#"
+                            />
+                          </div>
+                        </div>
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          className="w-full"
+                          onClick={() => {
+                            // Logic to add vaccination to treatments or records
+                            const item: EncounterItem = {
+                              id: Math.random().toString(36).substr(2, 9),
+                              title: `Vaccination: ${vaccination.vaccineName}`,
+                              category: 'treatment',
+                              type: 'treatment',
+                              price: 25,
+                              cost: 0,
+                              quantity: 1,
+                              discount: 0,
+                              total: 25,
+                              status: 'completed',
+                              timestamp: new Date().toISOString(),
+                              treatmentCode: 'VACC-001',
+                              performedBy: selectedVeterinarian
+                            };
+                            setEncounterItems([...encounterItems, item]);
+                          }}
+                        >
+                          Record Administration
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                <div className="space-y-6">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-sm font-semibold">Add Treatment</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <TreatmentSelector
+                        onTreatmentAdded={(treatment) => {
+                          const normalized: EncounterItem = {
+                            ...treatment,
+                            status: treatment.status || 'pending',
+                            quantity: treatment.quantity ?? 1,
+                            discount: treatment.discount ?? 0,
+                            total: (treatment.price ?? 0) * (treatment.quantity ?? 1) - (treatment.discount ?? 0),
+                            linkedToSection: 'plan',
+                            performedBy: selectedVeterinarian,
+                          } as EncounterItem;
+                          setEncounterItems([...encounterItems, normalized]);
+                        }}
+                        linkedSection="plan"
+                        performedBy={selectedVeterinarian}
+                      />
+                    </CardContent>
+                  </Card>
+                  
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-sm font-semibold">Add Medication</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <Input placeholder="Medication Name" className="h-8" value={newMedication.name} onChange={e => setNewMedication(p => ({...p, name: e.target.value}))} />
+                      <Input placeholder="Dosage" className="h-8" value={newMedication.dosage} onChange={e => setNewMedication(p => ({...p, dosage: e.target.value}))} />
+                      <Button size="sm" className="w-full" onClick={addMedication}>Add</Button>
+                    </CardContent>
+                  </Card>
+                </div>
+              </div>
+            </TabsContent>
+
+            {/* Notes Tab (formerly SOAP Notes tab) */}
+            <TabsContent value="notes" className="space-y-6">
+              {/* Clinical Notes list logic... */}
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0">
                   <div className="space-y-1">
@@ -6089,644 +6726,85 @@ const applyTemplate = (templateName: string, noteId?: string) => {
 
 
 
-            {/* Treatment Plan Tab */}
-            <TabsContent value="treatment" className="space-y-6">
-              <div className="grid grid-cols-1 gap-6">
-                {/* Applied Treatments */}
-                <div>
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-sm">Applied Treatments</CardTitle>
-                      <CardDescription>Treatments added to this encounter</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-2">
-                        {encounterItems.filter(item => item.type === 'treatment').length > 0 ? (
-                          encounterItems
-                            .filter(item => item.type === 'treatment')
-                            .map((item) => (
-                              <div key={item.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg border">
-                                <div className="flex-1">
-                                  <div className="font-medium text-sm">{item.title}</div>
-                                  <div className="text-xs text-muted-foreground space-x-2">
-                                    <span className="font-mono">{item.treatmentCode}</span>
-                                    <span>• Qty: {item.quantity}</span>
-                                    <span>• {item.status}</span>
-                                  </div>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  <div className="flex items-center space-x-1 font-semibold text-sm">
-                                    <DollarSign className="h-3 w-3 text-muted-foreground" />
-                                    <span>{item.total.toFixed(2)}</span>
-                                  </div>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => {
-                                      setEncounterItems(encounterItems.filter(i => i.id !== item.id));
-                                    }}
-                                  >
-                                    <X className="h-3 w-3" />
-                                  </Button>
-                                </div>
-                              </div>
-                            ))
+            {/* Discharge Tab */}
+            <TabsContent value="discharge" className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <FileText className="h-5 w-5" />
+                      Discharge Summary
+                    </CardTitle>
+                    <CardDescription>Review visit details before final discharge</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-2">
+                      <Label className="text-xs text-muted-foreground uppercase tracking-wider">Reason for Visit</Label>
+                      <p className="text-sm font-medium">{activeEncounter?.reason}</p>
+                    </div>
+                    <Separator />
+                    <div className="space-y-2">
+                      <Label className="text-xs text-muted-foreground uppercase tracking-wider">Final Diagnosis</Label>
+                      <p className="text-sm font-medium">
+                        {clinicalNotes.find(n => n.type === "soap")?.soapData?.primaryDiagnosis || "Not recorded"}
+                      </p>
+                    </div>
+                    <Separator />
+                    <div className="space-y-2">
+                      <Label className="text-xs text-muted-foreground uppercase tracking-wider">Medications to go home</Label>
+                      <div className="space-y-1">
+                        {medications.length > 0 ? (
+                          medications.map(m => (
+                            <p key={m.id} className="text-sm">• {m.name} {m.dosage} ({m.frequency})</p>
+                          ))
                         ) : (
-                          <div className="text-center text-muted-foreground text-sm py-8">
-                            No treatments added yet. Use "Add Treatment" in the left panel to add items.
-                          </div>
+                          <p className="text-sm text-muted-foreground italic">No medications prescribed.</p>
                         )}
                       </div>
-                    </CardContent>
-                  </Card>
-                </div>
-              </div>
-            </TabsContent>
+                    </div>
+                  </CardContent>
+                </Card>
 
-            {/* Vaccination Tab */}
-            <TabsContent value="vaccination" className="space-y-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Vaccination</CardTitle>
-                  <CardDescription>Capture vaccine administration details</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <History className="h-5 w-5" />
+                      Discharge Instructions
+                    </CardTitle>
+                    <CardDescription>Provide care instructions for the owner</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
                     <div className="space-y-2">
-                      <Label>Vaccine name</Label>
-                      <Select
-                        value={vaccination.vaccineName}
-                        onValueChange={(value) =>
-                          setVaccination((prev) => ({
-                            ...prev,
-                            vaccineName: value,
-                            nextDueDate: recalcNextDue(value, prev.dateAdministered || new Date()),
-                          }))
-                        }
+                      <Label>Instructions for Owner</Label>
+                      <Textarea 
+                        placeholder="e.g., Rest for 24 hours, monitor incision site..."
+                        className="min-h-[150px]"
+                        value={clinicalNotes.find(n => n.type === "discharge")?.content || ""}
+                        onChange={(e) => {
+                          const dischargeNote = clinicalNotes.find(n => n.type === "discharge");
+                          if (dischargeNote) {
+                            handleUpdateClinicalNote(dischargeNote.id, e.target.value);
+                          } else {
+                            handleAddClinicalNoteDirectly("discharge");
+                          }
+                        }}
+                      />
+                    </div>
+                    <div className="flex justify-end gap-2">
+                      <Button variant="outline" onClick={() => generatePrescriptionPDF()}>
+                        <Download className="h-4 w-4 mr-2" />
+                        Print Instructions
+                      </Button>
+                      <Button 
+                        className="bg-green-600 hover:bg-green-700"
+                        onClick={() => updateEncounterStatus(activeEncounter!.id, "DISCHARGED")}
                       >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select vaccine" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Rabies">Rabies</SelectItem>
-                          <SelectItem value="DHLPP">DHLPP</SelectItem>
-                          <SelectItem value="Bordetella">Bordetella</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label>Date administered</Label>
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <Button
-                            variant={"outline"}
-                            className={cn(
-                              "justify-start text-left font-normal",
-                              !vaccination.dateAdministered && "text-muted-foreground"
-                            )}
-                          >
-                            {vaccination.dateAdministered ? (
-                              format(vaccination.dateAdministered, "PPP")
-                            ) : (
-                              <span>Pick a date</span>
-                            )}
-                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start">
-                          <Calendar
-                            mode="single"
-                            selected={vaccination.dateAdministered ?? undefined}
-                            onSelect={(date) => {
-                              if (!date) return;
-                              setVaccination((prev) => ({
-                                ...prev,
-                                dateAdministered: date,
-                                nextDueDate: recalcNextDue(prev.vaccineName, date),
-                              }));
-                            }}
-                            initialFocus
-                            className={cn("p-3 pointer-events-auto")}
-                          />
-                        </PopoverContent>
-                      </Popover>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label>Dosage & units</Label>
-                      <Input
-                        value={vaccination.dosage}
-                        onChange={(e) =>
-                          setVaccination((prev) => ({ ...prev, dosage: e.target.value }))
-                        }
-                        placeholder="e.g., 1 ml"
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label>Batch/Lot number</Label>
-                      <Input
-                        value={vaccination.lotNumber}
-                        onChange={(e) =>
-                          setVaccination((prev) => ({ ...prev, lotNumber: e.target.value }))
-                        }
-                        placeholder="e.g., ABC12345"
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label>Manufacturer</Label>
-                      <Input
-                        value={vaccination.manufacturer}
-                        onChange={(e) =>
-                          setVaccination((prev) => ({ ...prev, manufacturer: e.target.value }))
-                        }
-                        placeholder="e.g., Manufacturer name"
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label>Route</Label>
-                      <Select
-                        value={vaccination.route}
-                        onValueChange={(value) =>
-                          setVaccination((prev) => ({ ...prev, route: value }))
-                        }
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select route" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="subcutaneous">Subcutaneous</SelectItem>
-                          <SelectItem value="intramuscular">Intramuscular</SelectItem>
-                          <SelectItem value="oral">Oral</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label>Injection site</Label>
-                      <Select
-                        value={vaccination.injectionSite}
-                        onValueChange={(value) =>
-                          setVaccination((prev) => ({ ...prev, injectionSite: value }))
-                        }
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select site" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="left-front-leg">Left front leg</SelectItem>
-                          <SelectItem value="right-front-leg">Right front leg</SelectItem>
-                          <SelectItem value="left-hind-leg">Left hind leg</SelectItem>
-                          <SelectItem value="right-hind-leg">Right hind leg</SelectItem>
-                          <SelectItem value="other">Other</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label>Administered by</Label>
-                      <Input
-                        value={vaccination.administeredBy}
-                        onChange={(e) =>
-                          setVaccination((prev) => ({ ...prev, administeredBy: e.target.value }))
-                        }
-                        placeholder="e.g., Dr. Smith or Technician Jane"
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label>Next due date</Label>
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <Button
-                            variant={"outline"}
-                            className={cn(
-                              "justify-start text-left font-normal",
-                              !vaccination.nextDueDate && "text-muted-foreground"
-                            )}
-                          >
-                            {vaccination.nextDueDate ? (
-                              format(vaccination.nextDueDate, "PPP")
-                            ) : (
-                              <span>Pick a date</span>
-                            )}
-                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start">
-                          <Calendar
-                            mode="single"
-                            selected={vaccination.nextDueDate ?? undefined}
-                            onSelect={(date) => {
-                              if (!date) return;
-                              setVaccination((prev) => ({ ...prev, nextDueDate: date }));
-                            }}
-                            initialFocus
-                            className={cn("p-3 pointer-events-auto")}
-                          />
-                        </PopoverContent>
-                      </Popover>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>Adverse reactions (optional)</Label>
-                    <Textarea
-                      value={vaccination.adverseReactions}
-                      onChange={(e) =>
-                        setVaccination((prev) => ({ ...prev, adverseReactions: e.target.value }))
-                      }
-                      placeholder="Any reactions observed post-vaccination"
-                      className="min-h-[80px]"
-                    />
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            {/* Medications Tab */}
-            <TabsContent value="medications" className="space-y-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Pill className="h-5 w-5" />
-                    Medications & Prescriptions
-                  </CardTitle>
-                  <CardDescription>Manage prescribed medications and generate prescriptions</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                  {/* Add New Medication */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 border rounded-lg bg-muted/5">
-                    <div className="space-y-2">
-                      <Label htmlFor="medName">Medication Name</Label>
-                      <Input
-                        id="medName"
-                        value={newMedication.name}
-                        onChange={(e) => setNewMedication(prev => ({ ...prev, name: e.target.value }))}
-                        placeholder="e.g., Amoxicillin"
-                      />
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <Label htmlFor="medDosage">Dosage</Label>
-                      <Input
-                        id="medDosage"
-                        value={newMedication.dosage}
-                        onChange={(e) => setNewMedication(prev => ({ ...prev, dosage: e.target.value }))}
-                        placeholder="e.g., 250mg"
-                      />
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <Label htmlFor="medFrequency">Frequency</Label>
-                      <Input
-                        id="medFrequency"
-                        value={newMedication.frequency}
-                        onChange={(e) => setNewMedication(prev => ({ ...prev, frequency: e.target.value }))}
-                        placeholder="e.g., Twice daily"
-                      />
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <Label htmlFor="medDuration">Duration</Label>
-                      <Input
-                        id="medDuration"
-                        value={newMedication.duration}
-                        onChange={(e) => setNewMedication(prev => ({ ...prev, duration: e.target.value }))}
-                        placeholder="e.g., 7 days"
-                      />
-                    </div>
-                    
-                    <div className="md:col-span-2 space-y-2">
-                      <Label htmlFor="medInstructions">Special Instructions</Label>
-                      <Input
-                        id="medInstructions"
-                        value={newMedication.instructions}
-                        onChange={(e) => setNewMedication(prev => ({ ...prev, instructions: e.target.value }))}
-                        placeholder="e.g., Give with food"
-                      />
-                    </div>
-                    
-                    <div className="md:col-span-2">
-                      <Button onClick={addMedication} className="w-full">
-                        <Plus className="h-4 w-4 mr-2" />
-                        Add Medication
+                        Finalize & Discharge
                       </Button>
                     </div>
-                  </div>
-
-                  {/* Medications List */}
-                  {medications.length > 0 && (
-                    <div className="space-y-4">
-                      <div className="flex justify-between items-center">
-                        <h4 className="text-lg font-semibold">Prescribed Medications</h4>
-                        <Button onClick={generatePrescriptionPDF} variant="outline" size="sm">
-                          <Download className="h-4 w-4 mr-2" />
-                          Generate Prescription PDF
-                        </Button>
-                      </div>
-                      
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Medication</TableHead>
-                            <TableHead>Dosage</TableHead>
-                            <TableHead>Frequency</TableHead>
-                            <TableHead>Duration</TableHead>
-                            <TableHead>Instructions</TableHead>
-                            <TableHead className="w-[50px]"></TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {medications.map((medication) => (
-                            <TableRow key={medication.id}>
-                              <TableCell className="font-medium">{medication.name}</TableCell>
-                              <TableCell>{medication.dosage}</TableCell>
-                              <TableCell>{medication.frequency}</TableCell>
-                              <TableCell>{medication.duration}</TableCell>
-                              <TableCell>{medication.instructions || "-"}</TableCell>
-                              <TableCell>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => removeMedication(medication.id)}
-                                  className="h-8 w-8 p-0 text-destructive hover:text-destructive"
-                                >
-                                  <X className="h-4 w-4" />
-                                </Button>
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            {/* Summary & Billing Tab */}
-            <TabsContent value="summary" className="space-y-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center space-x-2">
-                    <FileText className="h-5 w-5" />
-                    <span>Encounter Summary & Billing</span>
-                  </CardTitle>
-                  <CardDescription>
-                    Complete overview of all treatments, procedures, and charges for this encounter
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {encounterItems.length > 0 ? (
-                    <div className="space-y-4">
-                      {/* Encounter Items Table */}
-                      <div className="rounded-md border">
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead className="w-[100px]">Code</TableHead>
-                              <TableHead className="w-[250px]">Treatment/Service</TableHead>
-                              <TableHead className="w-[150px]">Category</TableHead>
-                              <TableHead className="w-[80px] text-center">Qty</TableHead>
-                              <TableHead className="w-[100px] text-right">Unit Price</TableHead>
-                              <TableHead className="w-[100px] text-right">Total</TableHead>
-                              <TableHead className="w-[120px]">Status</TableHead>
-                              <TableHead className="w-[50px]"></TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {encounterItems.map((item) => (
-                              <TableRow key={item.id}>
-                                <TableCell className="font-mono text-xs">{item.treatmentCode}</TableCell>
-                                <TableCell className="font-medium">{item.title}</TableCell>
-                                <TableCell>
-                                  <Badge variant="outline" className="text-xs">
-                                    {item.category}
-                                  </Badge>
-                                </TableCell>
-                                <TableCell className="text-center">
-                                  <Input
-                                    type="number"
-                                    value={item.quantity}
-                                    onChange={(e) => {
-                                      const newQty = parseInt(e.target.value) || 1;
-                                      const updated = encounterItems.map(i =>
-                                        i.id === item.id
-                                          ? {...i, quantity: newQty, total: i.price * newQty - i.discount}
-                                          : i
-                                      );
-                                      setEncounterItems(updated);
-                                    }}
-                                    className="w-16 text-center h-8"
-                                  />
-                                </TableCell>
-                                <TableCell className="text-right">
-                                  <div className="flex items-center justify-end space-x-1">
-                                    <DollarSign className="h-3 w-3 text-muted-foreground" />
-                                    <span className="text-sm">{item.price.toFixed(2)}</span>
-                                  </div>
-                                </TableCell>
-                                <TableCell className="text-right">
-                                  <div className="flex items-center justify-end space-x-1">
-                                    <DollarSign className="h-3 w-3 text-muted-foreground" />
-                                    <span className="font-semibold">{item.total.toFixed(2)}</span>
-                                  </div>
-                                </TableCell>
-                                <TableCell>
-                                  <Select
-                                    value={item.status}
-                                    onValueChange={(status: 'pending' | 'completed' | 'cancelled') => {
-                                      const updated = encounterItems.map(i =>
-                                        i.id === item.id ? {...i, status} : i
-                                      );
-                                      setEncounterItems(updated);
-                                    }}
-                                  >
-                                    <SelectTrigger className="w-[110px] h-8">
-                                      <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      <SelectItem value="pending">Pending</SelectItem>
-                                      <SelectItem value="completed">Completed</SelectItem>
-                                      <SelectItem value="cancelled">Cancelled</SelectItem>
-                                    </SelectContent>
-                                  </Select>
-                                </TableCell>
-                                <TableCell>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => setEncounterItems(encounterItems.filter(i => i.id !== item.id))}
-                                  >
-                                    <X className="h-3 w-3" />
-                                  </Button>
-                                </TableCell>
-                              </TableRow>
-                            ))}
-
-                            {/* Totals Row */}
-                            <TableRow className="bg-muted/50 font-semibold">
-                              <TableCell colSpan={5} className="text-right">Subtotal:</TableCell>
-                              <TableCell className="text-right">
-                                <div className="flex items-center justify-end space-x-1">
-                                  <DollarSign className="h-3 w-3" />
-                                  <span>{encounterItems.reduce((sum, item) => sum + item.total, 0).toFixed(2)}</span>
-                                </div>
-                              </TableCell>
-                              <TableCell colSpan={2}></TableCell>
-                            </TableRow>
-                            <TableRow className="bg-muted/50">
-                              <TableCell colSpan={5} className="text-right font-medium">Tax (0%):</TableCell>
-                              <TableCell className="text-right">
-                                <div className="flex items-center justify-end space-x-1">
-                                  <DollarSign className="h-3 w-3 text-muted-foreground" />
-                                  <span className="text-sm">0.00</span>
-                                </div>
-                              </TableCell>
-                              <TableCell colSpan={2}></TableCell>
-                            </TableRow>
-                            <TableRow className="bg-primary/10 font-bold text-lg">
-                              <TableCell colSpan={5} className="text-right">Total:</TableCell>
-                              <TableCell className="text-right">
-                                <div className="flex items-center justify-end space-x-1">
-                                  <DollarSign className="h-4 w-4" />
-                                  <span>{encounterItems.reduce((sum, item) => sum + item.total, 0).toFixed(2)}</span>
-                                </div>
-                              </TableCell>
-                              <TableCell colSpan={2}></TableCell>
-                            </TableRow>
-                          </TableBody>
-                        </Table>
-                      </div>
-
-                      {/* Billing Notes */}
-                      <Card>
-                        <CardHeader>
-                          <CardTitle className="text-sm">Billing Notes</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                          <Textarea
-                            placeholder="Add any billing notes, payment arrangements, or special instructions..."
-                            className="min-h-[80px]"
-                          />
-                        </CardContent>
-                      </Card>
-                    </div>
-                  ) : (
-                    <div className="text-center text-muted-foreground py-12">
-                      <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                      <p className="text-lg font-medium mb-2">No Treatments Added</p>
-                      <p className="text-sm">
-                        Go to the Treatment Plan tab to add treatments and services to this encounter.
-                      </p>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            {/* Attachments Tab */}
-            <TabsContent value="attachments" className="space-y-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Paperclip className="h-5 w-5" />
-                    Attachments
-                  </CardTitle>
-                  <CardDescription>
-                    Upload lab results, X-rays, photos, or other diagnostic files
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                  {/* File Upload */}
-                  <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6 text-center">
-                    <Upload className="h-8 w-8 text-muted-foreground mx-auto mb-4" />
-                    <div className="space-y-2">
-                      <h3 className="text-sm font-medium">Upload diagnostic files</h3>
-                      <p className="text-sm text-muted-foreground">
-                        Drag and drop files here, or click to browse
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        Supports: PDF, JPG, PNG, TIFF, DICOM (Max 10MB per file)
-                      </p>
-                    </div>
-                    <input
-                      type="file"
-                      multiple
-                      accept=".pdf,.jpg,.jpeg,.png,.tiff,.dcm"
-                      onChange={handleFileUpload}
-                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                    />
-                  </div>
-
-                  {/* Uploaded Files List */}
-                  {attachments.length > 0 && (
-                    <div className="space-y-4">
-                      <h4 className="text-lg font-semibold">Uploaded Files</h4>
-                      <div className="space-y-2">
-                        {attachments.map((file, index) => (
-                          <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
-                            <div className="flex items-center gap-3">
-                              <div className="p-2 rounded bg-muted">
-                                <FileText className="h-4 w-4" />
-                              </div>
-                              <div>
-                                <p className="font-medium text-sm">{file.name}</p>
-                                <p className="text-xs text-muted-foreground">
-                                  {(file.size / 1024 / 1024).toFixed(2)} MB
-                                </p>
-                              </div>
-                            </div>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => removeAttachment(index)}
-                              className="h-8 w-8 p-0 text-destructive hover:text-destructive"
-                            >
-                              <X className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* File Type Categories */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="space-y-2">
-                      <h4 className="font-medium text-sm">Lab Results</h4>
-                      <ul className="text-xs text-muted-foreground space-y-1">
-                        <li>• Blood chemistry panels</li>
-                        <li>• Complete blood counts</li>
-                        <li>• Urinalysis reports</li>
-                        <li>• Cytology results</li>
-                      </ul>
-                    </div>
-                    <div className="space-y-2">
-                      <h4 className="font-medium text-sm">Imaging</h4>
-                      <ul className="text-xs text-muted-foreground space-y-1">
-                        <li>• X-rays (radiographs)</li>
-                        <li>• Ultrasound images</li>
-                        <li>• CT/MRI scans</li>
-                        <li>• DICOM files</li>
-                      </ul>
-                    </div>
-                    <div className="space-y-2">
-                      <h4 className="font-medium text-sm">Clinical Photos</h4>
-                      <ul className="text-xs text-muted-foreground space-y-1">
-                        <li>• Lesion documentation</li>
-                        <li>• Surgical site photos</li>
-                        <li>• Dental condition images</li>
-                        <li>• Progress photos</li>
-                      </ul>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+                  </CardContent>
+                </Card>
+              </div>
             </TabsContent>
 
           {/* Action Buttons */}
@@ -6762,6 +6840,8 @@ const applyTemplate = (templateName: string, noteId?: string) => {
       </ResizablePanelGroup>
       </div>
       </Tabs>
+      </div>
+      )}
 
       {/* Bottom Panel (collapsible, overlays content when expanded) */}
       <div

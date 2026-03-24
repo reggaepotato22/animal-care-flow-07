@@ -16,9 +16,24 @@ export interface Pet {
   weight?: string;
 }
 
+export type EncounterStatus = "WAITING" | "IN_TRIAGE" | "TRIAGED" | "IN_CONSULTATION" | "IN_SURGERY" | "RECOVERY" | "DISCHARGED";
+
+export interface Encounter {
+  id: string;
+  patientId: string;
+  status: EncounterStatus;
+  startTime: string;
+  endTime?: string;
+  reason: string;
+  chiefComplaint: string;
+  veterinarian: string;
+  notes?: string;
+}
+
 export interface MedicalRecord {
   id: string;
   petId: string;
+  encounterId?: string;
   visitDate: string;
   diagnosis?: string;
   prescription?: string;

@@ -31,8 +31,10 @@ import { Button } from "@/components/ui/button";
 import { FileText } from "lucide-react";
 import { toast } from "sonner";
 import { useWorkflowContext } from "@/contexts/WorkflowContext";
+import { useEncounter } from "@/contexts/EncounterContext";
 
 const newVisitSchema = z.object({
+  type: z.enum(["New Visit", "Start Consultation", "Start Surgery", "Emergency Intake"]),
   reason: z.string().min(1, "Reason for visit is required"),
   chiefComplaint: z.string().min(1, "Chief complaint is required"),
   attendingVet: z.string().min(1, "Attending veterinarian is required"),
@@ -42,7 +44,10 @@ type NewVisitFormData = z.infer<typeof newVisitSchema>;
 
 interface NewVisitDialogProps {
   children?: React.ReactNode;
+  defaultType?: "New Visit" | "Start Consultation" | "Start Surgery" | "Emergency Intake";
 }
+
+const typeOptions = ["New Visit", "Start Consultation", "Start Surgery", "Emergency Intake"];
 
 const reasonOptions = [
   "Annual Checkup",
@@ -67,15 +72,17 @@ const vetOptions = [
   "Dr. Thompson",
 ];
 
-export function NewVisitDialog({ children }: NewVisitDialogProps) {
+export function NewVisitDialog({ children, defaultType = "New Visit" }: NewVisitDialogProps) {
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
   const { id: patientId } = useParams();
   const { setStep, setPatientStatus } = useWorkflowContext();
+  const { createEncounter, setActiveEncounter } = useEncounter();
 
   const form = useForm<NewVisitFormData>({
     resolver: zodResolver(newVisitSchema),
     defaultValues: {
+      type: defaultType,
       reason: "",
       chiefComplaint: "",
       attendingVet: "",
@@ -83,26 +90,29 @@ export function NewVisitDialog({ children }: NewVisitDialogProps) {
   });
 
   const onSubmit = (data: NewVisitFormData) => {
-    console.log("New visit data:", data);
-    toast.success("New visit created successfully!");
+    if (!patientId) return;
+
+    const statusMap: Record<string, any> = {
+      "New Visit": "WAITING",
+      "Start Consultation": "IN_TRIAGE",
+      "Start Surgery": "IN_SURGERY",
+      "Emergency Intake": "IN_TRIAGE"
+    };
+
+    const encounter = createEncounter(patientId, {
+      reason: data.reason,
+      chiefComplaint: data.chiefComplaint,
+      veterinarian: data.attendingVet,
+      status: statusMap[data.type] || "WAITING",
+    });
+
+    setActiveEncounter(encounter);
     
-    if (patientId) {
-      setPatientStatus(patientId, "Active");
-      setStep(patientId, "TRIAGE");
-    }
+    setPatientStatus(patientId, "Active");
+    setStep(patientId, data.type === "Start Surgery" ? "CONSULTATION" : "TRIAGE");
 
     setOpen(false);
     form.reset();
-    
-    // Navigate to new clinical record page with pre-filled data
-    navigate("/records/new", {
-      state: {
-        patientId,
-        veterinarian: data.attendingVet,
-        visitReason: data.reason,
-        chiefComplaint: data.chiefComplaint
-      }
-    });
   };
 
   return (
@@ -122,6 +132,31 @@ export function NewVisitDialog({ children }: NewVisitDialogProps) {
         
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+            <FormField
+              control={form.control}
+              name="type"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Visit Type</FormLabel>
+                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select visit type" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {typeOptions.map((type) => (
+                        <SelectItem key={type} value={type}>
+                          {type}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
             <FormField
               control={form.control}
               name="reason"
