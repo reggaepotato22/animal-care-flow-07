@@ -28,6 +28,10 @@ export interface Encounter {
   chiefComplaint: string;
   veterinarian: string;
   notes?: string;
+  petName?: string;
+  ownerName?: string;
+  appointmentTime?: string;
+  appointmentType?: string;
 }
 
 export interface MedicalRecord {

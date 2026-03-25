@@ -12,6 +12,8 @@ import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { useWorkflowContext } from "@/contexts/WorkflowContext";
+import { useEncounter } from "@/contexts/EncounterContext";
+import { saveHospRecord, HOSP_CHANNEL, type HospRecord } from "@/lib/hospitalizationStore";
 
 interface AdmissionRequestDialogProps {
   children: React.ReactNode;
@@ -38,7 +40,8 @@ interface AdmissionRequest {
 export function AdmissionRequestDialog({ children, patientData }: AdmissionRequestDialogProps) {
   const [open, setOpen] = useState(false);
   const { toast } = useToast();
-  const { setPatientStatus } = useWorkflowContext();
+  const { setPatientStatus, setStep } = useWorkflowContext();
+  const { getActiveEncounterForPatient, updateEncounterStatus } = useEncounter();
   
   const [admissionRequest, setAdmissionRequest] = useState<AdmissionRequest>({
     scheduledDate: new Date(),
@@ -60,28 +63,60 @@ export function AdmissionRequestDialog({ children, patientData }: AdmissionReque
       return;
     }
 
-    // Here you would typically save the admission request to your backend
-    console.log("Creating admission request:", {
-      ...admissionRequest,
-      patientId: patientData?.patientId,
-      patientName: patientData?.patientName,
-      petName: patientData?.petName,
-      species: patientData?.species
-    });
+    const now = new Date();
+    const pid = patientData?.patientId ?? `hosp-${Date.now()}`;
 
-    toast({
-      title: "Admission Request Created",
-      description: `Hospitalization request for ${patientData?.petName || 'patient'} has been submitted successfully.`
-    });
+    // ── 1. Save to hospitalization store ─────────────────────────────────────
+    const record: HospRecord = {
+      id:            `HOSP-${Date.now()}`,
+      patientId:     pid,
+      patientName:   patientData?.patientName ?? "",
+      petName:       patientData?.petName ?? "",
+      species:       patientData?.species ?? "",
+      admissionDate: now.toISOString().split("T")[0],
+      admissionTime: now.toTimeString().slice(0, 5),
+      reason:        admissionRequest.reason,
+      attendingVet:  admissionRequest.attendingVet,
+      ward:          admissionRequest.preferredWard,
+      status:        admissionRequest.priority === "emergency" ? "critical" : "admitted",
+      surgeryStage:  undefined,
+      daysStay:      admissionRequest.estimatedStay,
+      notes:         admissionRequest.specialInstructions,
+      priority:      admissionRequest.priority,
+      stageHistory:  [{ stage: "admitted", timestamp: now.toISOString(), by: admissionRequest.attendingVet }],
+      feedingSchedule: [],
+      createdAt:     now.toISOString(),
+      updatedAt:     now.toISOString(),
+    };
+    saveHospRecord(record);
 
-    // Automatically update patient status to Hospitalized
-    if (patientData?.patientId) {
-      setPatientStatus(patientData.patientId, "Hospitalized");
+    // ── 2. Broadcast to all tabs ──────────────────────────────────────────────
+    try {
+      new BroadcastChannel(HOSP_CHANNEL).postMessage({ type: "hosp_admitted", recordId: record.id, patientId: pid });
+    } catch {}
+
+    // ── 3. Update encounter status + workflow ─────────────────────────────────
+    if (pid) {
+      const enc = getActiveEncounterForPatient(pid);
+      if (enc) updateEncounterStatus(enc.id, "IN_SURGERY");
+      setPatientStatus(pid, "Hospitalized");
+      setStep(pid, "CONSULTATION");
     }
 
+    // ── 4. Notify same tab ────────────────────────────────────────────────────
+    window.dispatchEvent(new CustomEvent("acf:notification", {
+      detail: {
+        type: "info",
+        message: `${patientData?.petName || "Patient"} admitted to ${admissionRequest.preferredWard}`,
+        targetRoles: ["SuperAdmin", "Vet", "Nurse"],
+      },
+    }));
+
+    toast({
+      title: "Patient Admitted",
+      description: `${patientData?.petName || "Patient"} admitted to ${admissionRequest.preferredWard}.`
+    });
     setOpen(false);
-    
-    // Reset form
     setAdmissionRequest({
       scheduledDate: new Date(),
       reason: patientData?.diagnosis || "",
@@ -89,7 +124,7 @@ export function AdmissionRequestDialog({ children, patientData }: AdmissionReque
       priority: "routine",
       estimatedStay: 1,
       specialInstructions: "",
-      preferredWard: "General Ward"
+      preferredWard: "General Ward",
     });
   };
 

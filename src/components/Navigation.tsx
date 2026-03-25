@@ -16,6 +16,8 @@ import {
   Activity,
   CreditCard,
   FileText,
+  Settings2,
+  Palette,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -36,6 +38,8 @@ const navigationItems = [
   { name: "Postmortem", href: "/postmortem", icon: FileText },
   { name: "Team Management", href: "/admin/staff", icon: UsersIcon },
   { name: "Audit Trails", href: "/audit", icon: ScrollText },
+  { name: "Workflow Settings", href: "/workflow-settings", icon: Settings2 },
+  { name: "Appearance", href: "/appearance", icon: Palette },
   { name: "Clinic Settings", href: "/admin/settings", icon: ScrollText },
 ];
 
@@ -46,6 +50,7 @@ export function Navigation() {
   return (
     <nav className={cn(
       "bg-card border-r border-border transition-all duration-300 flex flex-col",
+      "h-screen sticky top-0 shrink-0 overflow-hidden",
       collapsed ? "w-16" : "w-64"
     )}>
       <div className="p-4 border-b border-border">
@@ -80,6 +85,7 @@ export function Navigation() {
             if (item.name === "Audit Trails") return has("can_view_audit");
             if (item.name === "Clinic Settings") return has("can_manage_users");
             if (item.name === "Team Management") return has("can_manage_users");
+            if (item.name === "Workflow Settings") return true; // All roles can access workflow settings
             if (item.name === "Inventory") return has("can_manage_inventory");
             if (item.name === "Pharmacy") return has("can_dispense");
             if (item.name === "Billing") return has("can_access_billing");

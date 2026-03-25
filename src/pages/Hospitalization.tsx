@@ -1,32 +1,25 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, Plus, Hospital, Calendar, Users, FileText } from "lucide-react";
+import { Search, Plus, Hospital, Calendar, Users, FileText, Scissors, AlertTriangle } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AdmissionDetails } from "@/components/hospitalization/AdmissionDetails";
 import { ClinicalOrders } from "@/components/hospitalization/ClinicalOrders";
 import { MonitoringSection } from "@/components/hospitalization/MonitoringSection";
 import { ProgressNotes } from "@/components/hospitalization/ProgressNotes";
+import { FeedingSchedule } from "@/components/hospitalization/FeedingSchedule";
 import { AdmissionRequestDialog } from "@/components/AdmissionRequestDialog";
+import {
+  loadHospRecords, saveHospRecord, subscribeToHospitalization, broadcastHospUpdate,
+  SURGERY_STAGE_LABELS, type HospRecord, type HospStatus,
+} from "@/lib/hospitalizationStore";
 
-interface HospitalizationRecord {
-  id: string;
-  patientName: string;
-  petName: string;
-  species: string;
-  admissionDate: string;
-  admissionTime: string;
-  reason: string;
-  attendingVet: string;
-  ward: string;
-  status: "admitted" | "discharged" | "critical";
-  daysStay: number;
-}
+type HospitalizationRecord = HospRecord;
 
 interface AwaitingAdmissionRecord {
   id: string;
@@ -40,47 +33,39 @@ interface AwaitingAdmissionRecord {
   estimatedStay: number;
 }
 
-const mockRecords: HospitalizationRecord[] = [
+const SEED_RECORDS: HospRecord[] = [
   {
-    id: "H001",
-    patientName: "Sarah Johnson",
-    petName: "Max",
-    species: "Dog (Golden Retriever)",
-    admissionDate: "2024-01-20",
-    admissionTime: "14:30",
-    reason: "Post-surgical monitoring",
-    attendingVet: "Dr. Smith",
-    ward: "Surgery Recovery",
-    status: "admitted",
-    daysStay: 2
+    id: "H001", patientId: "1",
+    patientName: "Sarah Johnson", petName: "Max", species: "Dog (Golden Retriever)",
+    admissionDate: "2024-01-20", admissionTime: "14:30",
+    reason: "Post-surgical monitoring", attendingVet: "Dr. Smith", ward: "Surgery Recovery",
+    status: "recovery", surgeryStage: "POST_SURGERY_RECOVERY", daysStay: 2,
+    createdAt: "2024-01-20T14:30:00Z", updatedAt: "2024-01-20T14:30:00Z",
   },
   {
-    id: "H002",
-    patientName: "Mike Wilson",
-    petName: "Whiskers",
-    species: "Cat (Persian)",
-    admissionDate: "2024-01-19",
-    admissionTime: "09:15",
-    reason: "Severe dehydration",
-    attendingVet: "Dr. Brown",
-    ward: "ICU",
-    status: "critical",
-    daysStay: 3
+    id: "H002", patientId: "2",
+    patientName: "Mike Wilson", petName: "Whiskers", species: "Cat (Persian)",
+    admissionDate: "2024-01-19", admissionTime: "09:15",
+    reason: "Severe dehydration", attendingVet: "Dr. Brown", ward: "ICU",
+    status: "critical", daysStay: 3,
+    createdAt: "2024-01-19T09:15:00Z", updatedAt: "2024-01-19T09:15:00Z",
   },
   {
-    id: "H003",
-    patientName: "Emily Davis",
-    petName: "Bella",
-    species: "Dog (Labrador)",
-    admissionDate: "2024-01-15",
-    admissionTime: "16:45",
-    reason: "Observation post-trauma",
-    attendingVet: "Dr. Johnson",
-    ward: "General Ward",
-    status: "discharged",
-    daysStay: 4
-  }
+    id: "H003", patientId: "3",
+    patientName: "Emily Davis", petName: "Bella", species: "Dog (Labrador)",
+    admissionDate: "2024-01-15", admissionTime: "16:45",
+    reason: "Observation post-trauma", attendingVet: "Dr. Johnson", ward: "General Ward",
+    status: "discharged", surgeryStage: "DISCHARGED", daysStay: 4,
+    createdAt: "2024-01-15T16:45:00Z", updatedAt: "2024-01-15T16:45:00Z",
+  },
 ];
+
+function buildRecords(): HospRecord[] {
+  const stored = loadHospRecords();
+  const merged = [...SEED_RECORDS];
+  stored.forEach(s => { if (!merged.find(m => m.id === s.id)) merged.push(s); });
+  return merged;
+}
 
 const mockAwaitingRecords: AwaitingAdmissionRecord[] = [
   {
@@ -120,8 +105,13 @@ const mockAwaitingRecords: AwaitingAdmissionRecord[] = [
 
 export default function Hospitalization() {
   const navigate = useNavigate();
-  const [records, setRecords] = useState<HospitalizationRecord[]>(mockRecords);
+  const [records, setRecords] = useState<HospRecord[]>(buildRecords);
   const [awaitingRecords, setAwaitingRecords] = useState<AwaitingAdmissionRecord[]>(mockAwaitingRecords);
+
+  useEffect(() => {
+    return subscribeToHospitalization(() => setRecords(buildRecords()));
+  }, []);
+
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedStatus, setSelectedStatus] = useState<string>("all");
   const [selectedRecord, setSelectedRecord] = useState<HospitalizationRecord | null>(null);
@@ -158,8 +148,9 @@ export default function Hospitalization() {
   };
 
   const handleAdmitPatient = (awaitingRecord: AwaitingAdmissionRecord, ward: string) => {
-    const newRecord: HospitalizationRecord = {
+    const newRecord: HospRecord = {
       id: `H${String(records.length + 1).padStart(3, '0')}`,
+      patientId: awaitingRecord.id,
       patientName: awaitingRecord.patientName,
       petName: awaitingRecord.petName,
       species: awaitingRecord.species,
@@ -167,22 +158,35 @@ export default function Hospitalization() {
       admissionTime: new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' }),
       reason: awaitingRecord.reason,
       attendingVet: awaitingRecord.attendingVet,
-      ward: ward,
+      ward,
       status: "admitted",
-      daysStay: 0
+      priority: awaitingRecord.priority,
+      daysStay: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     };
-
-    setRecords([...records, newRecord]);
+    saveHospRecord(newRecord);
+    broadcastHospUpdate();
+    setRecords(buildRecords());
     setAwaitingRecords(awaitingRecords.filter(record => record.id !== awaitingRecord.id));
   };
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case "admitted": return "bg-info/10 text-info border-info/20";
-      case "critical": return "bg-destructive/10 text-destructive border-destructive/20";
-      case "discharged": return "bg-success/10 text-success border-success/20";
-      default: return "bg-muted/10 text-muted-foreground border-muted/20";
+      case "admitted":      return "bg-info/10 text-info border-info/20";
+      case "critical":      return "bg-destructive/10 text-destructive border-destructive/20";
+      case "discharged":    return "bg-success/10 text-success border-success/20";
+      case "surgery_prep":  return "bg-orange-100 text-orange-800 border-orange-300 dark:bg-orange-900/30 dark:text-orange-200";
+      case "in_surgery":    return "bg-red-100 text-red-800 border-red-300 dark:bg-red-900/30 dark:text-red-200";
+      case "recovery":      return "bg-purple-100 text-purple-800 border-purple-300 dark:bg-purple-900/30 dark:text-purple-200";
+      case "in_ward":       return "bg-blue-100 text-blue-800 border-blue-300 dark:bg-blue-900/30 dark:text-blue-200";
+      default:              return "bg-muted/10 text-muted-foreground border-muted/20";
     }
+  };
+
+  const getStatusLabel = (rec: HospRecord) => {
+    if (rec.surgeryStage) return SURGERY_STAGE_LABELS[rec.surgeryStage].label;
+    return rec.status.replace(/_/g, " ");
   };
 
   if (selectedRecord) {
@@ -200,20 +204,25 @@ export default function Hospitalization() {
           </div>
           
           <Badge className={getStatusColor(selectedRecord.status)}>
-            {selectedRecord.status}
+            {getStatusLabel(selectedRecord)}
           </Badge>
         </div>
 
         <Tabs value={detailsTab} onValueChange={setDetailsTab} className="space-y-4">
-          <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="admission">Admission Details</TabsTrigger>
-            <TabsTrigger value="orders">Clinical Orders</TabsTrigger>
-            <TabsTrigger value="monitoring">Monitoring</TabsTrigger>
-            <TabsTrigger value="progress">Progress Notes</TabsTrigger>
+          <TabsList className="flex w-full flex-wrap gap-1 h-auto p-1">
+            <TabsTrigger value="admission" className="flex-1 min-w-[120px]">Admission &amp; Surgery</TabsTrigger>
+            <TabsTrigger value="feeding"   className="flex-1 min-w-[120px]">Feeding Schedule</TabsTrigger>
+            <TabsTrigger value="orders"    className="flex-1 min-w-[120px]">Clinical Orders</TabsTrigger>
+            <TabsTrigger value="monitoring" className="flex-1 min-w-[120px]">Monitoring</TabsTrigger>
+            <TabsTrigger value="progress"  className="flex-1 min-w-[120px]">Progress Notes</TabsTrigger>
           </TabsList>
 
           <TabsContent value="admission">
             <AdmissionDetails record={selectedRecord} />
+          </TabsContent>
+
+          <TabsContent value="feeding">
+            <FeedingSchedule record={selectedRecord} />
           </TabsContent>
 
           <TabsContent value="orders">
@@ -395,7 +404,7 @@ export default function Hospitalization() {
                     <TableHead className="w-32">Attending Vet</TableHead>
                     <TableHead className="w-32">Ward</TableHead>
                     <TableHead className="w-24">Days</TableHead>
-                    <TableHead className="w-28">Status</TableHead>
+                    <TableHead className="w-36">Status / Stage</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -443,10 +452,15 @@ export default function Hospitalization() {
                       <TableCell className="w-24 text-center">
                         {record.daysStay}
                       </TableCell>
-                      <TableCell className="w-28">
+                      <TableCell className="w-36">
                         <Badge className={getStatusColor(record.status)}>
-                          {record.status}
+                          {getStatusLabel(record)}
                         </Badge>
+                        {record.surgeryStage && [
+                          "AWAITING_SURGERY","PREP_FOR_SURGERY","IN_SURGERY"
+                        ].includes(record.surgeryStage) && (
+                          <Scissors className="h-3 w-3 inline ml-1 text-red-500 animate-pulse" />
+                        )}
                       </TableCell>
                     </TableRow>
                   ))}

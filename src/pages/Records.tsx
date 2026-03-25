@@ -67,11 +67,40 @@ const mockRecords: ClinicalRecord[] = [{
   attachments: 0,
   petImage: "/placeholder.svg"
 }];
+function loadSavedRecords(): ClinicalRecord[] {
+  try {
+    const raw = localStorage.getItem("acf_clinical_records");
+    if (!raw) return [];
+    const items = JSON.parse(raw) as Array<{
+      id: string; patientId: string; petName?: string; ownerName?: string;
+      status?: string; savedAt?: string; notes?: unknown[];
+    }>;
+    return items.map(r => ({
+      id:          r.id,
+      patientId:   r.patientId,
+      patientName: r.ownerName ?? "Owner",
+      petName:     r.petName   ?? r.patientId,
+      species:     "—",
+      date:        r.savedAt ? r.savedAt.split("T")[0] : new Date().toISOString().split("T")[0],
+      veterinarian: "—",
+      complaint:   "Consultation record",
+      diagnosis:   "—",
+      treatment:   "—",
+      status:      (r.status as ClinicalRecord["status"]) ?? "ongoing",
+      attachments: 0,
+    }));
+  } catch { return []; }
+}
+
 export default function Records() {
   const navigate = useNavigate();
   const location = useLocation();
   const recordsBase = location.pathname.startsWith("/admin") ? "/admin/records" : "/records";
-  const [records] = useState<ClinicalRecord[]>(mockRecords);
+  // Merge localStorage-saved records (from NewRecord save) with mock records
+  const [records] = useState<ClinicalRecord[]>(() => [
+    ...loadSavedRecords(),
+    ...mockRecords,
+  ]);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedStatus, setSelectedStatus] = useState<string>("all");
   const [expandedRecords, setExpandedRecords] = useState<Set<string>>(new Set());

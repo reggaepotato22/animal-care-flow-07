@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { format, addDays, setHours, setMinutes } from "date-fns";
-import { Calendar, Clock, Plus, Search, Filter, CheckCircle } from "lucide-react";
+import { format, setHours, setMinutes } from "date-fns";
+import { Calendar, Clock, Plus, Search, Filter, CheckCircle, Activity } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,10 +9,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MultiColumnCalendar, Appointment } from "@/components/MultiColumnCalendar";
 import { AppointmentList } from "@/components/AppointmentList";
 import { BookAppointmentDialog } from "@/components/BookAppointmentDialog";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useEncounter } from "@/contexts/EncounterContext";
-import { useWorkflow } from "@/hooks/useWorkflow";
+import { useWorkflowContext } from "@/contexts/WorkflowContext";
 import { useToast } from "@/hooks/use-toast";
+import { useEffect, useMemo, useCallback } from "react";
+import { cn } from "@/lib/utils";
+import { loadStoredAppointments, subscribeToAppointments, type StoredAppointment } from "@/lib/appointmentStore";
 
 // Mock resources (doctors, exam rooms, etc.)
 const mockResources = [
@@ -112,16 +115,79 @@ export const mockAppointments: Appointment[] = [
   },
 ];
 
+const ENC_LABEL: Record<string, { label: string; cls: string; pulse?: boolean }> = {
+  WAITING:         { label: "Awaiting Triage",  cls: "bg-yellow-100 text-yellow-800 border-yellow-300 dark:bg-yellow-900/30 dark:text-yellow-300" },
+  IN_TRIAGE:       { label: "In Triage",         cls: "bg-orange-100 text-orange-800 border-orange-300 dark:bg-orange-900/30 dark:text-orange-300", pulse: true },
+  TRIAGED:         { label: "Triage Complete",   cls: "bg-blue-100 text-blue-800 border-blue-300 dark:bg-blue-900/30 dark:text-blue-300" },
+  IN_CONSULTATION: { label: "In Consultation",   cls: "bg-purple-100 text-purple-800 border-purple-300 dark:bg-purple-900/30 dark:text-purple-300", pulse: true },
+  IN_SURGERY:      { label: "In Surgery",        cls: "bg-red-100 text-red-800 border-red-300 dark:bg-red-900/30 dark:text-red-300", pulse: true },
+  RECOVERY:        { label: "Recovery",          cls: "bg-teal-100 text-teal-800 border-teal-300 dark:bg-teal-900/30 dark:text-teal-300" },
+  DISCHARGED:      { label: "Discharged",        cls: "bg-green-100 text-green-800 border-green-300 dark:bg-green-900/30 dark:text-green-300" },
+};
+
 export default function Appointments() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [searchTerm, setSearchTerm] = useState("");
   const [isBookingDialogOpen, setIsBookingDialogOpen] = useState(false);
-  const { createEncounter } = useEncounter();
-  const wf = useWorkflow();
+  const { createEncounter, encounters } = useEncounter();
+  const { checkIn } = useWorkflowContext();
   const { toast } = useToast();
 
-  const [appointments, setAppointments] = useState(mockAppointments);
+  // Auto-open booking dialog when returning from patient registration
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (params.get("bookNew") === "true") {
+      setIsBookingDialogOpen(true);
+      navigate("/appointments", { replace: true });
+    }
+  }, [location.search, navigate]);
+
+  // Build patientId → live encounter status map (re-derives whenever encounters change)
+  const liveStatuses = useMemo(() => {
+    const map: Record<string, string> = {};
+    encounters.forEach(enc => {
+      if (enc.status !== "DISCHARGED") {
+        map[enc.patientId] = enc.status;
+      } else {
+        map[enc.patientId] = "DISCHARGED";
+      }
+    });
+    return map;
+  }, [encounters]);
+
+  // Merge mock + persisted appointments, refresh on every booking event
+  const buildAppointments = useCallback(() => {
+    const stored = loadStoredAppointments();
+    const merged = [...mockAppointments];
+    stored.forEach((s: StoredAppointment) => {
+      if (!merged.find(m => m.id === s.id)) {
+        merged.push({
+          id:        s.id,
+          petName:   s.petName,
+          ownerName: s.ownerName,
+          date:      new Date(s.date),
+          time:      s.time,
+          duration:  s.duration,
+          type:      s.type,
+          vet:       s.vet,
+          status:    s.status,
+          patientId: s.patientId,
+          notes:     s.notes ?? "",
+        } as Appointment);
+      }
+    });
+    return merged;
+  }, []);
+
+  const [appointments, setAppointments] = useState<Appointment[]>(buildAppointments);
+
+  // Subscribe to cross-tab + same-tab appointment updates
+  useEffect(() => {
+    const unsub = subscribeToAppointments(() => setAppointments(buildAppointments()));
+    return unsub;
+  }, [buildAppointments]);
 
   const todayAppointments = appointments.filter(
     apt => format(apt.date, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd')
@@ -132,24 +198,33 @@ export default function Appointments() {
   );
 
   const handleCheckIn = (appointment: Appointment) => {
-    // Create encounter from appointment data
-    const encounter = createEncounter(appointment.patientId || "1", {
+    const patientId = appointment.patientId || appointment.id;
+    // Create encounter
+    createEncounter(patientId, {
       reason: appointment.type,
       chiefComplaint: appointment.reason || appointment.notes || "",
       veterinarian: appointment.vet,
+      petName: appointment.petName,
+      ownerName: appointment.ownerName,
+    } as Parameters<typeof createEncounter>[1]);
+
+    // Register in workflow context so notifications carry the name
+    checkIn(patientId, {
+      name: appointment.petName,
+      owner: appointment.ownerName,
+      time: appointment.time,
+      type: appointment.type,
+      checkedInAt: new Date().toISOString(),
     });
 
     // Update appointment status
-    setAppointments(prev => prev.map(apt => 
+    setAppointments(prev => prev.map(apt =>
       apt.id === appointment.id ? { ...apt, status: "CHECKED_IN" as const } : apt
     ));
-    
-    // Move workflow to triage
-    wf.goTo("TRIAGE");
-    
+
     toast({
       title: "Checked-in",
-      description: `${appointment.petName} has been checked-in and moved to Triage.`,
+      description: `${appointment.petName} has been checked in → Triage queue.`,
     });
   };
 
@@ -264,6 +339,7 @@ export default function Appointments() {
             }))}
             searchTerm={searchTerm}
             onCheckIn={handleCheckIn}
+            liveStatuses={liveStatuses}
           />
         </TabsContent>
 
@@ -277,43 +353,52 @@ export default function Appointments() {
                 {todayAppointments.length === 0 ? (
                   <p className="text-muted-foreground text-center py-8">No appointments scheduled for today</p>
                 ) : (
-                  <div className="space-y-4">
+                  <div className="space-y-3">
                     {todayAppointments
                       .sort((a, b) => a.time.localeCompare(b.time))
-                      .map((appointment) => (
-                        <div 
-                          key={appointment.id} 
-                          className="flex items-center justify-between p-4 border rounded-lg cursor-pointer hover:bg-muted/50 transition-colors"
-                          onClick={() => navigate(`/appointments/${appointment.id}`)}
-                        >
-                          <div className="flex items-center space-x-4">
-                            <div className="text-sm font-medium">{appointment.time}</div>
-                            <div>
-                              <div className="font-medium">{appointment.petName}</div>
-                              <div className="text-sm text-muted-foreground">{appointment.ownerName}</div>
+                      .map((appointment) => {
+                        const encStatus = appointment.patientId ? liveStatuses[appointment.patientId] : undefined;
+                        const encCfg    = encStatus ? ENC_LABEL[encStatus] : undefined;
+                        return (
+                          <div
+                            key={appointment.id}
+                            className="flex items-center justify-between p-4 border rounded-lg cursor-pointer hover:bg-muted/50 transition-colors"
+                            onClick={() => navigate(`/appointments/${appointment.id}`)}
+                          >
+                            <div className="flex items-center space-x-4">
+                              <div className="text-sm font-semibold w-12 shrink-0">{appointment.time}</div>
+                              <div>
+                                <div className="font-medium">{appointment.petName}</div>
+                                <div className="text-xs text-muted-foreground">{appointment.ownerName} · {appointment.type}</div>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2 flex-wrap justify-end">
+                              {encCfg && (
+                                <span className={cn(
+                                  "inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full border",
+                                  encCfg.cls
+                                )}>
+                                  {encCfg.pulse && <Activity className="h-3 w-3 animate-pulse" />}
+                                  {encCfg.label}
+                                </span>
+                              )}
+                              <Badge variant={appointment.status === "CONFIRMED" ? "default" : appointment.status === "CHECKED_IN" ? "outline" : "secondary"}>
+                                {appointment.status.replace("_", " ")}
+                              </Badge>
+                              {appointment.status !== "CHECKED_IN" && appointment.status !== "CANCELLED" && appointment.status !== "NO_SHOW" && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={(e) => { e.stopPropagation(); handleCheckIn(appointment); }}
+                                >
+                                  <CheckCircle className="h-4 w-4 mr-1" />
+                                  Check-in
+                                </Button>
+                              )}
                             </div>
                           </div>
-                          <div className="flex items-center space-x-2">
-                            <Badge variant={appointment.status === 'CONFIRMED' ? 'default' : appointment.status === 'CHECKED_IN' ? 'outline' : 'secondary'}>
-                              {appointment.status}
-                            </Badge>
-                            <div className="text-sm text-muted-foreground">{appointment.type}</div>
-                            {appointment.status !== 'CHECKED_IN' && appointment.status !== 'CANCELLED' && appointment.status !== 'NO_SHOW' && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleCheckIn(appointment);
-                                }}
-                              >
-                                <CheckCircle className="h-4 w-4 mr-1" />
-                                Check-in
-                              </Button>
-                            )}
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                   </div>
                 )}
               </CardContent>

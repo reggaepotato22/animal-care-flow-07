@@ -1,4 +1,4 @@
-import { Bell, Search as SearchIcon, User, AlertCircle, LogOut, Sun, Moon, Leaf, Shield, Activity } from "lucide-react";
+import { Bell, Search as SearchIcon, User, AlertCircle, LogOut, Sun, Moon, Leaf, Shield, Activity, CheckCheck, Trash2, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -11,7 +11,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import { formatDistanceToNow, subMinutes, subHours, subSeconds } from "date-fns";
+import { formatDistanceToNow } from "date-fns";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "next-themes";
@@ -19,40 +19,8 @@ import { useRole } from "@/contexts/RoleContext";
 import * as React from "react";
 import { GlobalSearch } from "@/components/GlobalSearch";
 import { WorkflowProgress } from "@/components/WorkflowProgress";
-
-// Mock notifications data - in a real app this would come from a context or API
-const notifications = [
-  { 
-    id: 1, 
-    message: "Rocky needs immediate attention", 
-    type: "critical",
-    timestamp: subMinutes(new Date(), 5)
-  },
-  { 
-    id: 2, 
-    message: "Inventory low: Heartworm medication", 
-    type: "warning",
-    timestamp: subHours(new Date(), 2)
-  },
-  { 
-    id: 3, 
-    message: "Patient Max - Lab results ready for review", 
-    type: "info",
-    timestamp: subMinutes(new Date(), 15)
-  },
-  { 
-    id: 4, 
-    message: "Emergency case arrived - Dr. Johnson requested", 
-    type: "critical",
-    timestamp: subSeconds(new Date(), 30)
-  },
-  { 
-    id: 5, 
-    message: "Vaccination due: Luna (Rabies)", 
-    type: "warning",
-    timestamp: subHours(new Date(), 4)
-  },
-];
+import { useNotifications } from "@/contexts/NotificationContext";
+import { cn } from "@/lib/utils";
 
 export function Header() {
   const navigate = useNavigate();
@@ -60,7 +28,7 @@ export function Header() {
   const { user, logout } = useAuth();
   const { theme, setTheme } = useTheme();
   const { role, setRole } = useRole();
-  const unreadCount = notifications.filter(n => n.type === 'critical' || n.type === 'warning').length;
+  const { notifications, unreadCount, markRead, markAllRead, clearAll } = useNotifications();
   const [searchOpen, setSearchOpen] = React.useState(false);
   const [headerQuery, setHeaderQuery] = React.useState("");
 
@@ -88,12 +56,10 @@ export function Header() {
 
   const getNotificationColor = (type: string) => {
     switch (type) {
-      case 'critical':
-        return 'border-destructive bg-destructive/10';
-      case 'warning':
-        return 'border-warning bg-warning/10';
-      default:
-        return 'border-primary bg-primary/10';
+      case 'critical': return 'border-destructive bg-destructive/10';
+      case 'warning':  return 'border-warning bg-warning/10';
+      case 'success':  return 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/30';
+      default:         return 'border-primary bg-primary/10';
     }
   };
 
@@ -143,71 +109,66 @@ export function Header() {
                 <Button variant="ghost" size="icon" className="relative">
                   <Bell className="h-5 w-5" />
                   {unreadCount > 0 && (
-                    <span className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground text-xs rounded-full h-5 w-5 flex items-center justify-center">
-                      {unreadCount}
+                    <span className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground text-[10px] font-bold rounded-full h-4 w-4 flex items-center justify-center">
+                      {unreadCount > 9 ? "9+" : unreadCount}
                     </span>
                   )}
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-80 p-0">
+              <DropdownMenuContent align="end" className="w-[340px] p-0">
                 <DropdownMenuLabel className="flex items-center justify-between px-4 py-3">
-                  <span className="flex items-center gap-2">
-                    <AlertCircle className="h-4 w-4" />
+                  <span className="flex items-center gap-2 text-sm font-semibold">
+                    <Bell className="h-4 w-4" />
                     Notifications
+                    {unreadCount > 0 && (
+                      <Badge variant="destructive" className="text-[10px] px-1.5 py-0 h-4">{unreadCount} new</Badge>
+                    )}
                   </span>
-                  <Badge variant="secondary" className="text-xs">
-                    {notifications.length}
-                  </Badge>
+                  <div className="flex items-center gap-1">
+                    <Button variant="ghost" size="icon" className="h-6 w-6" title="Mark all read" onClick={markAllRead}>
+                      <CheckCheck className="h-3 w-3" />
+                    </Button>
+                    <Button variant="ghost" size="icon" className="h-6 w-6" title="Clear all" onClick={clearAll}>
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  </div>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <ScrollArea className="h-[400px]">
+                <ScrollArea className="h-[380px]">
                   {notifications.length === 0 ? (
-                    <div className="text-center py-8 text-muted-foreground text-sm">
-                      No notifications
+                    <div className="flex flex-col items-center justify-center py-10 text-center text-muted-foreground">
+                      <Bell className="h-8 w-8 mb-2 opacity-20" />
+                      <p className="text-sm">No notifications yet</p>
+                      <p className="text-xs mt-1">Workflow updates will appear here</p>
                     </div>
                   ) : (
-                    <div className="p-2">
-                      {notifications.map((notification) => (
+                    <div className="p-2 space-y-1">
+                      {notifications.map((n) => (
                         <div
-                          key={notification.id}
-                          className={`p-3 rounded-lg border-l-4 mb-2 cursor-pointer hover:bg-muted/50 transition-colors ${getNotificationColor(notification.type)}`}
-                          onClick={() => navigate("/")}
+                          key={n.id}
+                          onClick={() => markRead(n.id)}
+                          className={cn(
+                            "p-3 rounded-lg border-l-4 cursor-pointer hover:bg-muted/50 transition-colors",
+                            getNotificationColor(n.type),
+                            !n.read && "ring-1 ring-inset ring-primary/20"
+                          )}
                         >
                           <div className="flex items-start justify-between gap-2">
-                            <p className="text-sm flex-1">{notification.message}</p>
-                            <span className="text-xs text-muted-foreground whitespace-nowrap">
-                              {formatDistanceToNow(notification.timestamp, { addSuffix: true })}
+                            <p className={cn("text-xs flex-1", !n.read && "font-semibold")}>{n.message}</p>
+                            <span className="text-[10px] text-muted-foreground whitespace-nowrap shrink-0">
+                              {formatDistanceToNow(new Date(n.timestamp), { addSuffix: true })}
                             </span>
                           </div>
-                          <div className="flex items-center gap-2 mt-2">
-                            <Badge
-                              variant={
-                                notification.type === 'critical'
-                                  ? 'destructive'
-                                  : notification.type === 'warning'
-                                  ? 'default'
-                                  : 'secondary'
-                              }
-                              className="text-xs"
-                            >
-                              {notification.type}
+                          {n.step && (
+                            <Badge variant="outline" className="text-[9px] mt-1 px-1.5 py-0 h-3.5">
+                              {n.step}
                             </Badge>
-                          </div>
+                          )}
                         </div>
                       ))}
                     </div>
                   )}
                 </ScrollArea>
-                <DropdownMenuSeparator />
-                <div className="p-2">
-                  <Button
-                    variant="ghost"
-                    className="w-full justify-center text-sm"
-                    onClick={() => navigate("/")}
-                  >
-                    View All Notifications
-                  </Button>
-                </div>
               </DropdownMenuContent>
             </DropdownMenu>
             
@@ -241,8 +202,14 @@ export function Header() {
                   </>
                 )}
                 <DropdownMenuSeparator />
-                <DropdownMenuItem>Profile</DropdownMenuItem>
-                <DropdownMenuItem>Settings</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => navigate("/profile")} className="gap-2">
+                  <User className="h-4 w-4" />
+                  Profile
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => navigate("/workflow-settings")} className="gap-2">
+                  <Settings className="h-4 w-4" />
+                  Settings
+                </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleLogout}>
                   <LogOut className="mr-2 h-4 w-4" />

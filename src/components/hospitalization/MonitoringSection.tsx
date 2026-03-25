@@ -34,7 +34,7 @@ interface NursingNote {
   id: string;
   timestamp: string;
   shift: string;
-  nurse: string;
+  attendant: string;
   category: string;
   note: string;
   priority: "normal" | "important" | "critical";
@@ -43,6 +43,17 @@ interface NursingNote {
 interface MonitoringSectionProps {
   record: HospitalizationRecord;
 }
+
+const getAttendantLabel = (): string => {
+  try {
+    const raw = localStorage.getItem("acf_role_labels");
+    if (raw) {
+      const map = JSON.parse(raw) as Record<string, string>;
+      return map["Nurse"] ?? "Attendant";
+    }
+  } catch {}
+  return "Attendant";
+};
 
 export function MonitoringSection({ record }: MonitoringSectionProps) {
   const { toast } = useToast();
@@ -56,7 +67,7 @@ export function MonitoringSection({ record }: MonitoringSectionProps) {
       weight: 32.5,
       hydrationStatus: "Well hydrated",
       painScore: 2,
-      recordedBy: "Nurse Johnson"
+      recordedBy: "Attendant Johnson"
     },
     {
       id: "V002",
@@ -67,7 +78,7 @@ export function MonitoringSection({ record }: MonitoringSectionProps) {
       weight: 32.3,
       hydrationStatus: "Well hydrated",
       painScore: 1,
-      recordedBy: "Nurse Williams"
+      recordedBy: "Attendant Williams"
     }
   ]);
 
@@ -76,7 +87,7 @@ export function MonitoringSection({ record }: MonitoringSectionProps) {
       id: "N001",
       timestamp: "2024-01-21 06:30",
       shift: "Day",
-      nurse: "Nurse Johnson",
+      attendant: "Attendant Johnson",
       category: "General",
       note: "Patient alert and responsive. Appetite good, ate 75% of breakfast. Wound site clean and dry. No signs of infection.",
       priority: "normal"
@@ -85,7 +96,7 @@ export function MonitoringSection({ record }: MonitoringSectionProps) {
       id: "N002",
       timestamp: "2024-01-21 14:15",
       shift: "Day",
-      nurse: "Nurse Williams",
+      attendant: "Attendant Williams",
       category: "Medication",
       note: "Administered Tramadol 2mg/kg PO. Patient tolerated well, no adverse reactions observed.",
       priority: "normal"
@@ -94,7 +105,7 @@ export function MonitoringSection({ record }: MonitoringSectionProps) {
       id: "N003",
       timestamp: "2024-01-21 18:45",
       shift: "Evening",
-      nurse: "Nurse Davis",
+      attendant: "Attendant Davis",
       category: "Behavior",
       note: "Patient restless, whining intermittently. Pain score increased to 3/10. Additional pain medication given per protocol.",
       priority: "important"
@@ -115,7 +126,7 @@ export function MonitoringSection({ record }: MonitoringSectionProps) {
   const [isAddNoteOpen, setIsAddNoteOpen] = useState(false);
   const [newNote, setNewNote] = useState({
     shift: "Day",
-    nurse: "",
+    attendant: "",
     category: "General",
     note: "",
     priority: "normal" as "normal" | "important" | "critical"
@@ -167,7 +178,7 @@ export function MonitoringSection({ record }: MonitoringSectionProps) {
   };
 
   const handleAddNote = () => {
-    if (!newNote.nurse || !newNote.note) {
+    if (!newNote.attendant || !newNote.note) {
       toast({
         title: "Missing information",
         description: "Please fill in all required fields.",
@@ -180,7 +191,7 @@ export function MonitoringSection({ record }: MonitoringSectionProps) {
       id: `N${String(nursingNotes.length + 1).padStart(3, '0')}`,
       timestamp: new Date().toISOString().replace('T', ' ').substring(0, 16),
       shift: newNote.shift,
-      nurse: newNote.nurse,
+      attendant: newNote.attendant,
       category: newNote.category,
       note: newNote.note,
       priority: newNote.priority
@@ -189,7 +200,7 @@ export function MonitoringSection({ record }: MonitoringSectionProps) {
     setNursingNotes([...nursingNotes, nursingNote]);
     setNewNote({
       shift: "Day",
-      nurse: "",
+      attendant: "",
       category: "General",
       note: "",
       priority: "normal"
@@ -223,7 +234,7 @@ export function MonitoringSection({ record }: MonitoringSectionProps) {
     <Tabs defaultValue="vitals" className="space-y-4">
       <TabsList className="grid w-full grid-cols-2">
         <TabsTrigger value="vitals">Vital Signs</TabsTrigger>
-        <TabsTrigger value="nursing">Nursing Notes</TabsTrigger>
+        <TabsTrigger value="nursing">{getAttendantLabel()} Notes</TabsTrigger>
       </TabsList>
 
       <TabsContent value="vitals">
@@ -329,7 +340,7 @@ export function MonitoringSection({ record }: MonitoringSectionProps) {
                         id="recorded-by"
                         value={newVitals.recordedBy}
                         onChange={(e) => setNewVitals({...newVitals, recordedBy: e.target.value})}
-                        placeholder="e.g., Nurse Johnson"
+                        placeholder={`e.g., ${getAttendantLabel()} Johnson`}
                       />
                     </div>
                   </div>
@@ -404,7 +415,7 @@ export function MonitoringSection({ record }: MonitoringSectionProps) {
             <div className="flex justify-between items-center">
               <CardTitle className="flex items-center gap-2">
                 <FileText className="h-5 w-5" />
-                Nursing Notes
+                {getAttendantLabel()} Notes
               </CardTitle>
               <Dialog open={isAddNoteOpen} onOpenChange={setIsAddNoteOpen}>
                 <DialogTrigger asChild>
@@ -415,9 +426,9 @@ export function MonitoringSection({ record }: MonitoringSectionProps) {
                 </DialogTrigger>
                 <DialogContent className="sm:max-w-[500px]">
                   <DialogHeader>
-                    <DialogTitle>Add Nursing Note</DialogTitle>
+                    <DialogTitle>Add {getAttendantLabel()} Note</DialogTitle>
                     <DialogDescription>
-                      Add a new nursing note for {record.petName}
+                      Add a new {getAttendantLabel()} note for {record.petName}
                     </DialogDescription>
                   </DialogHeader>
                   <div className="grid gap-4 py-4">
@@ -436,12 +447,12 @@ export function MonitoringSection({ record }: MonitoringSectionProps) {
                         </Select>
                       </div>
                       <div className="grid gap-2">
-                        <Label htmlFor="nurse">Nurse *</Label>
+                        <Label htmlFor="attendant">{getAttendantLabel()} *</Label>
                         <Input
-                          id="nurse"
-                          value={newNote.nurse}
-                          onChange={(e) => setNewNote({...newNote, nurse: e.target.value})}
-                          placeholder="e.g., Nurse Johnson"
+                          id="attendant"
+                          value={newNote.attendant}
+                          onChange={(e) => setNewNote({...newNote, attendant: e.target.value})}
+                          placeholder={`e.g., ${getAttendantLabel()} Johnson`}
                         />
                       </div>
                     </div>
@@ -515,7 +526,7 @@ export function MonitoringSection({ record }: MonitoringSectionProps) {
                       <Badge variant="secondary">{note.category}</Badge>
                     </div>
                     <span className="text-sm text-muted-foreground">
-                      {note.nurse}
+                      {note.attendant}
                     </span>
                   </div>
                   <p className="text-sm leading-relaxed">{note.note}</p>
