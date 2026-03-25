@@ -79,9 +79,10 @@ export default function Triage() {
         return {
           id: enc.id,
           patientId: enc.patientId,
-          petName: patient?.name || "Unknown Patient",
-          species: patient ? `${patient.species} (${patient.breed})` : "Unknown",
-          ownerName: patient?.owner || "Unknown Owner",
+          // Use encounter's petName first (from check-in), fallback to mockPatients
+          petName: patient?.name || enc.petName || "Unknown Patient",
+          species: patient ? `${patient.species} (${patient.breed})` : enc.appointmentType || "Unknown",
+          ownerName: patient?.owner || enc.ownerName || "Unknown Owner",
           arrivalTime: new Date(enc.startTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
           status: enc.status
         };
@@ -153,15 +154,29 @@ export default function Triage() {
     });
   };
 
-  const markStatus = (status: EncounterStatus) => {
-    if (selectedId) {
-      updateEncounterStatus(selectedId, status);
-      
+  const markStatus = (status: EncounterStatus, encounterId?: string) => {
+    const targetId = encounterId || selectedId;
+    if (targetId) {
+      updateEncounterStatus(targetId, status);
       // If marking as in-progress, ensure workflow reflects TRIAGE
-      if (status === "IN_TRIAGE" && selectedEncounter?.patientId) {
+      const targetEnc = encounters.find(e => e.id === targetId);
+      if (status === "IN_TRIAGE" && targetEnc?.patientId) {
         patientWorkflow.goTo("TRIAGE");
       }
     }
+  };
+
+  const handleStartTriage = (encId: string, patientId: string) => {
+    setSelectedId(encId);
+    updateEncounterStatus(encId, "IN_TRIAGE");
+    // Broadcast to other tabs (WorkflowContext.setStep also broadcasts)
+    const channel = new BroadcastChannel("acf_workflow_updates");
+    channel.postMessage({
+      type: "STEP_UPDATE",
+      payload: { patientId, step: "TRIAGE" },
+    });
+    channel.close();
+    toast({ title: "Triage Started", description: "Patient intake is now in progress." });
   };
 
   const handleMarkAsReady = () => {
@@ -230,6 +245,7 @@ export default function Triage() {
         <div className="mb-4">
           <EncounterHeader 
             encounter={selectedEncounter}
+            onStatusChange={(status) => markStatus(status)}
             onStatusChipClass={(s) => 
               s === "WAITING" ? "bg-yellow-100 text-yellow-800" :
               s === "IN_TRIAGE" ? "bg-orange-100 text-orange-800" :
@@ -291,16 +307,40 @@ export default function Triage() {
                     }`}
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <div>
-                        <p className="text-sm font-semibold">{patient.petName}</p>
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold truncate">{patient.petName}</p>
                         <p className="text-[11px] text-muted-foreground line-clamp-1">{patient.species}</p>
                       </div>
-                      <Badge variant="outline" className={getStatusBadge(patient.status)}>{patient.status}</Badge>
+                      <Badge variant="outline" className={getStatusBadge(patient.status)}>
+                        {patient.status === "WAITING" ? "Waiting" : patient.status === "IN_TRIAGE" ? "In Progress" : "Ready"}
+                      </Badge>
                     </div>
                     <div className="mt-2 flex items-center justify-between text-[11px] text-muted-foreground">
-                      <span className="truncate max-w-[120px]">{patient.ownerName}</span>
+                      <span className="truncate max-w-[110px]">{patient.ownerName}</span>
                       <span>{patient.arrivalTime}</span>
                     </div>
+                    {/* Start Triage button — visible for WAITING patients */}
+                    {patient.status === "WAITING" && (
+                      <div className="mt-2 pt-2 border-t border-border/40">
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); handleStartTriage(patient.id, patient.patientId); }}
+                          className="w-full text-center text-[11px] font-semibold text-primary bg-primary/10 hover:bg-primary/20 rounded-md py-1 transition-colors"
+                        >
+                          ▶ Start Triage
+                        </button>
+                      </div>
+                    )}
+                    {patient.status === "IN_TRIAGE" && (
+                      <div className="mt-2 pt-2 border-t border-border/40">
+                        <span className="text-[10px] font-semibold text-warning">● Triage in progress</span>
+                      </div>
+                    )}
+                    {patient.status === "TRIAGED" && (
+                      <div className="mt-2 pt-2 border-t border-border/40">
+                        <span className="text-[10px] font-semibold text-success">✓ Ready for consultation</span>
+                      </div>
+                    )}
                   </button>
                 ))}
               </div>

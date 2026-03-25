@@ -29,8 +29,8 @@ export default function PatientDetails() {
   const navigate = useNavigate();
   const { has } = useRole();
   const { toast } = useToast();
-  const { encounters } = useEncounter();
-  const { setPatientStatus } = useWorkflowContext();
+  const { encounters, getActiveEncounterForPatient, updateEncounterStatus } = useEncounter();
+  const { setPatientStatus, setStep } = useWorkflowContext();
 
   const patient = useMemo(() => {
     return mockPatients.find(p => p.id === id || p.patientId === id);

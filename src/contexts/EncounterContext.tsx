@@ -10,21 +10,75 @@ interface EncounterContextValue {
   setActiveEncounter: (encounter: Encounter | null) => void;
   getEncountersByPatient: (patientId: string) => Encounter[];
   getWaitingEncounters: () => Encounter[];
+  getActiveEncounterForPatient: (patientId: string) => Encounter | undefined;
 }
 
 const EncounterContext = createContext<EncounterContextValue | null>(null);
 
 const STORAGE_KEY = "acf_encounters";
+const encounterChannel = new BroadcastChannel("acf_encounter_updates");
+
+const STEP_LABELS: Record<string, string> = {
+  WAITING: "awaiting triage",
+  IN_TRIAGE: "triage in progress",
+  TRIAGED: "triage complete — ready for vet",
+  IN_CONSULTATION: "in consultation",
+  IN_SURGERY: "in surgery",
+  RECOVERY: "in recovery",
+  DISCHARGED: "discharged",
+};
 
 export function EncounterProvider({ children }: { children: React.ReactNode }) {
   const [encounters, setEncounters] = useState<Encounter[]>(() => {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    return stored ? JSON.parse(stored) : [];
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      return stored ? JSON.parse(stored) : [];
+    } catch { return []; }
   });
   const [activeEncounter, setActiveEncounter] = useState<Encounter | null>(null);
 
+  // Persist to localStorage whenever encounters change
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(encounters));
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(encounters)); } catch {}
+  }, [encounters]);
+
+  // Cross-tab sync via BroadcastChannel
+  useEffect(() => {
+    const handle = (event: MessageEvent) => {
+      const { type, payload } = event.data as { type: string; payload: Record<string, unknown> };
+
+      if (type === "ENCOUNTER_CREATED") {
+        const enc = payload as unknown as Encounter;
+        setEncounters(prev => prev.find(e => e.id === enc.id) ? prev : [...prev, enc]);
+      } else if (type === "ENCOUNTER_STATUS_UPDATE") {
+        const { encounterId, status, endTime } = payload as {
+          encounterId: string; status: EncounterStatus; endTime?: string;
+        };
+        setEncounters(prev =>
+          prev.map(enc =>
+            enc.id === encounterId ? { ...enc, status, ...(endTime ? { endTime } : {}) } : enc
+          )
+        );
+        setActiveEncounter(prev =>
+          prev?.id === encounterId ? { ...prev, status } : prev
+        );
+        // Dispatch local notification for cross-tab updates
+        const enc = encounters.find(e => e.id === encounterId);
+        if (enc) {
+          window.dispatchEvent(new CustomEvent("acf:notification", {
+            detail: {
+              type: status === "TRIAGED" ? "success" : "info",
+              patientId: enc.patientId,
+              patientName: enc.petName,
+              step: status,
+              message: `${enc.petName || "A patient"} — ${STEP_LABELS[status] ?? status}`,
+            },
+          }));
+        }
+      }
+    };
+    encounterChannel.addEventListener("message", handle);
+    return () => encounterChannel.removeEventListener("message", handle);
   }, [encounters]);
 
   const createEncounter = (patientId: string, data: Partial<Encounter>): Encounter => {
@@ -38,61 +92,63 @@ export function EncounterProvider({ children }: { children: React.ReactNode }) {
       veterinarian: data.veterinarian || "",
       ...data,
     };
-
-    setEncounters((prev) => [...prev, newEncounter]);
-    toast.success("New visit created successfully!");
+    setEncounters(prev => [...prev, newEncounter]);
+    encounterChannel.postMessage({ type: "ENCOUNTER_CREATED", payload: newEncounter });
+    toast.success(`Visit created for ${newEncounter.petName || "patient"}`);
     return newEncounter;
   };
 
   const updateEncounterStatus = (encounterId: string, status: EncounterStatus) => {
-    setEncounters((prev) =>
-      prev.map((enc) =>
-        enc.id === encounterId
-          ? {
-              ...enc,
-              status,
-              endTime: status === "DISCHARGED" ? new Date().toISOString() : enc.endTime,
-            }
-          : enc
+    const endTime = status === "DISCHARGED" ? new Date().toISOString() : undefined;
+    setEncounters(prev =>
+      prev.map(enc =>
+        enc.id === encounterId ? { ...enc, status, ...(endTime ? { endTime } : {}) } : enc
       )
     );
-
-    if (activeEncounter?.id === encounterId) {
-      setActiveEncounter((prev) => (prev ? { ...prev, status } : null));
-    }
-    
-    toast.success(`Encounter status updated to ${status}`);
+    setActiveEncounter(prev =>
+      prev?.id === encounterId ? { ...prev, status } : prev
+    );
+    encounterChannel.postMessage({
+      type: "ENCOUNTER_STATUS_UPDATE",
+      payload: { encounterId, status, ...(endTime ? { endTime } : {}) },
+    });
+    // Same-tab notification
+    const enc = encounters.find(e => e.id === encounterId);
+    window.dispatchEvent(new CustomEvent("acf:notification", {
+      detail: {
+        type: status === "TRIAGED" ? "success" : status === "DISCHARGED" ? "info" : "info",
+        patientId: enc?.patientId,
+        patientName: enc?.petName,
+        step: status,
+        message: `${enc?.petName || "Patient"} — ${STEP_LABELS[status] ?? status}`,
+      },
+    }));
+    toast.success(`Status updated: ${STEP_LABELS[status] ?? status}`);
   };
 
-  const getEncountersByPatient = (patientId: string) => {
-    return encounters.filter((enc) => enc.patientId === patientId);
-  };
+  const getEncountersByPatient = (patientId: string) =>
+    encounters.filter(enc => enc.patientId === patientId);
 
-  const getWaitingEncounters = () => {
-    return encounters.filter((enc) => enc.status === "WAITING");
-  };
+  const getWaitingEncounters = () =>
+    encounters.filter(enc => enc.status === "WAITING");
+
+  const getActiveEncounterForPatient = (patientId: string) =>
+    encounters.find(enc =>
+      enc.patientId === patientId &&
+      !["DISCHARGED"].includes(enc.status)
+    );
 
   const value: EncounterContextValue = {
-    encounters,
-    activeEncounter,
-    createEncounter,
-    updateEncounterStatus,
-    setActiveEncounter,
-    getEncountersByPatient,
-    getWaitingEncounters,
+    encounters, activeEncounter,
+    createEncounter, updateEncounterStatus, setActiveEncounter,
+    getEncountersByPatient, getWaitingEncounters, getActiveEncounterForPatient,
   };
 
-  return (
-    <EncounterContext.Provider value={value}>
-      {children}
-    </EncounterContext.Provider>
-  );
+  return <EncounterContext.Provider value={value}>{children}</EncounterContext.Provider>;
 }
 
 export function useEncounter() {
   const ctx = useContext(EncounterContext);
-  if (!ctx) {
-    throw new Error("useEncounter must be used within EncounterProvider");
-  }
+  if (!ctx) throw new Error("useEncounter must be used within EncounterProvider");
   return ctx;
 }

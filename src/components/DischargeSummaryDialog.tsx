@@ -33,6 +33,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { toast } from "@/components/ui/use-toast";
 import { useWorkflowContext } from "@/contexts/WorkflowContext";
+import { useEncounter } from "@/contexts/EncounterContext";
 
 const dischargeSummarySchema = z.object({
   dischargeDate: z.date({
@@ -57,7 +58,8 @@ interface DischargeSummaryDialogProps {
 export function DischargeSummaryDialog({ children, patientId }: DischargeSummaryDialogProps) {
   const [open, setOpen] = useState(false);
   const { setPatientStatus, setStep } = useWorkflowContext();
-  
+  const { getActiveEncounterForPatient, updateEncounterStatus } = useEncounter();
+
   const form = useForm<DischargeSummaryData>({
     resolver: zodResolver(dischargeSummarySchema),
     defaultValues: {
@@ -74,27 +76,46 @@ export function DischargeSummaryDialog({ children, patientId }: DischargeSummary
 
   const onSubmit = async (data: DischargeSummaryData) => {
     try {
-      // In a real app, this would make an API call
-      console.log("Discharge summary data:", data);
-      
-      toast({
-        title: "Discharge Summary Created",
-        description: "The discharge summary has been successfully generated.",
-      });
-
+      // ── 1. Update active encounter status ────────────────────────────────
       if (patientId) {
+        const enc = getActiveEncounterForPatient(patientId);
+        if (enc) updateEncounterStatus(enc.id, "DISCHARGED");
         setPatientStatus(patientId, "Discharged");
         setStep(patientId, "COMPLETED");
       }
-      
+
+      // ── 2. Persist discharge record to acf_clinical_records ──────────────
+      try {
+        const stored: unknown[] = JSON.parse(localStorage.getItem("acf_clinical_records") ?? "[]");
+        stored.unshift({
+          type: "discharge",
+          patientId,
+          diagnosis: data.diagnosis,
+          treatmentSummary: data.treatmentSummary,
+          medications: data.medications,
+          followUp: data.followUpInstructions,
+          nextAppointment: data.nextAppointment,
+          veterinarian: data.veterinarian,
+          notes: data.additionalNotes,
+          dischargeDate: data.dischargeDate.toISOString(),
+          createdAt: new Date().toISOString(),
+          status: "DISCHARGED",
+        });
+        localStorage.setItem("acf_clinical_records", JSON.stringify(stored));
+        // Broadcast so Dashboard + Hospitalization refresh
+        try { new BroadcastChannel("acf_hospitalization_channel").postMessage({ type: "patient_discharged", patientId }); } catch {}
+      } catch {}
+
+      // ── 3. Notify ────────────────────────────────────────────────────
+      window.dispatchEvent(new CustomEvent("acf:notification", {
+        detail: { type: "success", message: `Patient discharged — ${data.diagnosis}`, patientId },
+      }));
+
+      toast({ title: "Discharge Summary Created", description: "Patient has been successfully discharged." });
       setOpen(false);
       form.reset();
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to create discharge summary. Please try again.",
-        variant: "destructive",
-      });
+    } catch {
+      toast({ title: "Error", description: "Failed to create discharge summary.", variant: "destructive" });
     }
   };
 

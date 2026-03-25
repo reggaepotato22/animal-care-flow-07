@@ -1,4 +1,5 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { formatCurrency } from "@/pages/WorkflowSettings";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -95,7 +96,7 @@ export default function Reports() {
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">$35,300</div>
+            <div className="text-2xl font-bold">{formatCurrency(35300)}</div>
             <p className="text-xs text-muted-foreground">
               <span className="text-green-500">+15%</span> from last month
             </p>
@@ -108,7 +109,7 @@ export default function Reports() {
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">$81</div>
+            <div className="text-2xl font-bold">{formatCurrency(81)}</div>
             <p className="text-xs text-muted-foreground">
               <span className="text-green-500">+3%</span> from last month
             </p>

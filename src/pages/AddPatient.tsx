@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useWorkflow } from "@/hooks/useWorkflow";
 import { useRole } from "@/contexts/RoleContext";
 import { useForm } from "react-hook-form";
@@ -52,6 +52,8 @@ type PatientFormData = z.infer<typeof patientSchema>;
 
 export default function AddPatient() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const returnTo = new URLSearchParams(location.search).get("returnTo");
   const { has } = useRole();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -97,11 +99,28 @@ export default function AddPatient() {
 
   const onSubmit = async (data: PatientFormData) => {
     setIsSubmitting(true);
-    
+
     // Simulate API call delay
     await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    console.log("Patient data:", { ...data, patientId });
+
+    // Persist to localStorage so BookAppointmentDialog can find this patient
+    try {
+      const raw = localStorage.getItem("acf_known_patients");
+      const existing = raw ? JSON.parse(raw) as Array<Record<string, string>> : [];
+      const newEntry = {
+        patientId,
+        petName:    data.name,
+        ownerName:  data.ownerName,
+        ownerPhone: data.ownerPhone,
+        ownerEmail: data.ownerEmail,
+        species:    data.species,
+      };
+      if (!existing.find((p) => p.patientId === patientId)) {
+        existing.push(newEntry);
+      }
+      localStorage.setItem("acf_known_patients", JSON.stringify(existing));
+    } catch {}
+
     try {
       const { logChange } = await import("@/lib/audit");
       logChange({
@@ -114,17 +133,29 @@ export default function AddPatient() {
         reason: "Registration",
       });
     } catch {}
-    
+
     toast({
       title: "Patient Added Successfully",
-      description: `${data.name} has been added with ID: ${patientId}`,
+      description: `${data.name} has been added with ID: ${patientId}. ${
+        returnTo === "appointments"
+          ? "Returning to appointment booking…"
+          : ""
+      }`,
     });
-    
+
     // Set workflow to TRIAGE (Check-in)
     wf.goTo("TRIAGE");
-    
+
     setIsSubmitting(false);
-    navigate("/patients");
+
+    // Return to appointment booking if that's where we came from
+    if (returnTo === "appointments") {
+      // Stamp the ID so the dialog can auto-select this patient immediately
+      localStorage.setItem("acf_last_registered_patient", patientId);
+      navigate("/appointments?bookNew=true");
+    } else {
+      navigate("/patients");
+    }
   };
 
   return (

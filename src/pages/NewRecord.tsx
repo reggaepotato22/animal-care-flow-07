@@ -9,9 +9,10 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, FileText, Calendar as CalendarIcon, User, Pill, Download, X, ArrowLeft, Plus, Paperclip, Upload, History, AlertTriangle, Syringe, Heart, MoreVertical, Bed, TestTube, ChevronLeft, ChevronRight, DollarSign, Trash2, ChevronDown, Clock, Stethoscope, Check } from "lucide-react";
+import { Search, FileText, Calendar as CalendarIcon, User, Pill, Download, X, ArrowLeft, Plus, Paperclip, Upload, History, AlertTriangle, Syringe, Heart, MoreVertical, Bed, TestTube, ChevronLeft, ChevronRight, DollarSign, Trash2, ChevronDown, Clock, Stethoscope, Check, Scissors, HelpCircle } from "lucide-react";
 import { LabOrderDialog } from "@/components/LabOrderDialog";
 import { AdmissionRequestDialog } from "@/components/AdmissionRequestDialog";
+import { FindingsBoard } from "@/components/clinical/FindingsBoard";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { EncounterSidebar } from "@/components/EncounterSidebar";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
@@ -47,6 +48,21 @@ const NOTE_TYPES = [
 
 type NoteType = typeof NOTE_TYPES[number]["value"];
 
+export type FindingStatus = "tentative" | "confirmed" | "ruled_out";
+export type FindingNextStep = "surgery" | "hospitalize" | "medication" | "further_tests" | "monitoring" | "discharge" | "";
+
+export interface ClinicalFinding {
+  id: string;
+  finding: string;
+  source: string;
+  status: FindingStatus;
+  confirmedAt?: string;
+  confirmedBy?: string;
+  confirmationNote?: string;
+  nextStep?: FindingNextStep;
+  addedAt: string;
+}
+
 interface SoapData {
   subjective: string;
   objective: string;
@@ -66,6 +82,7 @@ interface SoapData {
   prognosisReason: string;
   riskFactors: string[];
   notes: string;
+  clinicalFindings: ClinicalFinding[];
 }
 
 interface ProcedureData {
@@ -854,24 +871,46 @@ const mockPatientData = {
   }
 };
 
+const DRAFT_RECORD_KEY = (patientId: string) => `acf_draft_record_${patientId}`;
+
 export default function NewRecord() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { encounters, activeEncounter, setActiveEncounter, updateEncounterStatus, getEncountersByPatient } = useEncounter();
+  const { encounters, activeEncounter, setActiveEncounter, updateEncounterStatus, getEncountersByPatient, getActiveEncounterForPatient } = useEncounter();
   const recordsBase = location.pathname.startsWith("/admin") ? "/admin/records" : "/records";
   const [templateSearch, setTemplateSearch] = useState("");
   const [activeTab, setActiveTab] = useState("overview");
 
+  // ── URL search params (from dashboard 'Consult' button) ─────────────────────
+  const searchParams = new URLSearchParams(location.search);
+  const urlPatientId  = searchParams.get("patientId") ?? undefined;
+  const urlPetName    = searchParams.get("petName")   ?? undefined;
+  const urlOwner      = searchParams.get("owner")     ?? undefined;
+  const urlDraft      = searchParams.get("draft") === "true";
+
   // Get encounterId from location state or activeEncounter
   const stateEncounterId = (location.state as any)?.encounterId;
-  const statePatientId = (location.state as any)?.patientId;
+  const statePatientId   = (location.state as any)?.patientId ?? urlPatientId;
 
+  // ── Auto-set encounter when arriving via dashboard Consult button ────────────
   useEffect(() => {
     if (stateEncounterId) {
       const enc = encounters.find(e => e.id === stateEncounterId);
       if (enc) setActiveEncounter(enc);
+      return;
     }
-  }, [stateEncounterId, encounters]);
+    if (urlPatientId) {
+      const enc = getActiveEncounterForPatient(urlPatientId);
+      if (enc) {
+        setActiveEncounter(enc);
+        // Transition TRIAGED → IN_CONSULTATION when vet opens the record
+        if (urlDraft && (enc.status === "TRIAGED" || enc.status === "WAITING")) {
+          updateEncounterStatus(enc.id, "IN_CONSULTATION");
+        }
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stateEncounterId, urlPatientId, encounters]);
 
   const patientEncounters = statePatientId ? getEncountersByPatient(statePatientId) : [];
 
@@ -880,12 +919,13 @@ export default function NewRecord() {
     if (enc) setActiveEncounter(enc);
   };
 
-  const isDischarged = activeEncounter?.status === "DISCHARGED";
-  const isWaiting = activeEncounter?.status === "WAITING";
-  const isInTriage = activeEncounter?.status === "IN_TRIAGE";
-  const isTriaged = activeEncounter?.status === "TRIAGED";
+  const isDischarged     = activeEncounter?.status === "DISCHARGED";
+  const isWaiting        = activeEncounter?.status === "WAITING";
+  const isInTriage       = activeEncounter?.status === "IN_TRIAGE";
+  const isTriaged        = activeEncounter?.status === "TRIAGED";
   const isInConsultation = activeEncounter?.status === "IN_CONSULTATION";
-  const canEdit = !isDischarged && !isWaiting && !isInTriage && !isTriaged;
+  // Allow editing during consultation; read-only only when waiting/in-triage/triaged/discharged
+  const canEdit = isInConsultation || (!isDischarged && !isWaiting && !isInTriage && !isTriaged);
 
   // Bottom panel state
   const [isBottomOpen, setIsBottomOpen] = useState(false);
@@ -1131,24 +1171,31 @@ export default function NewRecord() {
     };
   }, []);
   
-  // Extract pre-filled data from navigation state
-  const visitData = location.state as {
+  // Extract pre-filled data from navigation state OR URL params (dashboard Consult button)
+  const stateData = location.state as {
     patientId?: string;
     veterinarian?: string;
     visitReason?: string;
     chiefComplaint?: string;
-    vitals?: {
-      temp?: string;
-      hr?: string;
-      rr?: string;
-      weight?: string;
-    };
+    vitals?: { temp?: string; hr?: string; rr?: string; weight?: string; };
     history?: string;
     triageLevel?: string;
   } | null;
-  
+
+  const visitData = stateData ?? (urlPatientId ? {
+    patientId: urlPatientId,
+    visitReason: urlDraft ? "Consultation" : undefined,
+    chiefComplaint: activeEncounter?.chiefComplaint,
+  } : null);
+
+  // Patient display name (from URL params when coming via Consult button)
+  const displayPetName  = urlPetName  ?? activeEncounter?.petName  ?? "";
+  const displayOwner    = urlOwner    ?? activeEncounter?.ownerName ?? "";
+
   // Patient and veterinarian state
-  const [selectedPatient, setSelectedPatient] = useState(visitData?.patientId || "");
+  const [selectedPatient, setSelectedPatient] = useState(
+    visitData?.patientId || urlPatientId || ""
+  );
   const [selectedVeterinarian, setSelectedVeterinarian] = useState(visitData?.veterinarian || "");
   const wf = useWorkflow({ patientId: selectedPatient });
 
@@ -1237,7 +1284,17 @@ export default function NewRecord() {
   
 
   // Structured and unstructured clinical notes (e.g., procedure, discharge)
-  const [clinicalNotes, setClinicalNotes] = useState<ClinicalNote[]>([]);
+  const [clinicalNotes, setClinicalNotes] = useState<ClinicalNote[]>(() => {
+    // Load saved draft from localStorage if coming via Consult button
+    const pid = (location.state as any)?.patientId ?? new URLSearchParams(location.search).get("patientId");
+    if (pid) {
+      try {
+        const saved = localStorage.getItem(DRAFT_RECORD_KEY(pid));
+        if (saved) return JSON.parse(saved) as ClinicalNote[];
+      } catch {}
+    }
+    return [];
+  });
   const [noteDraft, setNoteDraft] = useState<{ type: NoteType; title: string; content: string }>({
     type: "soap",
     title: "",
@@ -1248,7 +1305,16 @@ export default function NewRecord() {
   // Collapsed notes state - tracks which notes are collapsed
   // When a note is expanded, all others are automatically collapsed
   const [collapsedNotes, setCollapsedNotes] = useState<Set<string>>(new Set());
-  
+
+  // ── Auto-save draft to localStorage ─────────────────────────────────────────
+  const draftPatientId = selectedPatient || urlPatientId;
+  useEffect(() => {
+    if (!draftPatientId) return;
+    try {
+      localStorage.setItem(DRAFT_RECORD_KEY(draftPatientId), JSON.stringify(clinicalNotes));
+    } catch {}
+  }, [clinicalNotes, draftPatientId]);
+
   // Toggle note collapse - accordion behavior: only one note expanded at a time
   const toggleNoteCollapse = (noteId: string) => {
     setCollapsedNotes(prev => {
@@ -1339,7 +1405,40 @@ export default function NewRecord() {
   
   // Encounter items state (treatments linked to SOAP notes)
   const [encounterItems, setEncounterItems] = useState<EncounterItem[]>([]);
-  
+
+  // ── Cross-module sync: persist to acf_clinical_records on every change ──
+  useEffect(() => {
+    if (!activeEncounter) return;
+    try {
+      const stored: unknown[] = JSON.parse(localStorage.getItem("acf_clinical_records") ?? "[]");
+      const idx = (stored as { encounterId?: string }[]).findIndex(r => r.encounterId === activeEncounter.id);
+      const payload = {
+        encounterId:    activeEncounter.id,
+        patientId:      selectedPatient,
+        patientName:    mockPatientData?.name ?? "",
+        petName:        mockPatientData?.name ?? "",
+        ownerName:      mockPatientData?.owner?.name ?? "",
+        status:         activeEncounter.status,
+        veterinarian:   selectedVeterinarian || activeEncounter.veterinarian,
+        reason:         activeEncounter.reason,
+        chiefComplaint: activeEncounter.chiefComplaint,
+        startTime:      activeEncounter.startTime,
+        updatedAt:      new Date().toISOString(),
+        notes:          clinicalNotes,
+        encounterItems,
+        confirmed: clinicalNotes.flatMap(n => (n.soapData?.clinicalFindings ?? []).filter(f => f.status === "confirmed")),
+        primaryDiagnosis: clinicalNotes.find(n => n.type === "soap")?.soapData?.primaryDiagnosis ?? "",
+        assessment:       clinicalNotes.find(n => n.type === "soap")?.soapData?.assessment ?? "",
+      };
+      if (idx >= 0) (stored as unknown[])[idx] = payload;
+      else stored.unshift(payload);
+      localStorage.setItem("acf_clinical_records", JSON.stringify(stored));
+      // Broadcast to other tabs (Dashboard, Hospitalization)
+      try { new BroadcastChannel("acf_hospitalization_channel").postMessage({ type: "clinical_updated", encounterId: activeEncounter.id }); } catch {}
+    } catch {}
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clinicalNotes, encounterItems, activeEncounter?.status, selectedVeterinarian]);
+
   // Add item to encounter when lab order is created
   const handleLabOrderCreated = (orderData: any) => {
     const newItem: EncounterItem = {
@@ -1618,14 +1717,34 @@ const applyTemplate = (templateName: string, noteId?: string) => {
   };
 
   const handleSaveRecord = () => {
-    // Here you would typically save the record to your backend
-    console.log("Saving record:", { medications, vaccination, attachments, clinicalNotes });
-    
+    const pid = selectedPatient || urlPatientId;
+
+    // Persist to clinical records in localStorage
+    if (pid) {
+      try {
+        const savedKey = "acf_clinical_records";
+        const existing: unknown[] = JSON.parse(localStorage.getItem(savedKey) ?? "[]");
+        const record = {
+          id: `rec-${Date.now()}`,
+          patientId: pid,
+          petName:   displayPetName || pid,
+          ownerName: displayOwner,
+          notes:     clinicalNotes,
+          status:    "ongoing",
+          savedAt:   new Date().toISOString(),
+          encounterId: activeEncounter?.id,
+        };
+        localStorage.setItem(savedKey, JSON.stringify([record, ...existing]));
+        // Clear draft after saving
+        localStorage.removeItem(DRAFT_RECORD_KEY(pid));
+      } catch {}
+    }
+
     // Update workflow status to PHARMACY
-    if (selectedPatient) {
+    if (pid) {
       wf.goTo("PHARMACY");
     }
-    
+
     navigate(recordsBase);
   };
 
@@ -1681,7 +1800,8 @@ const applyTemplate = (templateName: string, noteId?: string) => {
           prognosis: "",
           prognosisReason: "",
           riskFactors: [],
-          notes: ""
+          notes: "",
+          clinicalFindings: []
         }
       } : {}),
       // Initialize Procedure data structure if it's a procedure note
@@ -1941,6 +2061,67 @@ const applyTemplate = (templateName: string, noteId?: string) => {
       const updatedDiagnoses = note.soapData.differentialDiagnoses.filter((_, i) => i !== index);
       handleUpdateSoapField(noteId, "differentialDiagnoses", updatedDiagnoses);
     }
+  };
+
+  // ── Clinical Findings (Tentative → Confirmed) ────────────────────────────
+
+  const handleAddFinding = (noteId: string, finding: string, source: string) => {
+    const note = clinicalNotes.find(n => n.id === noteId);
+    if (!note?.soapData) return;
+    const newFinding: ClinicalFinding = {
+      id: `cf-${Date.now()}`,
+      finding,
+      source,
+      status: "tentative",
+      addedAt: new Date().toISOString(),
+    };
+    const updated = [...(note.soapData.clinicalFindings ?? []), newFinding];
+    handleUpdateSoapField(noteId, "clinicalFindings", updated as unknown as string[]);
+  };
+
+  const handleConfirmFinding = (
+    noteId: string,
+    findingId: string,
+    by: string,
+    confirmationNote: string,
+    nextStep: FindingNextStep
+  ) => {
+    const note = clinicalNotes.find(n => n.id === noteId);
+    if (!note?.soapData) return;
+    const updated = (note.soapData.clinicalFindings ?? []).map(f =>
+      f.id === findingId
+        ? { ...f, status: "confirmed" as FindingStatus, confirmedAt: new Date().toISOString(), confirmedBy: by, confirmationNote, nextStep }
+        : f
+    );
+    handleUpdateSoapField(noteId, "clinicalFindings", updated as unknown as string[]);
+
+    // Dispatch notification
+    const cf = note.soapData.clinicalFindings.find(f => f.id === findingId);
+    if (cf) {
+      window.dispatchEvent(new CustomEvent("acf:notification", {
+        detail: {
+          type: "info",
+          message: `Finding confirmed: "${cf.finding}" — Next: ${nextStep || "none"}`,
+          targetRoles: ["SuperAdmin", "Vet"],
+        },
+      }));
+    }
+  };
+
+  const handleRuleOutFinding = (noteId: string, findingId: string) => {
+    const note = clinicalNotes.find(n => n.id === noteId);
+    if (!note?.soapData) return;
+    const updated = (note.soapData.clinicalFindings ?? []).map(f =>
+      f.id === findingId ? { ...f, status: "ruled_out" as FindingStatus } : f
+    );
+    handleUpdateSoapField(noteId, "clinicalFindings", updated as unknown as string[]);
+  };
+
+  const handleRemoveFinding = (noteId: string, findingId: string) => {
+    const note = clinicalNotes.find(n => n.id === noteId);
+    if (!note?.soapData) return;
+    const updated = (note.soapData.clinicalFindings ?? []).filter(f => f.id !== findingId);
+    handleUpdateSoapField(noteId, "clinicalFindings", updated as unknown as string[]);
   };
 
   const handleToggleRiskFactorInNote = (noteId: string, factor: string) => {
@@ -2339,6 +2520,93 @@ const applyTemplate = (templateName: string, noteId?: string) => {
         </div>
       )}
 
+      {/* ── Clinical Decision Panel ── */}
+      {activeEncounter && isInConsultation && (
+        <div className="mb-4 rounded-lg border border-border/60 bg-muted/20 px-4 py-3">
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-2">Clinical Decisions</p>
+          <div className="flex flex-wrap gap-2">
+            {/* Emergency */}
+            <Button
+              size="sm"
+              variant={activeEncounter.status === "IN_TRIAGE" ? "destructive" : "outline"}
+              className="h-7 text-xs gap-1.5 border-red-300 text-red-700 hover:bg-red-50 dark:border-red-700 dark:text-red-300"
+              onClick={() => {
+                updateEncounterStatus(activeEncounter.id, "IN_TRIAGE");
+                window.dispatchEvent(new CustomEvent("acf:notification", {
+                  detail: { type: "warning", message: `EMERGENCY: ${activeEncounter.petName} escalated to emergency`, targetRoles: ["SuperAdmin","Vet","Nurse"] }
+                }));
+              }}
+            >
+              <AlertTriangle className="h-3.5 w-3.5" />
+              Mark Emergency
+            </Button>
+
+            {/* Hospitalization / Surgery request */}
+            <AdmissionRequestDialog
+              patientData={{
+                patientId:   selectedPatient,
+                patientName: mockPatientData.owner.name,
+                petName:     mockPatientData.name,
+                species:     mockPatientData.species + " (" + mockPatientData.breed + ")",
+                veterinarian: selectedVeterinarian,
+                diagnosis: (() => {
+                  const soapNote = clinicalNotes.find(n => n.type === "soap" && n.soapData);
+                  return soapNote?.soapData?.primaryDiagnosis || soapNote?.soapData?.assessment || "";
+                })()
+              }}
+            >
+              <Button size="sm" variant="outline" className="h-7 text-xs gap-1.5 border-orange-300 text-orange-700 hover:bg-orange-50 dark:border-orange-700 dark:text-orange-300">
+                <Scissors className="h-3.5 w-3.5" />
+                Request Surgery / Admit
+              </Button>
+            </AdmissionRequestDialog>
+
+            {/* Mark In Surgery */}
+            <Button
+              size="sm"
+              variant={activeEncounter.status === "IN_SURGERY" ? "default" : "outline"}
+              className="h-7 text-xs gap-1.5"
+              onClick={() => {
+                updateEncounterStatus(activeEncounter.id, "IN_SURGERY");
+                window.dispatchEvent(new CustomEvent("acf:notification", {
+                  detail: { type: "info", message: `${activeEncounter.petName} is now In Surgery`, targetRoles: ["SuperAdmin","Vet","Nurse"] }
+                }));
+              }}
+            >
+              <Scissors className="h-3.5 w-3.5" />
+              {activeEncounter.status === "IN_SURGERY" ? "✓ In Surgery" : "Mark In Surgery"}
+            </Button>
+
+            {/* Recovery */}
+            <Button
+              size="sm"
+              variant={activeEncounter.status === "RECOVERY" ? "default" : "outline"}
+              className="h-7 text-xs gap-1.5"
+              onClick={() => updateEncounterStatus(activeEncounter.id, "RECOVERY")}
+            >
+              <Bed className="h-3.5 w-3.5" />
+              {activeEncounter.status === "RECOVERY" ? "✓ Recovery" : "Move to Recovery"}
+            </Button>
+
+            {/* Discharge */}
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 text-xs gap-1.5 border-emerald-300 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-700 dark:text-emerald-300"
+              onClick={() => {
+                updateEncounterStatus(activeEncounter.id, "DISCHARGED");
+                window.dispatchEvent(new CustomEvent("acf:notification", {
+                  detail: { type: "info", message: `${activeEncounter.petName} discharged from consultation`, targetRoles: ["SuperAdmin","Receptionist","Vet"] }
+                }));
+              }}
+            >
+              <Check className="h-3.5 w-3.5" />
+              Discharge Patient
+            </Button>
+          </div>
+        </div>
+      )}
+
       {!activeEncounter ? (
         <Card className="p-12 text-center">
           <div className="flex flex-col items-center gap-4">
@@ -2669,103 +2937,186 @@ const applyTemplate = (templateName: string, noteId?: string) => {
               </Card>
             </TabsContent>
 
-            <TabsContent value="overview" className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                      <Clock className="h-4 w-4" />
-                      Visit Information
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <Label className="text-xs text-muted-foreground">Reason for Visit</Label>
-                        <p className="text-sm font-medium">{activeEncounter?.reason}</p>
-                      </div>
-                      <div>
-                        <Label className="text-xs text-muted-foreground">Attending Vet</Label>
-                        <p className="text-sm font-medium">{activeEncounter?.veterinarian}</p>
-                      </div>
-                      <div>
-                        <Label className="text-xs text-muted-foreground">Start Time</Label>
-                        <p className="text-sm font-medium">{activeEncounter && format(new Date(activeEncounter.startTime), "PPp")}</p>
-                      </div>
-                      <div>
-                        <Label className="text-xs text-muted-foreground">Status</Label>
-                        <Badge variant="outline" className="text-xs">{activeEncounter?.status}</Badge>
-                      </div>
+            <TabsContent value="overview" className="space-y-4">
+              {/* ── Encounter summary bar ── */}
+              <Card>
+                <CardContent className="pt-4 pb-3">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-3">
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Reason</p>
+                      <p className="text-sm font-medium truncate mt-0.5">{activeEncounter?.reason || "—"}</p>
                     </div>
-                    <Separator />
-                    <div>
-                      <Label className="text-xs text-muted-foreground">Chief Complaint</Label>
-                      <p className="text-sm mt-1">{activeEncounter?.chiefComplaint || "No complaint recorded."}</p>
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Attending Vet</p>
+                      <p className="text-sm font-medium truncate mt-0.5">{activeEncounter?.veterinarian || selectedVeterinarian || "—"}</p>
                     </div>
-                  </CardContent>
-                </Card>
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Start Time</p>
+                      <p className="text-sm font-medium mt-0.5">{activeEncounter ? format(new Date(activeEncounter.startTime), "MMM d · h:mm a") : "—"}</p>
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Status</p>
+                      <Badge variant="outline" className={`text-[10px] mt-0.5 ${
+                        activeEncounter?.status === "IN_CONSULTATION" ? "border-blue-400 text-blue-700 bg-blue-50" :
+                        activeEncounter?.status === "IN_SURGERY"      ? "border-red-400 text-red-700 bg-red-50" :
+                        activeEncounter?.status === "RECOVERY"        ? "border-purple-400 text-purple-700 bg-purple-50" :
+                        activeEncounter?.status === "DISCHARGED"      ? "border-emerald-400 text-emerald-700 bg-emerald-50" :
+                        "border-amber-400 text-amber-700 bg-amber-50"
+                      }`}>
+                        {{
+                          IN_CONSULTATION: "In Consultation",
+                          IN_SURGERY:      "In Surgery",
+                          IN_TRIAGE:       "In Triage",
+                          TRIAGED:         "Triaged",
+                          WAITING:         "Waiting",
+                          RECOVERY:        "Recovery",
+                          DISCHARGED:      "Discharged",
+                        }[activeEncounter?.status ?? ""] ?? activeEncounter?.status ?? "Unknown"}
+                      </Badge>
+                    </div>
+                  </div>
+                  {activeEncounter?.chiefComplaint && (
+                    <>
+                      <Separator className="my-3" />
+                      <div>
+                        <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Chief Complaint</p>
+                        <p className="text-sm mt-0.5">{activeEncounter.chiefComplaint}</p>
+                      </div>
+                    </>
+                  )}
+                </CardContent>
+              </Card>
 
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                      <AlertTriangle className="h-4 w-4 text-red-500" />
-                      Alerts & Critical Info
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="space-y-2">
-                      <Label className="text-xs text-muted-foreground">Allergies</Label>
-                      <div className="flex flex-wrap gap-2">
-                        {mockMedicalHistory.allergies.map(a => (
-                          <Badge key={a.id} variant="destructive" className="text-xs">{a.allergen} ({a.severity})</Badge>
+              {/* ── Triage vitals (live from encounter) ── */}
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                    <Stethoscope className="h-4 w-4 text-primary" />
+                    Triage Vitals
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {clinicalNotes.find(n => n.type === "soap")?.soapData ? (() => {
+                    const sd = clinicalNotes.find(n => n.type === "soap")!.soapData!;
+                    const vitals = [
+                      { label: "Temp",   value: sd.temperature,      unit: "°F"  },
+                      { label: "HR",     value: sd.heartRate,         unit: "bpm" },
+                      { label: "RR",     value: sd.respiratoryRate,   unit: "rpm" },
+                      { label: "Weight", value: sd.weight,            unit: "kg"  },
+                      { label: "BP",     value: sd.bloodPressure,     unit: "mmHg"},
+                      { label: "BCS",    value: sd.bodyConditionScore,unit: "/9"  },
+                    ];
+                    return (
+                      <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
+                        {vitals.map(v => (
+                          <div key={v.label} className="text-center bg-muted/30 rounded-lg p-2">
+                            <p className="text-[10px] text-muted-foreground">{v.label}</p>
+                            <p className="text-sm font-bold mt-0.5">{v.value || "—"}</p>
+                            {v.value && <p className="text-[9px] text-muted-foreground">{v.unit}</p>}
+                          </div>
                         ))}
                       </div>
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-xs text-muted-foreground">Current Medications</Label>
-                      <div className="space-y-1">
-                        {mockMedicalHistory.currentMedications.map(m => (
-                          <p key={m.id} className="text-xs">• {m.name} {m.dosage} ({m.frequency})</p>
-                        ))}
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+                    );
+                  })() : (
+                    <p className="text-xs text-muted-foreground text-center py-3">Add a SOAP note to populate vitals.</p>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* ── Confirmed Findings summary ── */}
+              {(() => {
+                const allFindings = clinicalNotes.flatMap(n => n.soapData?.clinicalFindings ?? []);
+                const confirmed = allFindings.filter(f => f.status === "confirmed");
+                const tentative = allFindings.filter(f => f.status === "tentative");
+                if (allFindings.length === 0) return null;
+                return (
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                        <Check className="h-4 w-4 text-emerald-600" />
+                        Clinical Findings
+                        {confirmed.length > 0 && <Badge variant="outline" className="text-[10px] border-emerald-400 text-emerald-600">{confirmed.length} confirmed</Badge>}
+                        {tentative.length > 0 && <Badge variant="outline" className="text-[10px] border-amber-400 text-amber-600 ml-1">{tentative.length} tentative</Badge>}
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-2">
+                      {confirmed.map(f => (
+                        <div key={f.id} className="flex items-start gap-2 p-2 bg-emerald-50/40 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800 rounded-lg">
+                          <Check className="h-3.5 w-3.5 text-emerald-600 mt-0.5 shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium">{f.finding}</p>
+                            <p className="text-[10px] text-muted-foreground">{f.source}{f.confirmedBy ? ` · ${f.confirmedBy}` : ""}</p>
+                          </div>
+                          {f.nextStep && f.nextStep !== "" && (
+                            <Badge variant="outline" className="text-[9px] shrink-0 capitalize border-primary/40 text-primary">{f.nextStep.replace("_"," ")}</Badge>
+                          )}
+                        </div>
+                      ))}
+                      {tentative.map(f => (
+                        <div key={f.id} className="flex items-start gap-2 p-2 bg-amber-50/40 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-lg">
+                          <HelpCircle className="h-3.5 w-3.5 text-amber-500 mt-0.5 shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm">{f.finding}</p>
+                            <p className="text-[10px] text-muted-foreground">{f.source} · Tentative</p>
+                          </div>
+                        </div>
+                      ))}
+                    </CardContent>
+                  </Card>
+                );
+              })()}
+
+              {/* ── Sync status strip ── */}
+              <div className="flex flex-wrap gap-2 px-1">
+                {[
+                  { label: "Dashboard",       ok: true },
+                  { label: "Clinical Records", ok: true },
+                  { label: "Triage",           ok: !!activeEncounter },
+                  { label: "Hospitalization",  ok: encounterItems.some(i => i.linkedToSection === "plan") },
+                ].map(s => (
+                  <span key={s.label} className={`inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full border ${
+                    s.ok ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-300 dark:border-emerald-800"
+                         : "bg-muted/30 text-muted-foreground border-border"
+                  }`}>
+                    <span className={`h-1.5 w-1.5 rounded-full ${s.ok ? "bg-emerald-500" : "bg-muted-foreground"}`} />
+                    {s.label}
+                  </span>
+                ))}
               </div>
             </TabsContent>
 
             {/* History Tab */}
-            <TabsContent value="history" className="space-y-6">
+            <TabsContent value="history" className="space-y-4">
               <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <History className="h-5 w-5" />
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2 text-sm font-semibold">
+                    <History className="h-4 w-4" />
                     Patient Medical History
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="rounded-md border">
+                  <div className="overflow-x-auto rounded-md border">
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead>Date</TableHead>
-                          <TableHead>Type</TableHead>
-                          <TableHead>Clinician</TableHead>
-                          <TableHead>Description</TableHead>
-                          <TableHead>Notes</TableHead>
+                          <TableHead className="whitespace-nowrap text-xs">Date</TableHead>
+                          <TableHead className="whitespace-nowrap text-xs">Type</TableHead>
+                          <TableHead className="whitespace-nowrap text-xs">Clinician</TableHead>
+                          <TableHead className="text-xs">Description</TableHead>
+                          <TableHead className="text-xs">Notes</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {historyRows.map((row) => (
                           <TableRow key={row.id}>
-                            <TableCell className="text-sm">{new Date(row.date).toLocaleDateString()}</TableCell>
-                            <TableCell><Badge variant="outline" className="text-xs">{row.type}</Badge></TableCell>
-                            <TableCell className="text-sm">{row.clinician}</TableCell>
-                            <TableCell>
-                              <div className="text-sm font-medium">{row.title}</div>
-                              {row.subtitle && <div className="text-xs text-muted-foreground">{row.subtitle}</div>}
+                            <TableCell className="text-xs whitespace-nowrap">{new Date(row.date).toLocaleDateString()}</TableCell>
+                            <TableCell><Badge variant="outline" className="text-[10px] whitespace-nowrap">{row.type}</Badge></TableCell>
+                            <TableCell className="text-xs whitespace-nowrap">{row.clinician}</TableCell>
+                            <TableCell className="min-w-[120px]">
+                              <div className="text-xs font-medium">{row.title}</div>
+                              {row.subtitle && <div className="text-[10px] text-muted-foreground">{row.subtitle}</div>}
                             </TableCell>
-                            <TableCell className="text-sm text-muted-foreground">{row.notes || "—"}</TableCell>
+                            <TableCell className="text-xs text-muted-foreground max-w-[180px] truncate">{row.notes || "—"}</TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
@@ -2844,8 +3195,8 @@ const applyTemplate = (templateName: string, noteId?: string) => {
             </TabsContent>
 
             {/* Diagnostics Tab */}
-            <TabsContent value="diagnostics" className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <TabsContent value="diagnostics" className="space-y-4">
+              <div className="grid grid-cols-1 gap-4">
                 <Card>
                   <CardHeader>
                     <div className="flex justify-between items-center">
@@ -2959,47 +3310,154 @@ const applyTemplate = (templateName: string, noteId?: string) => {
             </TabsContent>
 
             {/* Diagnosis Tab */}
-            <TabsContent value="diagnosis" className="space-y-6">
+            <TabsContent value="diagnosis" className="space-y-4">
+              {/* Confirmed Findings → Diagnosis link */}
+              {(() => {
+                const confirmed = clinicalNotes.flatMap(n => n.soapData?.clinicalFindings ?? []).filter(f => f.status === "confirmed");
+                if (confirmed.length === 0) return null;
+                return (
+                  <Card className="border-emerald-200 dark:border-emerald-800">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm font-semibold flex items-center gap-2 text-emerald-700 dark:text-emerald-300">
+                        <Check className="h-4 w-4" />
+                        Confirmed Clinical Findings ({confirmed.length})
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-2">
+                      {confirmed.map(f => (
+                        <div key={f.id} className="flex items-start justify-between gap-3 p-2.5 bg-emerald-50/40 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800 rounded-lg">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium">{f.finding}</p>
+                            <p className="text-[10px] text-muted-foreground mt-0.5">
+                              {f.source}{f.confirmedBy ? ` · Confirmed by ${f.confirmedBy}` : ""}
+                              {f.confirmationNote ? ` · "${f.confirmationNote}"` : ""}
+                            </p>
+                          </div>
+                          {f.nextStep && f.nextStep !== "" && (
+                            <Badge variant="outline" className="text-[9px] shrink-0 capitalize border-primary/40 text-primary whitespace-nowrap">
+                              → {f.nextStep.replace("_", " ")}
+                            </Badge>
+                          )}
+                        </div>
+                      ))}
+                    </CardContent>
+                  </Card>
+                );
+              })()}
+
               <Card>
-                <CardHeader>
-                  <CardTitle>Diagnosis & Assessment</CardTitle>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm font-semibold">Diagnosis & Assessment</CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-6">
-                  {clinicalNotes.find(n => n.type === "soap") ? (
-                    <div className="space-y-4">
-                      <div className="space-y-2">
-                        <Label className="text-sm font-semibold">Primary Diagnosis</Label>
-                        <div className="p-3 bg-primary/5 border-primary/20 rounded border font-medium">
-                          {clinicalNotes.find(n => n.type === "soap")?.soapData?.primaryDiagnosis || "Not yet determined."}
+                <CardContent className="space-y-4">
+                  {clinicalNotes.find(n => n.type === "soap") ? (() => {
+                    const sd = clinicalNotes.find(n => n.type === "soap")!.soapData!;
+                    return (
+                      <div className="space-y-4">
+                        <div className="space-y-1.5">
+                          <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Primary Diagnosis</Label>
+                          <div className="p-3 bg-primary/5 border border-primary/20 rounded-lg font-medium text-sm">
+                            {sd.primaryDiagnosis || <span className="text-muted-foreground italic">Not yet determined.</span>}
+                          </div>
                         </div>
-                      </div>
-                      <div className="space-y-2">
-                        <Label className="text-sm font-semibold">Differential Diagnoses</Label>
-                        <div className="flex flex-wrap gap-2">
-                          {clinicalNotes.find(n => n.type === "soap")?.soapData?.differentialDiagnoses.map((d, i) => (
-                            <Badge key={i} variant="secondary">{d}</Badge>
-                          )) || <p className="text-xs text-muted-foreground">None recorded.</p>}
+                        {sd.differentialDiagnoses.length > 0 && (
+                          <div className="space-y-1.5">
+                            <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Differentials</Label>
+                            <div className="flex flex-wrap gap-1.5">
+                              {sd.differentialDiagnoses.map((d, i) => (
+                                <Badge key={i} variant="secondary" className="text-xs">{d}</Badge>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        <div className="space-y-1.5">
+                          <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Assessment</Label>
+                          <div className="p-3 bg-muted/20 rounded-lg border text-sm whitespace-pre-wrap">
+                            {sd.assessment || <span className="text-muted-foreground italic">No assessment recorded.</span>}
+                          </div>
                         </div>
+                        {sd.clinicalSummary && (
+                          <div className="space-y-1.5">
+                            <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Clinical Summary</Label>
+                            <div className="p-3 bg-muted/20 rounded-lg border text-sm whitespace-pre-wrap">{sd.clinicalSummary}</div>
+                          </div>
+                        )}
+                        {sd.prognosis && (
+                          <div className="flex items-center gap-3 p-3 bg-muted/10 rounded-lg border">
+                            <div className="flex-1">
+                              <p className="text-xs font-semibold text-muted-foreground uppercase">Prognosis</p>
+                              <p className="text-sm font-medium mt-0.5">{sd.prognosis}</p>
+                            </div>
+                            {sd.prognosisReason && (
+                              <p className="text-xs text-muted-foreground flex-1">{sd.prognosisReason}</p>
+                            )}
+                          </div>
+                        )}
                       </div>
-                      <div className="space-y-2">
-                        <Label className="text-sm font-semibold">Clinical Summary</Label>
-                        <div className="p-3 bg-muted/20 rounded border text-sm">
-                          {clinicalNotes.find(n => n.type === "soap")?.soapData?.clinicalSummary || "No summary recorded."}
-                        </div>
-                      </div>
+                    );
+                  })() : (
+                    <div className="flex flex-col items-center gap-3 py-10 text-center">
+                      <FileText className="h-8 w-8 text-muted-foreground/30" />
+                      <p className="text-sm text-muted-foreground">Add a SOAP note in the Notes tab to record assessment and diagnosis.</p>
                     </div>
-                  ) : (
-                    <p className="text-center text-muted-foreground py-12">Please complete the assessment in a SOAP note.</p>
                   )}
                 </CardContent>
               </Card>
             </TabsContent>
 
             {/* Treatment Tab */}
-            <TabsContent value="treatment" className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="md:col-span-2 space-y-6">
-                  <Card>
+            <TabsContent value="treatment" className="space-y-4">
+              {/* ── Confirmed findings that suggest medication/treatment ── */}
+              {(() => {
+                const medicationFindings = clinicalNotes.flatMap(n => n.soapData?.clinicalFindings ?? [])
+                  .filter(f => f.status === "confirmed" && (f.nextStep === "medication" || f.nextStep === "further_tests"));
+                if (medicationFindings.length === 0) return null;
+                return (
+                  <Card className="border-primary/30 bg-primary/5">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm flex items-center gap-2 text-primary">
+                        <AlertTriangle className="h-4 w-4" />
+                        Suggested from Confirmed Findings
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-2">
+                      {medicationFindings.map(f => (
+                        <div key={f.id} className="flex items-center justify-between gap-3 p-2 bg-background rounded-lg border">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">{f.finding}</p>
+                            <p className="text-[10px] text-muted-foreground">{f.source} · {f.nextStep === "medication" ? "Medication recommended" : "Further tests needed"}</p>
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-6 text-[10px] px-2 gap-1 shrink-0"
+                            onClick={() => {
+                              const item: EncounterItem = {
+                                id: `treat-${Date.now()}`,
+                                type: "treatment",
+                                title: f.nextStep === "medication" ? `Medication for: ${f.finding}` : `Test: ${f.finding}`,
+                                category: f.nextStep === "medication" ? "medications" : "diagnostics",
+                                price: 0, cost: 0, quantity: 1, discount: 0, total: 0,
+                                status: "pending",
+                                timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+                                performedBy: selectedVeterinarian,
+                                linkedToSection: "plan",
+                              };
+                              setEncounterItems(prev => [...prev, item]);
+                            }}
+                          >
+                            <Plus className="h-3 w-3" />
+                            Add to Plan
+                          </Button>
+                        </div>
+                      ))}
+                    </CardContent>
+                  </Card>
+                );
+              })()}
+
+              <div className="space-y-4">
+                <Card>
                     <CardHeader>
                       <CardTitle className="text-sm font-semibold">Applied Treatments & Procedures</CardTitle>
                     </CardHeader>
@@ -3007,21 +3465,27 @@ const applyTemplate = (templateName: string, noteId?: string) => {
                       <div className="space-y-2">
                         {encounterItems.filter(item => item.type === 'treatment').map((item) => (
                           <div key={item.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg border">
-                            <div className="flex-1">
-                              <div className="font-medium text-sm">{item.title}</div>
-                              <div className="text-xs text-muted-foreground">Qty: {item.quantity} • {item.status}</div>
+                            <div className="flex-1 min-w-0">
+                              <div className="font-medium text-sm truncate">{item.title}</div>
+                              <div className="text-xs text-muted-foreground">Qty: {item.quantity} · {item.status}</div>
                             </div>
-                            <div className="font-semibold text-sm">${item.total.toFixed(2)}</div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <span className="font-semibold text-sm">KSh {item.total.toFixed(2)}</span>
+                              <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-destructive hover:text-destructive"
+                                onClick={() => setEncounterItems(prev => prev.filter(i => i.id !== item.id))}>
+                                <X className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
                           </div>
                         ))}
                         {encounterItems.filter(item => item.type === 'treatment').length === 0 && (
-                          <p className="text-sm text-muted-foreground text-center py-8">No treatments added.</p>
+                          <p className="text-sm text-muted-foreground text-center py-6">No treatments added. Use the catalog in the left panel or add from confirmed findings above.</p>
                         )}
                       </div>
                     </CardContent>
-                  </Card>
+                </Card>
 
-                  <Card>
+                <Card>
                     <CardHeader>
                       <CardTitle className="text-sm font-semibold">Prescribed Medications</CardTitle>
                     </CardHeader>
@@ -3040,9 +3504,9 @@ const applyTemplate = (templateName: string, noteId?: string) => {
                         )}
                       </div>
                     </CardContent>
-                  </Card>
+                </Card>
 
-                  <Card>
+                <Card>
                     <CardHeader>
                       <CardTitle className="text-sm font-semibold flex items-center gap-2">
                         <Syringe className="h-4 w-4" />
@@ -3112,45 +3576,7 @@ const applyTemplate = (templateName: string, noteId?: string) => {
                         </Button>
                       </div>
                     </CardContent>
-                  </Card>
-                </div>
-
-                <div className="space-y-6">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-sm font-semibold">Add Treatment</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <TreatmentSelector
-                        onTreatmentAdded={(treatment) => {
-                          const normalized: EncounterItem = {
-                            ...treatment,
-                            status: treatment.status || 'pending',
-                            quantity: treatment.quantity ?? 1,
-                            discount: treatment.discount ?? 0,
-                            total: (treatment.price ?? 0) * (treatment.quantity ?? 1) - (treatment.discount ?? 0),
-                            linkedToSection: 'plan',
-                            performedBy: selectedVeterinarian,
-                          } as EncounterItem;
-                          setEncounterItems([...encounterItems, normalized]);
-                        }}
-                        linkedSection="plan"
-                        performedBy={selectedVeterinarian}
-                      />
-                    </CardContent>
-                  </Card>
-                  
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-sm font-semibold">Add Medication</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-3">
-                      <Input placeholder="Medication Name" className="h-8" value={newMedication.name} onChange={e => setNewMedication(p => ({...p, name: e.target.value}))} />
-                      <Input placeholder="Dosage" className="h-8" value={newMedication.dosage} onChange={e => setNewMedication(p => ({...p, dosage: e.target.value}))} />
-                      <Button size="sm" className="w-full" onClick={addMedication}>Add</Button>
-                    </CardContent>
-                  </Card>
-                </div>
+                </Card>
               </div>
             </TabsContent>
 
@@ -3259,25 +3685,29 @@ const applyTemplate = (templateName: string, noteId?: string) => {
                                 // Render SOAP form
                                 <div className="space-y-8">
                                   {/* Patient and Veterinarian Selection */}
-                                  <div className="grid grid-cols-2 gap-4">
-                                    <div className="space-y-2">
-                                      <Label htmlFor={`patient-${note.id}`}>Patient</Label>
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div className="flex flex-col gap-1.5 min-w-0">
+                                      <Label htmlFor={`patient-${note.id}`} className="text-xs font-medium">
+                                        Patient
+                                      </Label>
                                       <Select value={selectedPatient} onValueChange={setSelectedPatient}>
-                                        <SelectTrigger>
+                                        <SelectTrigger id={`patient-${note.id}`} className="w-full truncate">
                                           <SelectValue placeholder="Select patient" />
                                         </SelectTrigger>
                                         <SelectContent>
-                                          <SelectItem value="1">Max (Golden Retriever) - Sarah Johnson</SelectItem>
-                                          <SelectItem value="2">Whiskers (Persian Cat) - Mike Wilson</SelectItem>
-                                          <SelectItem value="3">Bella (Labrador) - Emily Davis</SelectItem>
+                                          <SelectItem value="1">Max (Golden Retriever) — Sarah Johnson</SelectItem>
+                                          <SelectItem value="2">Whiskers (Persian Cat) — Mike Wilson</SelectItem>
+                                          <SelectItem value="3">Bella (Labrador) — Emily Davis</SelectItem>
                                         </SelectContent>
                                       </Select>
                                     </div>
-                                    
-                                    <div className="space-y-2">
-                                      <Label htmlFor={`veterinarian-${note.id}`}>Veterinarian</Label>
+
+                                    <div className="flex flex-col gap-1.5 min-w-0">
+                                      <Label htmlFor={`veterinarian-${note.id}`} className="text-xs font-medium">
+                                        Attending Veterinarian
+                                      </Label>
                                       <Select value={selectedVeterinarian} onValueChange={setSelectedVeterinarian}>
-                                        <SelectTrigger>
+                                        <SelectTrigger id={`veterinarian-${note.id}`} className="w-full truncate">
                                           <SelectValue placeholder="Select veterinarian" />
                                         </SelectTrigger>
                                         <SelectContent>
@@ -3441,12 +3871,33 @@ const applyTemplate = (templateName: string, noteId?: string) => {
                                   </div>
 
                                   {/* Assessment Section */}
-                                  <div className="space-y-4 border-t pt-6">
+                                  <div className="space-y-6 border-t pt-6">
                                     <div>
-                                      <h3 className="text-lg font-semibold mb-2">Assessment</h3>
-                                      <p className="text-sm text-muted-foreground mb-4">Clinical interpretation and differential diagnoses</p>
+                                      <h3 className="text-lg font-semibold mb-1">Assessment</h3>
+                                      <p className="text-sm text-muted-foreground">Record findings as tentative, then confirm them through lab/imaging/exam — confirmed findings drive next clinical steps.</p>
                                     </div>
-                                    <div className="space-y-6">
+
+                                    {/* ── Tentative / Confirmed Findings Board ── */}
+                                    <FindingsBoard
+                                      noteId={note.id}
+                                      findings={note.soapData.clinicalFindings ?? []}
+                                      onAdd={handleAddFinding}
+                                      onConfirm={handleConfirmFinding}
+                                      onRuleOut={handleRuleOutFinding}
+                                      onRemove={handleRemoveFinding}
+                                      patientData={{
+                                        patientId: selectedPatient,
+                                        patientName: mockPatientData.owner.name,
+                                        petName: mockPatientData.name,
+                                        species: mockPatientData.species + " (" + mockPatientData.breed + ")",
+                                        veterinarian: selectedVeterinarian,
+                                        diagnosis: note.soapData.primaryDiagnosis,
+                                      }}
+                                      onEncounterStatusChange={(s) => activeEncounter && updateEncounterStatus(activeEncounter.id, s)}
+                                    />
+
+                                    {/* Primary Diagnosis + Differentials */}
+                                    <div className="space-y-4 border-t pt-4">
                                       <div className="space-y-2">
                                         <Label className="text-sm font-medium text-muted-foreground">Primary Diagnosis</Label>
                                         <Input
@@ -3462,10 +3913,7 @@ const applyTemplate = (templateName: string, noteId?: string) => {
                                           {note.soapData.differentialDiagnoses.map((diagnosis, index) => (
                                             <Badge key={index} variant="secondary" className="flex items-center gap-1">
                                               {diagnosis}
-                                              <X 
-                                                className="h-3 w-3 cursor-pointer" 
-                                                onClick={() => handleRemoveDifferentialDiagnosisFromNote(note.id, index)}
-                                              />
+                                              <X className="h-3 w-3 cursor-pointer" onClick={() => handleRemoveDifferentialDiagnosisFromNote(note.id, index)} />
                                             </Badge>
                                           ))}
                                         </div>
@@ -3479,7 +3927,7 @@ const applyTemplate = (templateName: string, noteId?: string) => {
                                               }
                                             }}
                                           />
-                                          <Button 
+                                          <Button
                                             onClick={(e) => {
                                               const input = e.currentTarget.previousElementSibling as HTMLInputElement;
                                               if (input?.value.trim()) {
@@ -3487,15 +3935,11 @@ const applyTemplate = (templateName: string, noteId?: string) => {
                                                 input.value = "";
                                               }
                                             }}
-                                            variant="outline"
-                                            size="sm"
-                                          >
-                                            Add
-                                          </Button>
+                                            variant="outline" size="sm"
+                                          >Add</Button>
                                         </div>
                                       </div>
 
-                                      {/* Clinical Summary */}
                                       <div className="space-y-2">
                                         <Label htmlFor={`clinicalSummary-${note.id}`} className="text-sm font-medium text-muted-foreground">Clinical Summary / Interpretation</Label>
                                         <Textarea

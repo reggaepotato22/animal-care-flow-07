@@ -1,21 +1,17 @@
-import { useEffect, useState } from "react";
+import { useState, useEffect } from "react";
 import { DashboardStats } from "@/components/DashboardStats";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
-  ArrowUpRight,
-  ArrowDownRight,
-  Users,
-  Calendar,
-  DollarSign,
-  Activity,
-  Bell,
-  Search,
-  CheckCircle,
+  CheckCircle2,
   Clock,
   AlertCircle,
-  ArrowLeft,
-  ChevronRight,
   Stethoscope,
+  Activity,
+  ArrowRight,
+  UserCheck,
+  Pill,
+  CheckCheck,
+  Users,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -25,6 +21,10 @@ import { useRole } from "@/contexts/RoleContext";
 import { useWorkflowContext } from "@/contexts/WorkflowContext";
 import { useToast } from "@/hooks/use-toast";
 import { WorkflowProgress } from "@/components/WorkflowProgress";
+import { useEncounter } from "@/contexts/EncounterContext";
+import { cn } from "@/lib/utils";
+import type { WorkflowStepId } from "@/config/workflow";
+import type { EncounterStatus } from "@/lib/types";
 import {
   Dialog,
   DialogContent,
@@ -33,365 +33,581 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Separator } from "@/components/ui/separator";
+import { useNotifications } from "@/contexts/NotificationContext";
+import { loadStoredAppointments, subscribeToAppointments, isToday, isoToTimeLabel } from "@/lib/appointmentStore";
 
-import { useEncounter } from "@/contexts/EncounterContext";
+// ─── Seed appointment data (always present, merged with stored) ──────────────
+const SEED_APPOINTMENTS = [
+  { id: "appt-1", patient: "Max",      owner: "Sarah Johnson",   time: "9:00 AM",  type: "Checkup",     patientId: "appt-1" },
+  { id: "appt-2", patient: "Whiskers", owner: "Michael Chen",    time: "10:30 AM", type: "Vaccination", patientId: "appt-2" },
+  { id: "appt-3", patient: "Luna",     owner: "Emily Rodriguez", time: "2:00 PM",  type: "Surgery",     patientId: "appt-3" },
+  { id: "appt-4", patient: "Buddy",    owner: "James Kamau",     time: "3:15 PM",  type: "Dental",      patientId: "appt-4" },
+  { id: "appt-5", patient: "Nala",     owner: "Grace Wanjiru",   time: "4:00 PM",  type: "Checkup",     patientId: "appt-5" },
+];
+
+type DashAppt = { id: string; patient: string; owner: string; time: string; type: string; patientId: string };
+
+function buildDashAppointments(): DashAppt[] {
+  const stored = loadStoredAppointments().filter(s => isToday(s.date));
+  const merged: DashAppt[] = [...SEED_APPOINTMENTS];
+  stored.forEach(s => {
+    if (!merged.find(m => m.id === s.id)) {
+      merged.push({
+        id:        s.id,
+        patient:   s.petName,
+        owner:     s.ownerName,
+        time:      isoToTimeLabel(s.date, s.time),
+        type:      s.type,
+        patientId: s.patientId,
+      });
+    }
+  });
+  return merged;
+}
+
+// ─── Step config ──────────────────────────────────────────────────────────────
+const STEP_CONFIG: Record<WorkflowStepId, { label: string; color: string; icon: React.ElementType; route: string }> = {
+  REGISTERED:   { label: "Checked In",   color: "text-slate-700 bg-slate-100 dark:bg-slate-800 dark:text-slate-300 border border-slate-300",      icon: UserCheck,   route: "/" },
+  TRIAGE:       { label: "Triage",       color: "text-amber-700 bg-amber-100 dark:bg-amber-950 dark:text-amber-300 border border-amber-400",       icon: Stethoscope, route: "/triage" },
+  CONSULTATION: { label: "Consultation", color: "text-blue-700 bg-blue-100 dark:bg-blue-950 dark:text-blue-300 border border-blue-400",            icon: Activity,    route: "/records" },
+  PHARMACY:     { label: "Pharmacy",     color: "text-purple-700 bg-purple-100 dark:bg-purple-950 dark:text-purple-300 border border-purple-400",  icon: Pill,        route: "/inventory" },
+  COMPLETED:    { label: "Completed",    color: "text-emerald-700 bg-emerald-100 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-400", icon: CheckCheck, route: "/" },
+};
+
+// ─── Encounter status highlighted badge config ────────────────────────────────
+const ENC_STATUS_CONFIG: Record<EncounterStatus, { label: string; cls: string; pulse?: boolean }> = {
+  WAITING:         { label: "Awaiting Triage",    cls: "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200 border border-amber-400 font-semibold",   pulse: false },
+  IN_TRIAGE:       { label: "Triage in Progress", cls: "bg-orange-100 text-orange-800 dark:bg-orange-950 dark:text-orange-200 border border-orange-400 font-semibold", pulse: true  },
+  TRIAGED:         { label: "Triage Complete",    cls: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200 border border-emerald-500 font-semibold" },
+  IN_CONSULTATION: { label: "In Consultation",    cls: "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-200 border border-blue-500 font-semibold",           pulse: true  },
+  IN_SURGERY:      { label: "In Surgery",         cls: "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-200 border border-red-500 font-semibold",                 pulse: true  },
+  RECOVERY:        { label: "In Recovery",        cls: "bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-200 border border-purple-400 font-semibold" },
+  DISCHARGED:      { label: "Discharged",         cls: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400 border border-gray-300" },
+};
+
+// ─── Role-specific static alerts ─────────────────────────────────────────────
+const ROLE_ALERTS: Record<string, { message: string; type: string; timestamp: Date }[]> = {
+  Receptionist: [
+    { message: "2 patients waiting in lobby — please check in",      type: "warning",  timestamp: subMinutes(new Date(), 3)  },
+    { message: "Luna appointment confirmed for 2:00 PM",              type: "info",     timestamp: subMinutes(new Date(), 20) },
+    { message: "Buddy: owner requested early slot",                   type: "info",     timestamp: subHours(new Date(), 1)   },
+  ],
+  Nurse: [
+    { message: "Rocky flagged as critical — triage immediately",      type: "critical", timestamp: subMinutes(new Date(), 5)  },
+    { message: "Vaccination due: Luna (Rabies) — review before triage", type: "warning", timestamp: subMinutes(new Date(), 15) },
+    { message: "Vitals kit needs restocking",                          type: "warning",  timestamp: subHours(new Date(), 1)   },
+  ],
+  Vet: [
+    { message: "Whiskers triage complete — ready for consultation",   type: "success",  timestamp: subMinutes(new Date(), 4)  },
+    { message: "Max lab results ready for review",                     type: "info",     timestamp: subMinutes(new Date(), 12) },
+    { message: "Emergency case — immediate consultation needed",       type: "critical", timestamp: subSeconds(new Date(), 30) },
+  ],
+  Pharmacist: [
+    { message: "Inventory low: Heartworm medication",                  type: "warning",  timestamp: subHours(new Date(), 2)   },
+    { message: "New prescription ready for dispensing — Whiskers",    type: "info",     timestamp: subMinutes(new Date(), 8)  },
+    { message: "Prescription refill requested: Buddy",                 type: "info",     timestamp: subHours(new Date(), 1)   },
+  ],
+  SuperAdmin: [
+    { message: "Rocky needs immediate attention",                      type: "critical", timestamp: subMinutes(new Date(), 5)  },
+    { message: "Inventory low: Heartworm medication",                  type: "warning",  timestamp: subHours(new Date(), 2)   },
+    { message: "Staff meeting scheduled for 3 PM",                     type: "info",     timestamp: subDays(new Date(), 1)    },
+    { message: "Equipment maintenance due: X-ray machine",            type: "warning",  timestamp: subDays(new Date(), 2)    },
+  ],
+};
+
+// ─── Component ────────────────────────────────────────────────────────────────
 
 const Index = () => {
   const navigate = useNavigate();
-  const { has } = useRole();
+  const { has, role } = useRole();
   const { toast } = useToast();
   const wf = useWorkflowContext();
-  const { createEncounter } = useEncounter();
+  const { createEncounter, getActiveEncounterForPatient, updateEncounterStatus } = useEncounter();
+  const { notifications } = useNotifications();
   const [isAlertsModalOpen, setIsAlertsModalOpen] = useState(false);
 
-  // Listen for real-time workflow updates from other roles
+  // Live today's appointments (seed + stored), refresh on every booking
+  const [allAppointments, setAllAppointments] = useState<DashAppt[]>(buildDashAppointments);
   useEffect(() => {
-    const channel = new BroadcastChannel("acf_workflow_updates");
-    channel.onmessage = (event) => {
-      if (event.data.type === "STEP_UPDATE") {
-        const { patientId, step, petName, ownerName, vetName } = event.data.payload;
-        
-        // Find pet name from recent appointments for a better notification
-        const appt = recentAppointments.find(a => a.id === patientId);
-        const name = petName || (appt ? appt.patient : `Patient ${patientId}`);
-        
-        let description = `${name} is now at: ${step}`;
-        if (step === "TRIAGE") {
-           description = `${name} (${ownerName}) has arrived and is READY for triage.`;
-        } else if (step === "CONSULTATION" && vetName) {
-           description = `${name} is READY for consultation with ${vetName}.`;
-        } else if (step === "PHARMACY") {
-           description = `${name} is ready for medication collection.`;
-        }
+    const unsub = subscribeToAppointments(() => setAllAppointments(buildDashAppointments()));
+    return unsub;
+  }, []);
 
-        toast({
-          title: "Real-time Update",
-          description: description,
-          variant: step === "TRIAGE" ? "default" : step === "CONSULTATION" ? "default" : "secondary",
-        });
+  // ── Sync: re-render when clinical records or hospitalization state changes ──
+  const [, forceRefresh] = useState(0);
+  useEffect(() => {
+    let ch: BroadcastChannel | null = null;
+    try {
+      ch = new BroadcastChannel("acf_hospitalization_channel");
+      ch.onmessage = () => forceRefresh(n => n + 1);
+    } catch {}
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === "acf_clinical_records" || e.key === "acf_hospitalization_records") {
+        forceRefresh(n => n + 1);
       }
     };
-    return () => channel.close();
-  }, [toast]);
+    window.addEventListener("storage", onStorage);
+    return () => { ch?.close(); window.removeEventListener("storage", onStorage); };
+  }, []);
 
-  const handleCheckIn = (appointment: any) => {
-    const patientId = appointment.patientId || appointment.id;
-    
-    // Create encounter from appointment data
-    createEncounter(patientId, {
-      reason: appointment.type,
-      chiefComplaint: appointment.reason || appointment.notes || "",
-      veterinarian: appointment.vet,
-    });
+  const allCheckedIn  = wf.getCheckedInPatients();
+  const activePatients    = allCheckedIn.filter(p => p.step !== "COMPLETED");
+  const completedPatients = allCheckedIn.filter(p => p.step === "COMPLETED");
 
-    wf.setStep(patientId, "TRIAGE");
-    
-    // Broadcast check-in for Triage nurse
-    const channel = new BroadcastChannel("acf_workflow_updates");
-    channel.postMessage({
-      type: "STEP_UPDATE",
-      payload: { 
-        patientId: patientId, 
-        step: "TRIAGE",
-        petName: appointment.patient,
-        ownerName: appointment.owner
-      }
-    });
-    channel.close();
+  // Pending: not yet checked-in (receptionist/admin view)
+  const pendingAppts = allAppointments.filter(a => !wf.isCheckedIn(a.patientId));
 
-    toast({
-      title: "Checked-in",
-      description: `${appointment.patient} has been checked-in and moved to Triage.`,
-    });
+  // Nurse: checked-in patients awaiting or in triage
+  const nurseTriageQueue = allCheckedIn.filter(p => {
+    const enc = getActiveEncounterForPatient(p.patientId);
+    return enc && ["WAITING", "IN_TRIAGE"].includes(enc.status);
+  });
+
+  // Vet: triaged patients ready for consultation
+  const vetConsultQueue = allCheckedIn.filter(p => {
+    const enc = getActiveEncounterForPatient(p.patientId);
+    return enc && enc.status === "TRIAGED";
+  });
+
+  const getEncounterStatus = (patientId: string): EncounterStatus | null =>
+    getActiveEncounterForPatient(patientId)?.status ?? null;
+
+  // ── Today's count label by role ─────────────────────────────────────────────
+  const todayCount =
+    role === "Nurse" ? nurseTriageQueue.length :
+    role === "Vet"   ? vetConsultQueue.length  : pendingAppts.length;
+
+  // ── Role-scoped Go-to button for Live Progress ──────────────────────────────
+  // Receptionist = no button (read-only progress view)
+  // Nurse        = "Go to Triage" only when patient is at TRIAGE step
+  // Vet          = "Go to Consultation" only when patient is at CONSULTATION step
+  // Pharmacist   = "Go to Pharmacy" only when patient is at PHARMACY step
+  // SuperAdmin   = button matches current step always
+  const getGoToAction = (patientStep: WorkflowStepId): { label: string; route: string } | null => {
+    if (role === "Receptionist")                                  return null;
+    if (role === "Nurse"      && patientStep !== "TRIAGE")       return null;
+    if (role === "Vet"        && patientStep !== "CONSULTATION") return null;
+    if (role === "Pharmacist" && patientStep !== "PHARMACY")     return null;
+    const cfg = STEP_CONFIG[patientStep];
+    return { label: `Go to ${cfg.label}`, route: cfg.route };
   };
-  
-  // Mock data for recent activities
-  const recentAppointments = [
-    { id: "1", patient: "Max", owner: "Sarah Johnson", time: "9:00 AM", type: "Checkup" },
-    { id: "2", patient: "Whiskers", owner: "Michael Chen", time: "10:30 AM", type: "Vaccination" },
-    { id: "3", patient: "Luna", owner: "Emily Rodriguez", time: "2:00 PM", type: "Surgery" },
-  ];
 
-  // All alerts (including the ones shown in dashboard)
-  const allAlerts = [
-    { 
-      id: 1, 
-      message: "Rocky needs immediate attention", 
-      type: "critical",
-      timestamp: subMinutes(new Date(), 5) // 5 minutes ago
-    },
-    { 
-      id: 2, 
-      message: "Inventory low: Heartworm medication", 
-      type: "warning",
-      timestamp: subHours(new Date(), 2) // 2 hours ago
-    },
-    { 
-      id: 3, 
-      message: "Staff meeting scheduled for 3 PM", 
-      type: "info",
-      timestamp: subDays(new Date(), 1) // 1 day ago
-    },
-    { 
-      id: 4, 
-      message: "Patient Max - Lab results ready for review", 
-      type: "info",
-      timestamp: subMinutes(new Date(), 15) // 15 minutes ago
-    },
-    { 
-      id: 5, 
-      message: "Vaccination due: Luna (Rabies)", 
-      type: "warning",
-      timestamp: subHours(new Date(), 4) // 4 hours ago
-    },
-    { 
-      id: 6, 
-      message: "Emergency case arrived - Dr. Johnson requested", 
-      type: "critical",
-      timestamp: subSeconds(new Date(), 30) // 30 seconds ago
-    },
-    { 
-      id: 7, 
-      message: "Prescription refill requested: Buddy", 
-      type: "info",
-      timestamp: subHours(new Date(), 1) // 1 hour ago
-    },
-    { 
-      id: 8, 
-      message: "Equipment maintenance due: X-ray machine", 
-      type: "warning",
-      timestamp: subDays(new Date(), 2) // 2 days ago
-    },
-    { 
-      id: 9, 
-      message: "Follow-up appointment reminder: Charlie", 
-      type: "info",
-      timestamp: subHours(new Date(), 6) // 6 hours ago
-    },
-  ];
+  // ── Role-specific alerts ─────────────────────────────────────────────────────
+  const roleAlerts = ROLE_ALERTS[role] ?? ROLE_ALERTS.SuperAdmin;
 
-  // Show only first 3 alerts in dashboard
-  const alerts = allAlerts.slice(0, 3);
+  // ── Handlers ─────────────────────────────────────────────────────────────────
+  const handleCheckIn = (appt: DashAppt) => {
+    createEncounter(appt.patientId, {
+      reason: appt.type, petName: appt.patient, ownerName: appt.owner,
+      appointmentTime: appt.time, appointmentType: appt.type,
+    });
+    wf.checkIn(appt.patientId, {
+      name: appt.patient, owner: appt.owner, time: appt.time,
+      type: appt.type, checkedInAt: new Date().toISOString(),
+    });
+    toast({ title: "✓ Checked In", description: `${appt.patient} is now in the Triage queue.` });
+  };
 
+  const handleNurseTriage = (patientId: string) => {
+    const enc = getActiveEncounterForPatient(patientId);
+    if (enc) updateEncounterStatus(enc.id, "IN_TRIAGE");
+    navigate("/triage");
+  };
+
+  // ── Render ───────────────────────────────────────────────────────────────────
   return (
     <div className="space-y-6">
+      {/* Page header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Dashboard</h1>
-          <p className="text-muted-foreground">
-            Welcome back! Here's what's happening at your veterinary clinic today.
+          <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
+          <p className="text-muted-foreground text-sm">
+            {new Date().toLocaleDateString("en-KE", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
           </p>
         </div>
-        <div className="flex items-center space-x-2 text-sm text-muted-foreground">
-          <Calendar className="h-4 w-4" />
-          <span>{new Date().toLocaleDateString('en-US', { 
-            weekday: 'long', 
-            year: 'numeric', 
-            month: 'long', 
-            day: 'numeric' 
-          })}</span>
-        </div>
+        {has("can_register_patients") && (
+          <Button size="sm" onClick={() => navigate("/patients/add")}>+ New Patient</Button>
+        )}
       </div>
 
       <DashboardStats />
 
+      {/* ══════════════════════════════════════════════════════════════════════ */}
+      {/* LIVE PATIENT PROGRESS — TOP (primary feature)                         */}
+      {/* ══════════════════════════════════════════════════════════════════════ */}
+      <Card className="border-primary/30 shadow-sm">
+        <CardHeader className="py-3 px-4">
+          <CardTitle className="flex items-center justify-between text-sm">
+            <span className="flex items-center gap-2">
+              <Activity className="h-3.5 w-3.5 text-primary animate-pulse" />
+              Live Patient Progress
+            </span>
+            <div className="flex items-center gap-2">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="text-xs text-muted-foreground font-normal hidden sm:inline">Real-time sync</span>
+              <Badge variant="outline" className="text-[10px] font-normal h-5 px-1.5">{activePatients.length} active</Badge>
+            </div>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="px-4 pb-3 pt-0">
+          {activePatients.length === 0 ? (
+            <div className="flex items-center justify-center gap-3 py-5 text-muted-foreground">
+              <Users className="h-5 w-5 opacity-30" />
+              <p className="text-xs">No patients in clinic yet — checked-in patients appear here.</p>
+            </div>
+          ) : (
+            <ScrollArea className="h-[480px] pr-2 overflow-y-auto">
+              <div className="space-y-1.5">
+                {activePatients.map((patient, i) => {
+                  const encStatus = getEncounterStatus(patient.patientId);
+                  const encCfg   = encStatus ? ENC_STATUS_CONFIG[encStatus] : null;
+                  const stepCfg  = STEP_CONFIG[patient.step] ?? STEP_CONFIG.TRIAGE;
+                  const StepIcon = stepCfg.icon;
+                  const goTo     = getGoToAction(patient.step);
+                  const isLive   = encStatus === "IN_TRIAGE" || encStatus === "IN_CONSULTATION" || encStatus === "IN_SURGERY";
+
+                  return (
+                    <div key={patient.patientId}>
+                      {i > 0 && <Separator className="my-1.5" />}
+                      <div className={cn(
+                        "rounded-lg px-3 py-2 transition-colors",
+                        isLive ? "bg-primary/5" : "hover:bg-muted/40"
+                      )}>
+                        {/* Top row: name + badges + time + button */}
+                        <div className="flex items-center gap-2 min-w-0">
+                          <p className="font-semibold text-xs shrink-0">{patient.name}</p>
+
+                          {/* Workflow step badge */}
+                          <span className={cn(
+                            "inline-flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full shrink-0",
+                            stepCfg.color
+                          )}>
+                            <StepIcon className="h-2.5 w-2.5" />
+                            {stepCfg.label}
+                          </span>
+
+                          {/* Encounter status badge — highlighted */}
+                          {encCfg && (
+                            <span className={cn(
+                              "inline-flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded-full shrink-0",
+                              encCfg.cls
+                            )}>
+                              {encCfg.pulse && <span className="h-1 w-1 rounded-full bg-current animate-pulse" />}
+                              {encCfg.label}
+                            </span>
+                          )}
+
+                          <span className="text-[9px] text-muted-foreground ml-auto shrink-0">
+                            {formatDistanceToNow(new Date(patient.checkedInAt), { addSuffix: true })}
+                          </span>
+
+                          {/* Role-gated Go to button */}
+                          {goTo && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-5 text-[9px] px-1.5 gap-0.5 text-primary hover:bg-primary/10 shrink-0"
+                              onClick={() => navigate(goTo.route)}
+                            >
+                              {goTo.label}
+                              <ArrowRight className="h-2.5 w-2.5" />
+                            </Button>
+                          )}
+                        </div>
+
+                        {/* Bottom row: compact progress bar */}
+                        <div className="mt-1.5">
+                          <WorkflowProgress patientId={patient.patientId} />
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </ScrollArea>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* ── Today's Appointments + Alerts row ───────────────────────────────── */}
       <div className="grid gap-6 md:grid-cols-2">
+
+        {/* Today's Appointments — content differs per role */}
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center">
-              <Clock className="mr-2 h-5 w-5" />
-              Today's Appointments
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center justify-between text-base">
+              <span className="flex items-center gap-2">
+                <Clock className="h-4 w-4 text-primary" />
+                {role === "Nurse"      ? "Triage Queue"
+                  : role === "Vet"    ? "Ready for Consultation"
+                  : "Today's Appointments"}
+              </span>
+              <Badge
+                variant={todayCount > 0 ? "default" : "outline"}
+                className="text-xs font-normal"
+              >
+                {todayCount} {role === "Nurse" ? "waiting" : role === "Vet" ? "ready" : "pending"}
+              </Badge>
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {recentAppointments.map((appointment) => (
-                <div
-                  key={appointment.id}
-                  onClick={() => navigate(`/appointments/${appointment.id}`)}
-                  className="flex flex-col p-4 border border-border rounded-lg cursor-pointer hover:bg-muted/50 transition-colors space-y-3"
-                >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="font-medium text-lg">{appointment.patient}</p>
-                      <p className="text-sm text-muted-foreground">{appointment.owner}</p>
+            {todayCount === 0 ? (
+              <div className="flex flex-col items-center justify-center py-8 text-center text-muted-foreground gap-2">
+                <CheckCircle2 className="h-8 w-8 text-primary/30" />
+                <p className="text-sm font-medium">
+                  {role === "Nurse" ? "No patients waiting for triage"
+                    : role === "Vet" ? "No patients ready for consultation"
+                    : "All patients checked in"}
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+
+                {/* ── RECEPTIONIST / SUPERADMIN: unchecked-in appointments ── */}
+                {role !== "Nurse" && role !== "Vet" && pendingAppts.map(appt => (
+                  <div key={appt.id}
+                    className="flex items-center justify-between p-3 border border-border rounded-lg hover:bg-muted/40 transition-colors">
+                    <div className="min-w-0">
+                      <p className="font-semibold text-sm">{appt.patient}</p>
+                      <p className="text-xs text-muted-foreground">{appt.owner}</p>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <div className="text-right">
-                        <p className="font-medium">{appointment.time}</p>
-                        <Badge variant="outline">{appointment.type}</Badge>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <div className="text-right hidden sm:block">
+                        <p className="text-xs font-medium">{appt.time}</p>
+                        <Badge variant="outline" className="text-[10px] px-1.5 py-0">{appt.type}</Badge>
                       </div>
-                      {has("can_triage") ? (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            navigate("/triage", {
-                              state: {
-                                patient: {
-                                  patientId: appointment.id,
-                                  name: appointment.patient,
-                                  owner: appointment.owner,
-                                  species: "Unknown",
-                                  breed: "Unknown",
-                                },
-                              },
-                            });
-                          }}
-                        >
-                          <Stethoscope className="h-4 w-4 mr-1" />
-                          Triage
+                      {has("can_register_patients") && (
+                        <Button size="sm" className="h-7 text-xs" onClick={() => handleCheckIn(appt)}>
+                          <CheckCircle2 className="h-3 w-3 mr-1" />Check-in
                         </Button>
-                      ) : (
-                        has("can_register_patients") && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={(event) => {
-                               event.stopPropagation();
-                               handleCheckIn(appointment);
-                             }}
-                          >
-                            <CheckCircle className="h-4 w-4 mr-1" />
-                            Check-in
-                          </Button>
-                        )
                       )}
                     </div>
                   </div>
-                  
-                  {/* Real-time Workflow Progress Highlight */}
-                  <div onClick={(e) => e.stopPropagation()} className="pt-2 border-t border-muted/30">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">Progress:</span>
-                        <Badge variant="secondary" className="bg-veterinary-teal/10 text-veterinary-teal border-veterinary-teal/20 text-[10px] px-2 py-0 h-5 font-medium">
-                          {wf.getStep(appointment.id)}
-                        </Badge>
+                ))}
+
+                {/* ── NURSE: checked-in patients awaiting/in triage ── */}
+                {role === "Nurse" && nurseTriageQueue.map(p => {
+                  const enc    = getActiveEncounterForPatient(p.patientId);
+                  const encCfg = enc ? ENC_STATUS_CONFIG[enc.status] : null;
+                  return (
+                    <div key={p.patientId}
+                      className="flex items-center justify-between p-3 border border-amber-200 dark:border-amber-900 rounded-lg hover:bg-amber-50/50 dark:hover:bg-amber-950/20 transition-colors">
+                      <div className="min-w-0">
+                        <p className="font-semibold text-sm">{p.name}</p>
+                        <p className="text-xs text-muted-foreground">{p.owner}</p>
+                        {encCfg && (
+                          <span className={cn("inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full mt-1", encCfg.cls)}>
+                            {encCfg.pulse && <span className="h-1.5 w-1.5 rounded-full bg-current animate-pulse" />}
+                            {encCfg.label}
+                          </span>
+                        )}
                       </div>
-                      <div className="flex gap-1">
-                        {wf.workflow.map((step, idx) => {
-                          const currentIdx = wf.getIndex(wf.getStep(appointment.id));
-                          const isActive = idx <= currentIdx;
-                          return (
-                            <div 
-                              key={step.id} 
-                              className={`h-1.5 w-6 rounded-full transition-colors duration-300 ${
-                                isActive ? 'bg-veterinary-teal' : 'bg-muted'
-                              }`}
-                              title={step.label}
-                            />
-                          );
-                        })}
+                      <div className="flex items-center gap-2 shrink-0">
+                        <div className="text-right hidden sm:block">
+                          <p className="text-xs font-medium">{p.time}</p>
+                          <Badge variant="outline" className="text-[10px] px-1.5 py-0">{p.type}</Badge>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs border-amber-400 text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950"
+                          onClick={() => handleNurseTriage(p.patientId)}
+                        >
+                          <Stethoscope className="h-3 w-3 mr-1" />Triage
+                        </Button>
                       </div>
                     </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <Button 
-              variant="outline" 
-              className="w-full mt-4"
-              onClick={() => navigate("/appointments")}
-            >
+                  );
+                })}
+
+                {/* ── VET: triaged patients ready for consultation ── */}
+                {role === "Vet" && vetConsultQueue.map(p => {
+                  const enc    = getActiveEncounterForPatient(p.patientId);
+                  const encCfg = enc ? ENC_STATUS_CONFIG[enc.status] : null;
+                  return (
+                    <div key={p.patientId}
+                      className="flex items-center justify-between p-3 border border-emerald-200 dark:border-emerald-900 rounded-lg bg-emerald-50/50 dark:bg-emerald-950/20 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 transition-colors">
+                      <div className="min-w-0">
+                        <p className="font-semibold text-sm">{p.name}</p>
+                        <p className="text-xs text-muted-foreground">{p.owner}</p>
+                        {encCfg && (
+                          <span className={cn("inline-flex items-center text-[10px] px-2 py-0.5 rounded-full mt-1", encCfg.cls)}>
+                            {encCfg.label}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <p className="text-xs font-medium hidden sm:block">{p.time}</p>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs border-blue-400 text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950"
+                          onClick={() => navigate(`/records/new?patientId=${p.patientId}&petName=${encodeURIComponent(p.name)}&owner=${encodeURIComponent(p.owner)}&draft=true`)}
+                        >
+                          <Activity className="h-3 w-3 mr-1" />Consult
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+
+              </div>
+            )}
+            <Button variant="outline" className="w-full mt-3 h-8 text-xs" onClick={() => navigate("/appointments")}>
               View All Appointments
             </Button>
           </CardContent>
         </Card>
 
+        {/* Role-specific Alerts & Notifications */}
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center">
-              <AlertCircle className="mr-2 h-5 w-5" />
-              Alerts & Notifications
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center justify-between text-base">
+              <span className="flex items-center gap-2">
+                <AlertCircle className="h-4 w-4 text-primary" />
+                Alerts & Notifications
+              </span>
+              {notifications.filter(n => !n.read).length > 0 && (
+                <Badge variant="destructive" className="text-xs">
+                  {notifications.filter(n => !n.read).length} new
+                </Badge>
+              )}
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-3">
-              {alerts.map((alert) => (
-                <div key={alert.id} className={`p-3 rounded-lg border-l-4 ${
-                  alert.type === 'critical' 
-                    ? 'border-destructive bg-destructive/10' 
-                    : alert.type === 'warning'
-                    ? 'border-warning bg-warning/10'
-                    : 'border-primary bg-primary/10'
-                }`}>
+            <div className="space-y-2">
+              {/* Live workflow notifications (from NotificationContext — synced cross-tab) */}
+              {notifications.slice(0, 2).map(n => (
+                <div key={n.id}
+                  className={cn("p-3 rounded-lg border-l-4 text-xs", {
+                    "border-emerald-500 bg-emerald-50 dark:bg-emerald-950/20": n.type === "success",
+                    "border-primary bg-primary/10":    n.type === "info",
+                    "border-warning bg-warning/10":    n.type === "warning",
+                    "border-destructive bg-destructive/10": n.type === "critical",
+                  })}
+                >
                   <div className="flex items-start justify-between gap-2">
-                    <p className="text-sm flex-1">{alert.message}</p>
-                    <span className="text-xs text-muted-foreground whitespace-nowrap">
+                    <p className={cn("flex-1", !n.read && "font-semibold")}>{n.message}</p>
+                    <span className="text-[10px] text-muted-foreground whitespace-nowrap">
+                      {formatDistanceToNow(new Date(n.timestamp), { addSuffix: true })}
+                    </span>
+                  </div>
+                </div>
+              ))}
+              {/* Role-specific static alerts (fill remaining slots) */}
+              {roleAlerts.slice(0, Math.max(1, 3 - notifications.slice(0, 2).length)).map((alert, i) => (
+                <div key={`ra-${i}`}
+                  className={cn("p-3 rounded-lg border-l-4 text-xs", {
+                    "border-destructive bg-destructive/10": alert.type === "critical",
+                    "border-warning bg-warning/10":         alert.type === "warning",
+                    "border-emerald-500 bg-emerald-50 dark:bg-emerald-950/20": alert.type === "success",
+                    "border-primary bg-primary/10":         alert.type === "info",
+                  })}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="flex-1">{alert.message}</p>
+                    <span className="text-[10px] text-muted-foreground whitespace-nowrap">
                       {formatDistanceToNow(alert.timestamp, { addSuffix: true })}
                     </span>
                   </div>
                 </div>
               ))}
             </div>
-            <Button 
-              variant="outline" 
-              className="w-full mt-4"
-              onClick={() => setIsAlertsModalOpen(true)}
-            >
+            <Button variant="outline" className="w-full mt-3 h-8 text-xs" onClick={() => setIsAlertsModalOpen(true)}>
               View All Alerts
             </Button>
           </CardContent>
         </Card>
       </div>
 
+      {/* ── Completed Today ──────────────────────────────────────────────────── */}
+      {completedPatients.length > 0 && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center justify-between text-base">
+              <span className="flex items-center gap-2">
+                <CheckCheck className="h-4 w-4 text-emerald-600" />
+                Completed Today
+              </span>
+              <Badge className="text-xs bg-emerald-100 text-emerald-800 border border-emerald-300 font-normal hover:bg-emerald-100">
+                {completedPatients.length} discharged
+              </Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {completedPatients.map(p => (
+                <div key={p.patientId}
+                  className="flex items-center gap-3 p-3 border border-emerald-200 dark:border-emerald-900 rounded-lg bg-emerald-50/50 dark:bg-emerald-950/20">
+                  <CheckCheck className="h-4 w-4 text-emerald-600 shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold truncate">{p.name}</p>
+                    <p className="text-xs text-muted-foreground truncate">{p.owner}</p>
+                    <p className="text-[10px] text-muted-foreground">
+                      {formatDistanceToNow(new Date(p.checkedInAt), { addSuffix: true })}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* All Alerts Modal */}
       <Dialog open={isAlertsModalOpen} onOpenChange={setIsAlertsModalOpen}>
-        <DialogContent className="sm:max-w-[600px] max-h-[80vh]">
+        <DialogContent className="sm:max-w-[560px] max-h-[80vh]">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <AlertCircle className="h-5 w-5" />
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <AlertCircle className="h-4 w-4" />
               All Alerts & Notifications
             </DialogTitle>
-            <DialogDescription>
-              View and manage all system alerts and notifications
-            </DialogDescription>
+            <DialogDescription>Role-specific alerts and live workflow notifications</DialogDescription>
           </DialogHeader>
-          <ScrollArea className="max-h-[60vh] pr-4">
-            <div className="space-y-3">
-              {allAlerts.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  No alerts available
-                </div>
-              ) : (
-                allAlerts.map((alert) => (
-                  <div
-                    key={alert.id}
-                    className={`p-4 rounded-lg border-l-4 ${
-                      alert.type === 'critical' 
-                        ? 'border-destructive bg-destructive/10' 
-                        : alert.type === 'warning'
-                        ? 'border-warning bg-warning/10'
-                        : 'border-primary bg-primary/10'
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex-1">
-                        <p className="text-sm font-medium">{alert.message}</p>
-                        <div className="flex items-center gap-2 mt-2">
-                          <Badge
-                            variant={
-                              alert.type === 'critical'
-                                ? 'destructive'
-                                : alert.type === 'warning'
-                                ? 'default'
-                                : 'secondary'
-                            }
-                            className="text-xs"
-                          >
-                            {alert.type}
-                          </Badge>
-                        </div>
+          <ScrollArea className="max-h-[60vh] pr-2">
+            <div className="space-y-2">
+              {notifications.length > 0 && (
+                <>
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Live Workflow Notifications</p>
+                  {notifications.map(n => (
+                    <div key={n.id}
+                      className={cn("p-3 rounded-lg border-l-4 mb-1", {
+                        "border-emerald-500 bg-emerald-50 dark:bg-emerald-950/20": n.type === "success",
+                        "border-primary bg-primary/10":    n.type === "info",
+                        "border-warning bg-warning/10":    n.type === "warning",
+                        "border-destructive bg-destructive/10": n.type === "critical",
+                      })}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <p className={cn("text-xs flex-1", !n.read && "font-semibold")}>{n.message}</p>
+                        <span className="text-[10px] text-muted-foreground whitespace-nowrap">
+                          {formatDistanceToNow(new Date(n.timestamp), { addSuffix: true })}
+                        </span>
                       </div>
-                      <span className="text-xs text-muted-foreground whitespace-nowrap">
-                        {formatDistanceToNow(alert.timestamp, { addSuffix: true })}
-                      </span>
+                      {n.step && <Badge variant="outline" className="text-[9px] mt-1 px-1.5 py-0 h-3.5">{n.step}</Badge>}
                     </div>
-                  </div>
-                ))
+                  ))}
+                </>
               )}
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mt-3 mb-2">System Alerts for {role}</p>
+              {roleAlerts.map((alert, i) => (
+                <div key={`modal-ra-${i}`}
+                  className={cn("p-3 rounded-lg border-l-4", {
+                    "border-destructive bg-destructive/10": alert.type === "critical",
+                    "border-warning bg-warning/10":         alert.type === "warning",
+                    "border-emerald-500 bg-emerald-50 dark:bg-emerald-950/20": alert.type === "success",
+                    "border-primary bg-primary/10":         alert.type === "info",
+                  })}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="text-xs flex-1">{alert.message}</p>
+                    <span className="text-[10px] text-muted-foreground whitespace-nowrap">
+                      {formatDistanceToNow(alert.timestamp, { addSuffix: true })}
+                    </span>
+                  </div>
+                </div>
+              ))}
             </div>
           </ScrollArea>
         </DialogContent>

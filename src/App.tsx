@@ -37,12 +37,17 @@ import Inventory from "./pages/Inventory";
 import NotFound from "./pages/NotFound";
 import { WorkflowProvider } from "@/contexts/WorkflowContext";
 import { EncounterProvider } from "@/contexts/EncounterContext";
+import { NotificationProvider } from "@/contexts/NotificationContext";
+import WorkflowSettings from "./pages/WorkflowSettings";
+import AppearanceSettings from "./pages/AppearanceSettings";
 import Audit from "./pages/Audit";
 import Billing from "./pages/Billing";
 import { RoleProvider } from "@/contexts/RoleContext";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import PatientJourney from "./pages/PatientJourney";
+import UserProfile from "./pages/UserProfile";
 import { PermissionRoute } from "@/components/PermissionRoute";
+import { AppearanceProvider } from "@/contexts/AppearanceContext";
 
 const queryClient = new QueryClient();
 
@@ -76,6 +81,9 @@ function ProtectedRoutes() {
         <Route path="/records/new" element={<NewRecord />} />
         <Route path="/records/:id" element={<ClinicalRecordDetails />} />
         <Route path="/patients/:id/journey" element={<PatientJourney />} />
+        <Route path="/workflow-settings" element={<WorkflowSettings />} />
+        <Route path="/appearance" element={<AppearanceSettings />} />
+        <Route path="/profile" element={<UserProfile />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </Layout>
@@ -105,8 +113,10 @@ const App = () => (
           <AuthProvider>
             <AdminAuthProvider>
               <RoleProvider>
+                <AppearanceProvider>
                 <WorkflowProvider>
                   <EncounterProvider>
+                    <NotificationProvider>
                     <Routes>
                       <Route path="/login" element={<Login />} />
                       <Route path="/admin/login" element={<AdminLogin />} />
@@ -124,8 +134,10 @@ const App = () => (
                       </Route>
                       <Route path="*" element={<ProtectedRoutes />} />
                     </Routes>
+                    </NotificationProvider>
                   </EncounterProvider>
                 </WorkflowProvider>
+                </AppearanceProvider>
               </RoleProvider>
             </AdminAuthProvider>
           </AuthProvider>

@@ -1,5 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { TrendingUp, TrendingDown, Users, Calendar, DollarSign, Heart } from "lucide-react";
+import { formatCurrency } from "@/pages/WorkflowSettings";
 
 interface StatCardProps {
   title: string;
@@ -54,7 +55,7 @@ export function DashboardStats() {
     },
     {
       title: "Weekly Revenue",
-      value: "$18,420",
+      value: formatCurrency(18420),
       change: "+15%",
       trend: "up" as const,
       icon: DollarSign,
