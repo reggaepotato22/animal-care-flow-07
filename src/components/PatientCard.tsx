@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { MapPin, Phone, Heart, Stethoscope, CheckCircle } from "lucide-react";
+import { MapPin, Phone, Heart, Stethoscope, CheckCircle, Plus } from "lucide-react";
 import { useWorkflow } from "@/hooks/useWorkflow";
 import { useRole } from "@/contexts/RoleContext";
 import { useNavigate } from "react-router-dom";
@@ -24,6 +24,8 @@ interface Patient {
   lastVisit: string;
   status: "healthy" | "treatment" | "critical";
   image?: string;
+  allergies?: string[];
+  microchip?: string;
 }
 
 interface PatientCardProps {
@@ -54,7 +56,8 @@ export function PatientCard({ patient, onViewDetails, onTriage, hasAppointmentTo
   const wf = useWorkflow({ patientId: patient.patientId || patient.id });
   const { createEncounter } = useEncounter();
 
-  const handleCheckIn = () => {
+  const handleCheckIn = (e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
     // Create encounter for the patient
     createEncounter(patient.id, {
       reason: "General Visit",
@@ -108,6 +111,11 @@ export function PatientCard({ patient, onViewDetails, onTriage, hasAppointmentTo
             <Badge className={getStatusColor(patient.status)}>
               {patient.status}
             </Badge>
+            {patient.allergies && patient.allergies.length > 0 && patient.allergies[0] !== "None known" && (
+              <Badge variant="outline" className="text-[10px] bg-red-50 text-red-600 border-red-200">
+                Allergies
+              </Badge>
+            )}
           </div>
         </div>
       </CardHeader>
@@ -135,6 +143,12 @@ export function PatientCard({ patient, onViewDetails, onTriage, hasAppointmentTo
             <span className="text-muted-foreground block text-xs">Weight</span>
             <span className="font-medium">{patient.weight}</span>
           </div>
+          {patient.microchip && patient.microchip !== "N/A" && (
+            <div className="bg-muted/30 p-2 rounded-md col-span-2">
+              <span className="text-muted-foreground block text-xs">Microchip</span>
+              <span className="font-mono text-[11px]">{patient.microchip}</span>
+            </div>
+          )}
         </div>
         
         <div className="space-y-2 text-sm">
@@ -170,15 +184,26 @@ export function PatientCard({ patient, onViewDetails, onTriage, hasAppointmentTo
                 variant="outline"
                 size="sm"
                 onClick={(e) => {
-                  e.stopPropagation();
-                  handleCheckIn();
+                  handleCheckIn(e);
                 }}
-                className="w-full"
-                disabled={!hasAppointmentToday}
-                title={!hasAppointmentToday ? "No appointment scheduled for today" : ""}
+                className={cn(
+                  "w-full transition-colors",
+                  hasAppointmentToday 
+                    ? "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 hover:text-blue-800"
+                    : "border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 hover:text-indigo-800"
+                )}
               >
-                <CheckCircle className="h-4 w-4 mr-1.5" />
-                Check-in
+                {hasAppointmentToday ? (
+                  <>
+                    <CheckCircle className="h-4 w-4 mr-1.5" />
+                    Check-in
+                  </>
+                ) : (
+                  <>
+                    <Plus className="h-4 w-4 mr-1.5" />
+                    New Visit
+                  </>
+                )}
               </Button>
             )
           )}
