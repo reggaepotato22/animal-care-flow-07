@@ -36,6 +36,8 @@ import { useEncounter } from "@/contexts/EncounterContext";
 import { EncounterHeader } from "@/components/EncounterHeader";
 import { Separator } from "@/components/ui/separator";
 import { AttachmentManager } from "@/components/AttachmentManager";
+import { LabOrderManager } from "@/components/LabOrderManager";
+import { ClinicalTimeline } from "@/components/ClinicalTimeline";
 
 const NOTE_TYPES = [
   { value: "soap", label: "SOAP" },
@@ -877,7 +879,7 @@ const DRAFT_RECORD_KEY = (patientId: string) => `acf_draft_record_${patientId}`;
 export default function NewRecord() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { encounters, activeEncounter, setActiveEncounter, updateEncounterStatus, getEncountersByPatient, getActiveEncounterForPatient } = useEncounter();
+  const { encounters, activeEncounter, setActiveEncounter, updateEncounterStatus, getEncountersByPatient, getActiveEncounterForPatient, createEncounter } = useEncounter();
   const recordsBase = location.pathname.startsWith("/admin") ? "/admin/records" : "/records";
   const [templateSearch, setTemplateSearch] = useState("");
   const [activeTab, setActiveTab] = useState("overview");
@@ -901,10 +903,20 @@ export default function NewRecord() {
       return;
     }
     if (urlPatientId) {
-      const enc = getActiveEncounterForPatient(urlPatientId);
+      let enc = getActiveEncounterForPatient(urlPatientId);
+      if (!enc) {
+        // No encounter exists yet — auto-create one from URL params so the
+        // page is immediately usable instead of showing a blank state.
+        enc = createEncounter(urlPatientId, {
+          reason: "Consultation",
+          petName: urlPetName ?? urlPatientId,
+          ownerName: urlOwner ?? "",
+          status: "IN_CONSULTATION",
+        });
+      }
       if (enc) {
         setActiveEncounter(enc);
-        // Transition TRIAGED → IN_CONSULTATION when vet opens the record
+        // Transition TRIAGED / WAITING → IN_CONSULTATION when vet opens the record
         if (urlDraft && (enc.status === "TRIAGED" || enc.status === "WAITING")) {
           updateEncounterStatus(enc.id, "IN_CONSULTATION");
         }
@@ -1210,7 +1222,7 @@ export default function NewRecord() {
         title: "Triage / Intake Note",
         content: visitData.chiefComplaint ? `Chief Complaint: ${visitData.chiefComplaint}\n\nHistory: ${visitData.history || ""}` : "",
         createdAt: new Date().toISOString(),
-        author: "Triage Nurse",
+        author: "Triage Attendant",
         soapData: {
           subjective: visitData.history || "",
           objective: `Triage Level: ${visitData.triageLevel || "N/A"}\nTemperature: ${visitData.vitals?.temp || ""}°F\nHR: ${visitData.vitals?.hr || ""} bpm\nRR: ${visitData.vitals?.rr || ""} rpm\nWeight: ${visitData.vitals?.weight || ""} kg`,
@@ -1745,6 +1757,17 @@ const applyTemplate = (templateName: string, noteId?: string) => {
     if (pid) {
       wf.goTo("PHARMACY");
     }
+
+    // Notify all roles about the saved record
+    window.dispatchEvent(new CustomEvent("acf:notification", {
+      detail: {
+        type: "success",
+        message: `Clinical record saved for ${displayPetName || pid} — moved to Pharmacy`,
+        patientId: pid,
+        patientName: displayPetName || pid,
+        targetRoles: ["SuperAdmin", "Vet", "Nurse", "Pharmacist"],
+      },
+    }));
 
     navigate(recordsBase);
   };
@@ -3243,6 +3266,25 @@ const applyTemplate = (templateName: string, noteId?: string) => {
                 </Card>
               </div>
 
+              {/* Clinical Timeline */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <CalendarIcon className="h-5 w-5" />
+                    Clinical Timeline
+                  </CardTitle>
+                  <CardDescription>
+                    Visual history and upcoming events for {displayPetName || "Patient"}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <ClinicalTimeline
+                    patientId={selectedPatient || urlPatientId || "unknown"}
+                    patientName={displayPetName || "Patient"}
+                  />
+                </CardContent>
+              </Card>
+
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
@@ -3254,11 +3296,22 @@ const applyTemplate = (templateName: string, noteId?: string) => {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
+                  {/* Lab Order Manager - Secure Lab Upload */}
+                  <LabOrderManager
+                    patientId={selectedPatient || urlPatientId || "unknown"}
+                    patientName={displayPetName || "Patient"}
+                    createdBy={selectedVeterinarian || "Veterinarian"}
+                    encounterId={activeEncounter?.id}
+                  />
+
+                  <Separator />
+
                   {/* Attachment Manager - Generate Upload Links */}
                   <AttachmentManager
                     patientId={selectedPatient || urlPatientId || "unknown"}
                     patientName={displayPetName || "Patient"}
                     createdBy={selectedVeterinarian || "Veterinarian"}
+                    encounterId={activeEncounter?.id}
                   />
 
                   <Separator />

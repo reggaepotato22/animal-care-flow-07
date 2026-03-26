@@ -23,7 +23,7 @@ import { cn } from "@/lib/utils";
 const ROLE_META: Record<Role, { icon: React.ElementType; color: string; description: string }> = {
   SuperAdmin:    { icon: Shield,        color: "text-purple-600",  description: "Full system access — manage all users, settings, and data." },
   Vet:           { icon: Stethoscope,   color: "text-blue-600",    description: "Clinical staff — create records, prescribe, and manage consultations." },
-  Nurse:         { icon: UserCheck,     color: "text-teal-600",    description: "Triage and clinical support — assess patients and update records." },
+  Nurse:         { icon: UserCheck,     color: "text-teal-600",    description: "Attendant — triage and clinical support — assess patients and update records." },
   Receptionist:  { icon: ClipboardList, color: "text-orange-600",  description: "Front-desk staff — register patients, book appointments, and handle billing." },
   Pharmacist:    { icon: Package,       color: "text-green-600",   description: "Pharmacy staff — dispense medication and manage inventory." },
 };

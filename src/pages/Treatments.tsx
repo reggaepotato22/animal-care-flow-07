@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Search, Plus, Edit, Copy, Power, DollarSign, Clock, FileText } from "lucide-react";
-import { treatmentItems, treatmentCategories, TreatmentItem } from "@/data/treatments";
+import { treatmentItems as initialTreatmentItems, treatmentCategories, TreatmentItem } from "@/data/treatments";
 import { inventoryItems } from "@/data/inventory";
 import { Package } from "lucide-react";
 import { TreatmentItemDialog } from "@/components/TreatmentItemDialog";
@@ -17,6 +17,7 @@ export default function Treatments() {
   const [statusFilter, setStatusFilter] = useState<string>("active");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedTreatment, setSelectedTreatment] = useState<TreatmentItem | undefined>();
+  const [treatmentItems, setTreatmentItems] = useState<TreatmentItem[]>(initialTreatmentItems);
 
   // Filter treatments
   const filteredTreatments = treatmentItems.filter((item) => {
@@ -61,6 +62,13 @@ export default function Treatments() {
   const handleSave = (treatment: TreatmentItem) => {
     // In a real app, this would save to the backend
     console.log("Saving treatment:", treatment);
+    window.dispatchEvent(new CustomEvent("acf:notification", {
+      detail: {
+        type: "info",
+        message: `Treatment updated: ${treatment.name}`,
+        targetRoles: ["SuperAdmin", "Vet", "Nurse", "Pharmacist"],
+      },
+    }));
     setIsDialogOpen(false);
   };
 
@@ -269,8 +277,11 @@ export default function Treatments() {
                             variant="ghost"
                             size="sm"
                             onClick={() => {
-                              // Duplicate functionality
-                              console.log("Duplicate:", treatment);
+                              const dup: TreatmentItem = { ...treatment, code: `${treatment.code}-COPY`, name: `${treatment.name} (Copy)` };
+                              setTreatmentItems(prev => [...prev, dup]);
+                              window.dispatchEvent(new CustomEvent("acf:notification", {
+                                detail: { type: "info", message: `Treatment duplicated: ${dup.name}`, targetRoles: ["SuperAdmin", "Vet"] },
+                              }));
                             }}
                           >
                             <Copy className="h-3 w-3" />
@@ -279,8 +290,10 @@ export default function Treatments() {
                             variant="ghost"
                             size="sm"
                             onClick={() => {
-                              // Toggle active status
-                              console.log("Toggle status:", treatment);
+                              setTreatmentItems(prev => prev.map(t => t.code === treatment.code ? { ...t, isActive: !t.isActive } : t));
+                              window.dispatchEvent(new CustomEvent("acf:notification", {
+                                detail: { type: "info", message: `${treatment.name} ${treatment.isActive ? "deactivated" : "activated"}`, targetRoles: ["SuperAdmin", "Vet", "Pharmacist"] },
+                              }));
                             }}
                           >
                             <Power className="h-3 w-3" />

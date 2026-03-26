@@ -196,7 +196,7 @@ export function Header() {
                     <DropdownMenuLabel className="text-xs text-muted-foreground">Demo Role Switch</DropdownMenuLabel>
                     <DropdownMenuItem onClick={() => setRole("SuperAdmin")}>Switch to SuperAdmin</DropdownMenuItem>
                     <DropdownMenuItem onClick={() => setRole("Vet")}>Switch to Vet</DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setRole("Nurse")}>Switch to Nurse</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setRole("Nurse")}>Switch to Attendant</DropdownMenuItem>
                     <DropdownMenuItem onClick={() => setRole("Receptionist")}>Switch to Receptionist</DropdownMenuItem>
                     <DropdownMenuItem onClick={() => setRole("Pharmacist")}>Switch to Pharmacist</DropdownMenuItem>
                   </>
