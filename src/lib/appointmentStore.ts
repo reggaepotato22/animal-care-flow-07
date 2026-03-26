@@ -98,6 +98,37 @@ export function subscribeToAppointments(cb: () => void): () => void {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+/** Update an existing appointment (for Edit functionality) */
+export function updateAppointment(
+  id: string,
+  updates: Partial<Omit<StoredAppointment, "id" | "createdAt">>
+): StoredAppointment | null {
+  try {
+    const existing = loadStoredAppointments();
+    const idx = existing.findIndex(a => a.id === id);
+    if (idx < 0) return null;
+    const updated = { ...existing[idx], ...updates, updatedAt: new Date().toISOString() };
+    existing[idx] = updated;
+    localStorage.setItem(APT_STORAGE_KEY, JSON.stringify(existing));
+    return updated;
+  } catch {
+    return null;
+  }
+}
+
+/** Cancel/delete an appointment */
+export function deleteAppointment(id: string): boolean {
+  try {
+    const existing = loadStoredAppointments();
+    const filtered = existing.filter(a => a.id !== id);
+    if (filtered.length === existing.length) return false;
+    localStorage.setItem(APT_STORAGE_KEY, JSON.stringify(filtered));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** ISO date string → "HH:MM AM/PM" style label used in dashboard */
 export function isoToTimeLabel(isoDate: string, time: string): string {
   // time is already "09:00" format — convert to "9:00 AM"

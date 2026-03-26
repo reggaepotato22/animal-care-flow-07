@@ -34,6 +34,7 @@ import PostmortemDetails from "./pages/PostmortemDetails";
 import Hospitalization from "./pages/Hospitalization";
 import Treatments from "./pages/Treatments";
 import Inventory from "./pages/Inventory";
+import ExternalUpload from "./pages/ExternalUpload";
 import NotFound from "./pages/NotFound";
 import { WorkflowProvider } from "@/contexts/WorkflowContext";
 import { EncounterProvider } from "@/contexts/EncounterContext";
@@ -120,6 +121,7 @@ const App = () => (
                     <Routes>
                       <Route path="/login" element={<Login />} />
                       <Route path="/admin/login" element={<AdminLogin />} />
+                      <Route path="/external-upload" element={<ExternalUpload />} />
                       <Route path="/admin" element={<ProtectedAdminLayout />}>
                         <Route index element={<AdminDashboard />} />
                         <Route element={<PermissionRoute permission="can_manage_users" />}>

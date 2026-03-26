@@ -228,6 +228,10 @@ export default function Appointments() {
     });
   };
 
+  const handleCancel = (appointmentId: string) => {
+    setAppointments(prev => prev.filter(apt => apt.id !== appointmentId));
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -339,6 +343,7 @@ export default function Appointments() {
             }))}
             searchTerm={searchTerm}
             onCheckIn={handleCheckIn}
+            onCancel={handleCancel}
             liveStatuses={liveStatuses}
           />
         </TabsContent>

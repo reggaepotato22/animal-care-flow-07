@@ -44,6 +44,42 @@ export default function PatientDetails() {
     }
   };
 
+  const handleRefer = () => {
+    if (!id) return;
+    const enc = getActiveEncounterForPatient(id);
+    if (enc) updateEncounterStatus(enc.id, "DISCHARGED");
+    setPatientStatus(id, "Referred");
+    setStep(id, "COMPLETED");
+    try {
+      const stored: unknown[] = JSON.parse(localStorage.getItem("acf_clinical_records") ?? "[]");
+      stored.unshift({ type: "referral", patientId: id, petName: patient?.name, createdAt: new Date().toISOString(), status: "Referred" });
+      localStorage.setItem("acf_clinical_records", JSON.stringify(stored));
+      new BroadcastChannel("acf_hospitalization_channel").postMessage({ type: "patient_referred", patientId: id });
+    } catch {}
+    window.dispatchEvent(new CustomEvent("acf:notification", {
+      detail: { type: "info", message: `${patient?.name ?? "Patient"} referred to external specialist`, patientId: id },
+    }));
+    toast({ title: "Patient Referred", description: `${patient?.name ?? "Patient"} has been referred.` });
+  };
+
+  const handleDeceased = () => {
+    if (!id) return;
+    const enc = getActiveEncounterForPatient(id);
+    if (enc) updateEncounterStatus(enc.id, "DISCHARGED");
+    setPatientStatus(id, "Deceased");
+    setStep(id, "COMPLETED");
+    try {
+      const stored: unknown[] = JSON.parse(localStorage.getItem("acf_clinical_records") ?? "[]");
+      stored.unshift({ type: "deceased", patientId: id, petName: patient?.name, createdAt: new Date().toISOString(), status: "Deceased" });
+      localStorage.setItem("acf_clinical_records", JSON.stringify(stored));
+      new BroadcastChannel("acf_hospitalization_channel").postMessage({ type: "patient_deceased", patientId: id });
+    } catch {}
+    window.dispatchEvent(new CustomEvent("acf:notification", {
+      detail: { type: "warning", message: `${patient?.name ?? "Patient"} marked as deceased`, patientId: id },
+    }));
+    toast({ title: "Record Updated", description: `${patient?.name ?? "Patient"} has been marked as deceased.` });
+  };
+
   const hasAppointmentToday = useMemo(() => {
     if (!patient) return false;
     return mockAppointments.some(
@@ -316,7 +352,7 @@ export default function PatientDetails() {
                   </DropdownMenuItem>
                   <DropdownMenuItem 
                     className="cursor-pointer"
-                    onSelect={() => id && setPatientStatus(id, "Referred")}
+                    onSelect={handleRefer}
                   >
                     <div className="flex items-center w-full">
                       <ArrowUpRight className="mr-2 h-4 w-4" />
@@ -335,7 +371,7 @@ export default function PatientDetails() {
                         breed: patient.breed
                       }}
                     >
-                      <div className="flex items-center w-full" onClick={() => id && setPatientStatus(id, "Deceased")}>
+                      <div className="flex items-center w-full" onClick={handleDeceased}>
                         <FileSearch className="mr-2 h-4 w-4" />
                         Mark as Deceased
                       </div>

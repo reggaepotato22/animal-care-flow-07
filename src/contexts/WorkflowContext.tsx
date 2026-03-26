@@ -21,6 +21,17 @@ export interface CheckedInPatient extends PatientMeta {
   step: WorkflowStepId;
 }
 
+export interface ProcessHistoryEntry {
+  patientId: string;
+  petName: string;
+  owner: string;
+  checkedInAt: string;
+  completedAt: string;
+  durationMinutes: number;
+  finalStatus: PatientLifecycleStatus;
+  type: string;
+}
+
 // ─── Storage keys ─────────────────────────────────────────────────────────────
 
 const STORAGE_ORDER_KEY    = "acf_workflow_order";
@@ -28,6 +39,7 @@ const STORAGE_MAP_KEY      = "acf_workflow_patient_steps";
 const STORAGE_STATUS_KEY   = "acf_patient_lifecycle_status";
 const STORAGE_META_KEY     = "acf_patient_meta";
 const STORAGE_CHECKIN_KEY  = "acf_checked_in_patients";
+const STORAGE_HISTORY_KEY  = "acf_patient_process_history";
 
 // Module-level channel (one per origin, stable across renders)
 const workflowChannel = new BroadcastChannel("acf_workflow_updates");
@@ -49,6 +61,9 @@ export interface WorkflowContextValue {
   isCheckedIn: (patientId: string) => boolean;
   getCheckedInPatients: () => CheckedInPatient[];
   patientMeta: PatientMetaMap;
+  // Process history
+  getProcessHistory: () => ProcessHistoryEntry[];
+  clearPatientFromActive: (patientId: string) => void;
 }
 
 const WorkflowContext = createContext<WorkflowContextValue | null>(null);
@@ -68,6 +83,44 @@ function load<T>(key: string, fallback: T): T {
 
 function dispatchNotification(detail: Record<string, unknown>) {
   window.dispatchEvent(new CustomEvent("acf:notification", { detail }));
+}
+
+function recordProcessHistory(
+  patientId: string,
+  meta: PatientMeta | undefined,
+  finalStatus: PatientLifecycleStatus
+) {
+  if (!meta) return;
+  const checkedInAt = new Date(meta.checkedInAt);
+  const completedAt = new Date();
+  const durationMs = completedAt.getTime() - checkedInAt.getTime();
+  const durationMinutes = Math.round(durationMs / 60000);
+
+  const entry: ProcessHistoryEntry = {
+    patientId,
+    petName: meta.name,
+    owner: meta.owner,
+    checkedInAt: meta.checkedInAt,
+    completedAt: completedAt.toISOString(),
+    durationMinutes,
+    finalStatus: finalStatus === "Active" ? "Discharged" : finalStatus,
+    type: meta.type,
+  };
+
+  const existing = load<ProcessHistoryEntry[]>(STORAGE_HISTORY_KEY, []);
+  existing.unshift(entry);
+  persist(STORAGE_HISTORY_KEY, existing);
+}
+
+function getProcessHistory(): ProcessHistoryEntry[] {
+  return load<ProcessHistoryEntry[]>(STORAGE_HISTORY_KEY, []);
+}
+
+function clearPatientFromActive(patientId: string) {
+  // Remove from checked-in list when completed
+  const checkedIn = load<string[]>(STORAGE_CHECKIN_KEY, []);
+  const filtered = checkedIn.filter(id => id !== patientId);
+  persist(STORAGE_CHECKIN_KEY, filtered);
 }
 
 // ─── Provider ─────────────────────────────────────────────────────────────────
@@ -159,10 +212,40 @@ export function WorkflowProvider({
     workflowChannel.postMessage({ type: "STATUS_UPDATE", payload: { patientId, status } });
   };
 
+  // Update from other tabs when patient completes
+  useEffect(() => {
+    const handle = (event: MessageEvent) => {
+      const { type, payload } = event.data as { type: string; payload: Record<string, unknown> };
+      if (type === "STEP_UPDATE") {
+        const { patientId, step } = payload as { patientId: string; step: WorkflowStepId };
+        if (step === "COMPLETED") {
+          // Remove from checked-in list when completed from other tab
+          setCheckedInIds(prev => {
+            const filtered = prev.filter(id => id !== patientId);
+            persist(STORAGE_CHECKIN_KEY, filtered);
+            return filtered;
+          });
+        }
+      }
+    };
+    workflowChannel.addEventListener("message", handle);
+    return () => workflowChannel.removeEventListener("message", handle);
+  }, []);
+
   const setStep = (patientId: string, step: WorkflowStepId, meta?: Partial<PatientMeta>) => {
     setMap(prev => { const n = { ...prev, [patientId]: step }; persist(STORAGE_MAP_KEY, n); return n; });
     if (step === "COMPLETED") {
       setPatientStatus(patientId, "Discharged");
+      // Record timeline and clear from active
+      const patientMeta = metaMap[patientId];
+      const currentStatus = getPatientStatus(patientId);
+      recordProcessHistory(patientId, patientMeta, currentStatus);
+      clearPatientFromActive(patientId);
+      setCheckedInIds(prev => {
+        const filtered = prev.filter(id => id !== patientId);
+        persist(STORAGE_CHECKIN_KEY, filtered);
+        return filtered;
+      });
     } else {
       const cur = getPatientStatus(patientId);
       if (cur !== "Deceased" && cur !== "Referred" && cur !== "Hospitalized") {
@@ -231,6 +314,14 @@ export function WorkflowProvider({
     getPatientStatus, setPatientStatus,
     checkIn, isCheckedIn, getCheckedInPatients,
     patientMeta: metaMap,
+    getProcessHistory,
+    clearPatientFromActive: (patientId: string) => {
+      setCheckedInIds(prev => {
+        const filtered = prev.filter(id => id !== patientId);
+        persist(STORAGE_CHECKIN_KEY, filtered);
+        return filtered;
+      });
+    },
   };
 
   return <WorkflowContext.Provider value={value}>{children}</WorkflowContext.Provider>;
