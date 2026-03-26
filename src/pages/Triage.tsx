@@ -104,6 +104,23 @@ export default function Triage() {
     }
   }, [triageQueue, selectedId]);
 
+  // Auto-select patient from URL query param
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const patientId = params.get("patientId");
+    if (patientId) {
+      // Find the encounter for this patient
+      const encounter = encounters.find(e => e.patientId === patientId && ["WAITING", "IN_TRIAGE", "TRIAGED"].includes(e.status));
+      if (encounter) {
+        setSelectedId(encounter.id);
+        // Also update status to IN_TRIAGE if currently waiting
+        if (encounter.status === "WAITING") {
+          updateEncounterStatus(encounter.id, "IN_TRIAGE");
+        }
+      }
+    }
+  }, [location.search, encounters]);
+
   const [intakeById, setIntakeById] = useState<Record<string, TriageIntake>>(() => {
     try {
       const saved = localStorage.getItem("acf_triage_data");

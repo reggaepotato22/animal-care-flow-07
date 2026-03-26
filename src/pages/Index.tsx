@@ -134,26 +134,35 @@ const Index = () => {
     return unsub;
   }, []);
 
-  // ── Sync: re-render when clinical records or hospitalization state changes ──
+  // ── Sync: re-render on any patient action from any panel ─────────────────
   const [, forceRefresh] = useState(0);
   useEffect(() => {
-    let ch: BroadcastChannel | null = null;
-    try {
-      ch = new BroadcastChannel("acf_hospitalization_channel");
-      ch.onmessage = () => forceRefresh(n => n + 1);
-    } catch {}
+    const bump = () => forceRefresh(n => n + 1);
+    const channels: BroadcastChannel[] = [];
+    ["acf_hospitalization_channel", "acf_workflow_updates", "acf_encounter_updates"].forEach(name => {
+      try { const ch = new BroadcastChannel(name); ch.onmessage = bump; channels.push(ch); } catch {}
+    });
     const onStorage = (e: StorageEvent) => {
-      if (e.key === "acf_clinical_records" || e.key === "acf_hospitalization_records") {
-        forceRefresh(n => n + 1);
-      }
+      if (
+        e.key === "acf_clinical_records" ||
+        e.key === "acf_hospitalization_records" ||
+        e.key === "acf_workflow_patient_steps" ||
+        e.key === "acf_patient_lifecycle_status"
+      ) bump();
     };
     window.addEventListener("storage", onStorage);
-    return () => { ch?.close(); window.removeEventListener("storage", onStorage); };
+    return () => { channels.forEach(c => c.close()); window.removeEventListener("storage", onStorage); };
   }, []);
 
   const allCheckedIn  = wf.getCheckedInPatients();
   const activePatients    = allCheckedIn.filter(p => p.step !== "COMPLETED");
-  const completedPatients = allCheckedIn.filter(p => p.step === "COMPLETED");
+  // Get completed patients from process history for timeline data
+  const processHistory = wf.getProcessHistory ? wf.getProcessHistory() : [];
+  const todaysCompleted = processHistory.filter(p => {
+    const completedDate = new Date(p.completedAt);
+    const today = new Date();
+    return completedDate.toDateString() === today.toDateString();
+  });
 
   // Pending: not yet checked-in (receptionist/admin view)
   const pendingAppts = allAppointments.filter(a => !wf.isCheckedIn(a.patientId));
@@ -212,7 +221,7 @@ const Index = () => {
   const handleNurseTriage = (patientId: string) => {
     const enc = getActiveEncounterForPatient(patientId);
     if (enc) updateEncounterStatus(enc.id, "IN_TRIAGE");
-    navigate("/triage");
+    navigate(`/triage?patientId=${patientId}`);
   };
 
   // ── Render ───────────────────────────────────────────────────────────────────
@@ -297,6 +306,25 @@ const Index = () => {
                               {encCfg.label}
                             </span>
                           )}
+
+                          {/* Lifecycle status badge (Hospitalized/Referred/Deceased) */}
+                          {(() => {
+                            const lc = wf.getPatientStatus(patient.patientId);
+                            if (lc === "Active") return null;
+                            const lcColors = {
+                              Hospitalized: "bg-orange-100 text-orange-800 border border-orange-400",
+                              Referred: "bg-sky-100 text-sky-800 border border-sky-400",
+                              Deceased: "bg-gray-100 text-gray-600 border border-gray-300",
+                            };
+                            return (
+                              <span className={cn(
+                                "inline-flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded-full shrink-0 font-semibold",
+                                lcColors[lc as keyof typeof lcColors]
+                              )}>
+                                {lc}
+                              </span>
+                            );
+                          })()}
 
                           <span className="text-[9px] text-muted-foreground ml-auto shrink-0">
                             {formatDistanceToNow(new Date(patient.checkedInAt), { addSuffix: true })}
@@ -522,31 +550,36 @@ const Index = () => {
       </div>
 
       {/* ── Completed Today ──────────────────────────────────────────────────── */}
-      {completedPatients.length > 0 && (
+      {todaysCompleted.length > 0 && (
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center justify-between text-base">
               <span className="flex items-center gap-2">
                 <CheckCheck className="h-4 w-4 text-emerald-600" />
-                Completed Today
+                Completed Today ({todaysCompleted.length})
               </span>
               <Badge className="text-xs bg-emerald-100 text-emerald-800 border border-emerald-300 font-normal hover:bg-emerald-100">
-                {completedPatients.length} discharged
+                Total: {todaysCompleted.reduce((acc, p) => acc + p.durationMinutes, 0)} min
               </Badge>
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-              {completedPatients.map(p => (
+              {todaysCompleted.map(p => (
                 <div key={p.patientId}
                   className="flex items-center gap-3 p-3 border border-emerald-200 dark:border-emerald-900 rounded-lg bg-emerald-50/50 dark:bg-emerald-950/20">
                   <CheckCheck className="h-4 w-4 text-emerald-600 shrink-0" />
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold truncate">{p.name}</p>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold truncate">{p.petName}</p>
                     <p className="text-xs text-muted-foreground truncate">{p.owner}</p>
-                    <p className="text-[10px] text-muted-foreground">
-                      {formatDistanceToNow(new Date(p.checkedInAt), { addSuffix: true })}
-                    </p>
+                    <div className="flex items-center gap-2 mt-1">
+                      <Badge variant="outline" className="text-[10px] px-1 py-0 h-4">
+                        {Math.floor(p.durationMinutes / 60)}h {p.durationMinutes % 60}m
+                      </Badge>
+                      <span className="text-[10px] text-muted-foreground">
+                        {p.finalStatus}
+                      </span>
+                    </div>
                   </div>
                 </div>
               ))}

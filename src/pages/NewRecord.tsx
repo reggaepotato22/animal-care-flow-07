@@ -35,6 +35,7 @@ import { cn } from "@/lib/utils";
 import { useEncounter } from "@/contexts/EncounterContext";
 import { EncounterHeader } from "@/components/EncounterHeader";
 import { Separator } from "@/components/ui/separator";
+import { AttachmentManager } from "@/components/AttachmentManager";
 
 const NOTE_TYPES = [
   { value: "soap", label: "SOAP" },
@@ -3249,10 +3250,18 @@ const applyTemplate = (templateName: string, noteId?: string) => {
                     Diagnostic Attachments
                   </CardTitle>
                   <CardDescription>
-                    Upload lab results, X-rays, photos, or other diagnostic files
+                    Upload lab results, X-rays, photos, or generate upload links for owners
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
+                  {/* Attachment Manager - Generate Upload Links */}
+                  <AttachmentManager
+                    patientId={selectedPatient || urlPatientId || "unknown"}
+                    patientName={displayPetName || "Patient"}
+                    createdBy={selectedVeterinarian || "Veterinarian"}
+                  />
+
+                  <Separator />
                   {/* File Upload */}
                   <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6 text-center">
                     <Upload className="h-8 w-8 text-muted-foreground mx-auto mb-4" />

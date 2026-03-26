@@ -1,10 +1,14 @@
 import { format } from "date-fns";
+import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Calendar, Clock, User, Edit, Trash2, CheckCircle, Activity } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { EditAppointmentDialog } from "@/components/EditAppointmentDialog";
+import { deleteAppointment, broadcastAppointmentUpdate } from "@/lib/appointmentStore";
 
 interface Appointment {
   id: string;
@@ -29,6 +33,7 @@ interface AppointmentListProps {
   appointments: Appointment[];
   searchTerm: string;
   onCheckIn?: (appointment: Appointment) => void;
+  onCancel?: (appointmentId: string) => void;
   /** patientId → live encounter status string */
   liveStatuses?: Record<string, string>;
 }
@@ -43,8 +48,39 @@ const ENC_LABEL: Record<EncounterStatus, { label: string; cls: string; pulse?: b
   DISCHARGED:      { label: "Discharged",         cls: "bg-green-100 text-green-800 border-green-300 dark:bg-green-900/30 dark:text-green-300" },
 };
 
-export function AppointmentList({ appointments, searchTerm, onCheckIn, liveStatuses = {} }: AppointmentListProps) {
+export function AppointmentList({ appointments, searchTerm, onCheckIn, onCancel, liveStatuses = {} }: AppointmentListProps) {
   const navigate = useNavigate();
+  const { toast } = useToast();
+  const [editingAppt, setEditingAppt] = useState<Appointment | null>(null);
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const handleEdit = (appointment: Appointment) => {
+    setEditingAppt(appointment);
+    setIsEditOpen(true);
+  };
+
+  const handleCancel = (appointment: Appointment) => {
+    const ok = window.confirm(`Cancel appointment for ${appointment.petName} on ${format(appointment.date, "MMM d")}?`);
+    if (!ok) return;
+    const success = deleteAppointment(appointment.id);
+    if (success || onCancel) {
+      // Call onCancel to remove from parent state (handles mock appointments)
+      onCancel?.(appointment.id);
+      broadcastAppointmentUpdate();
+      window.dispatchEvent(new CustomEvent("acf:notification", {
+        detail: {
+          type: "warning",
+          message: `Appointment cancelled: ${appointment.petName} on ${format(appointment.date, "MMM d")}`,
+          patientId: appointment.patientId,
+          patientName: appointment.petName,
+          targetRoles: ["SuperAdmin", "Receptionist", "Vet", "Nurse"],
+        },
+      }));
+      toast({ title: "Appointment Cancelled", description: `${appointment.petName} — ${format(appointment.date, "MMM d, yyyy")} at ${appointment.time}.` });
+    } else {
+      toast({ title: "Error", description: "Failed to cancel appointment.", variant: "destructive" });
+    }
+  };
+
   const filteredAppointments = appointments.filter(
     (appointment) =>
       appointment.petName.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -145,11 +181,11 @@ export function AppointmentList({ appointments, searchTerm, onCheckIn, liveStatu
                         Check-in
                       </Button>
                     )}
-                    <Button variant="outline" size="sm" onClick={(e) => e.stopPropagation()}>
+                    <Button variant="outline" size="sm" onClick={(e) => { e.stopPropagation(); handleEdit(appointment); }}>
                       <Edit className="h-4 w-4 mr-1" />
                       Edit
                     </Button>
-                    <Button variant="outline" size="sm" onClick={(e) => e.stopPropagation()}>
+                    <Button variant="outline" size="sm" className="text-destructive hover:bg-destructive/10" onClick={(e) => { e.stopPropagation(); handleCancel(appointment); }}>
                       <Trash2 className="h-4 w-4 mr-1" />
                       Cancel
                     </Button>
@@ -160,6 +196,12 @@ export function AppointmentList({ appointments, searchTerm, onCheckIn, liveStatu
           })}
         </div>
       )}
+      <EditAppointmentDialog
+        appointment={editingAppt ? { ...editingAppt, ownerPhone: "", ownerEmail: "" } : null}
+        isOpen={isEditOpen}
+        onClose={() => { setIsEditOpen(false); setEditingAppt(null); }}
+        onSaved={() => { window.dispatchEvent(new CustomEvent("acf:notification")); }}
+      />
     </div>
   );
 }

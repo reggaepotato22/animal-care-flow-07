@@ -32,6 +32,7 @@ import { FileText } from "lucide-react";
 import { toast } from "sonner";
 import { useWorkflowContext } from "@/contexts/WorkflowContext";
 import { useEncounter } from "@/contexts/EncounterContext";
+import type { WorkflowStepId } from "@/config/workflow";
 
 const newVisitSchema = z.object({
   type: z.enum(["New Visit", "Start Consultation", "Start Surgery", "Emergency Intake"]),
@@ -92,27 +93,62 @@ export function NewVisitDialog({ children, defaultType = "New Visit" }: NewVisit
   const onSubmit = (data: NewVisitFormData) => {
     if (!patientId) return;
 
-    const statusMap: Record<string, any> = {
+    const encStatusMap: Record<string, any> = {
       "New Visit": "WAITING",
-      "Start Consultation": "IN_TRIAGE",
+      "Start Consultation": "IN_CONSULTATION",
       "Start Surgery": "IN_SURGERY",
-      "Emergency Intake": "IN_TRIAGE"
+      "Emergency Intake": "IN_TRIAGE",
     };
 
     const encounter = createEncounter(patientId, {
       reason: data.reason,
       chiefComplaint: data.chiefComplaint,
       veterinarian: data.attendingVet,
-      status: statusMap[data.type] || "WAITING",
+      status: encStatusMap[data.type] ?? "WAITING",
     });
 
     setActiveEncounter(encounter);
-    
     setPatientStatus(patientId, "Active");
-    setStep(patientId, data.type === "Start Surgery" ? "CONSULTATION" : "TRIAGE");
+    const stepForType: Record<string, WorkflowStepId> = {
+      "New Visit": "TRIAGE",
+      "Start Consultation": "CONSULTATION",
+      "Start Surgery": "PHARMACY",
+      "Emergency Intake": "TRIAGE",
+    };
+    setStep(patientId, stepForType[data.type] ?? "TRIAGE");
+
+    try {
+      const stored: unknown[] = JSON.parse(localStorage.getItem("acf_clinical_records") ?? "[]");
+      stored.unshift({
+        type: "new_visit",
+        encounterId: encounter.id,
+        patientId,
+        reason: data.reason,
+        chiefComplaint: data.chiefComplaint,
+        veterinarian: data.attendingVet,
+        visitType: data.type,
+        status: encStatusMap[data.type] ?? "WAITING",
+        createdAt: new Date().toISOString(),
+      });
+      localStorage.setItem("acf_clinical_records", JSON.stringify(stored));
+      new BroadcastChannel("acf_hospitalization_channel").postMessage({
+        type: "new_visit_created", encounterId: encounter.id, patientId,
+      });
+    } catch {}
+
+    window.dispatchEvent(new CustomEvent("acf:notification", {
+      detail: {
+        type: "success",
+        message: `New visit started — ${data.reason}`,
+        patientId,
+        step: data.type === "Start Surgery" ? "CONSULTATION" : "TRIAGE",
+      },
+    }));
 
     setOpen(false);
     form.reset();
+
+    navigate(`/records`);
   };
 
   return (
