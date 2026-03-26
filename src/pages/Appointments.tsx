@@ -15,7 +15,7 @@ import { useWorkflowContext } from "@/contexts/WorkflowContext";
 import { useToast } from "@/hooks/use-toast";
 import { useEffect, useMemo, useCallback } from "react";
 import { cn } from "@/lib/utils";
-import { loadStoredAppointments, subscribeToAppointments, type StoredAppointment } from "@/lib/appointmentStore";
+import { loadStoredAppointments, subscribeToAppointments, deleteAppointment, broadcastAppointmentUpdate, type StoredAppointment } from "@/lib/appointmentStore";
 
 // Mock resources (doctors, exam rooms, etc.)
 const mockResources = [
@@ -132,7 +132,7 @@ export default function Appointments() {
   const [searchTerm, setSearchTerm] = useState("");
   const [isBookingDialogOpen, setIsBookingDialogOpen] = useState(false);
   const { createEncounter, encounters } = useEncounter();
-  const { checkIn } = useWorkflowContext();
+  const { checkIn, clearPatientFromActive } = useWorkflowContext();
   const { toast } = useToast();
 
   // Auto-open booking dialog when returning from patient registration
@@ -229,7 +229,32 @@ export default function Appointments() {
   };
 
   const handleCancel = (appointmentId: string) => {
-    setAppointments(prev => prev.filter(apt => apt.id !== appointmentId));
+    const apt = appointments.find(a => a.id === appointmentId);
+    // Remove from local state
+    setAppointments(prev => prev.filter(a => a.id !== appointmentId));
+    // Persist the cancellation to store & broadcast so other tabs sync
+    deleteAppointment(appointmentId);
+    broadcastAppointmentUpdate();
+    // Clear the patient from live workflow progress if checked-in
+    if (apt?.patientId) {
+      clearPatientFromActive(apt.patientId);
+    }
+    // Fire notification
+    if (apt) {
+      window.dispatchEvent(new CustomEvent("acf:notification", {
+        detail: {
+          type: "warning",
+          message: `Appointment cancelled: ${apt.petName} on ${format(apt.date, "MMM d")}`,
+          patientId: apt.patientId,
+          patientName: apt.petName,
+          targetRoles: ["SuperAdmin", "Receptionist", "Vet", "Attendant"],
+        },
+      }));
+      toast({
+        title: "Appointment Cancelled",
+        description: `${apt.petName} appointment has been cancelled.`,
+      });
+    }
   };
 
   return (

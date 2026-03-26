@@ -459,7 +459,7 @@ export default function Triage() {
                         field: "Triage Level",
                         previousValue: intake.triageLevel,
                         newValue: value,
-                        changedBy: "triage-nurse",
+                        changedBy: "triage-attendant",
                         reason: "Updated during intake",
                       });
                       updateIntake({ triageLevel: value });

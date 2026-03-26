@@ -180,6 +180,9 @@ export default function WorkflowSettings() {
 
   const saveRoleLabelConfig = () => {
     saveRoleLabels(roleLabels);
+    window.dispatchEvent(new CustomEvent("acf:notification", {
+      detail: { type: "info", message: "Role display labels updated", targetRoles: ["SuperAdmin"] },
+    }));
     toast({ title: "Role labels saved", description: "Labels updated across the application." });
   };
 
@@ -202,6 +205,9 @@ export default function WorkflowSettings() {
       changedBy:     role,
       reason:        "Manual reorder via Workflow Settings",
     });
+    window.dispatchEvent(new CustomEvent("acf:notification", {
+      detail: { type: "info", message: `Workflow order updated: ${order.join(" → ")}`, targetRoles: ["SuperAdmin"] },
+    }));
     toast({ title: "Workflow order saved", description: order.join(" → ") });
   };
 
@@ -209,6 +215,9 @@ export default function WorkflowSettings() {
     const def = defaultWorkflow.map(s => s.id as WorkflowStepId);
     setOrder(def);
     setWorkflowOrder(def);
+    window.dispatchEvent(new CustomEvent("acf:notification", {
+      detail: { type: "info", message: "Workflow order reset to defaults", targetRoles: ["SuperAdmin"] },
+    }));
     toast({ title: "Workflow reset to defaults" });
   };
 

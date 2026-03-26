@@ -49,6 +49,15 @@ export default function Patients() {
     });
 
     wf.setStep(patient.patientId || patient.id, "TRIAGE");
+    window.dispatchEvent(new CustomEvent("acf:notification", {
+      detail: {
+        type: "success",
+        message: `${patient.name} checked in — moved to Triage`,
+        patientId: patient.id,
+        patientName: patient.name,
+        targetRoles: ["SuperAdmin", "Nurse", "Vet", "Receptionist"],
+      },
+    }));
     toast({
       title: "Checked-in",
       description: `${patient.name} has been checked-in and moved to Triage.`,

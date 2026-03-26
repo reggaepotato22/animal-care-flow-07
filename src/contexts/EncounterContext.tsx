@@ -51,35 +51,51 @@ export function EncounterProvider({ children }: { children: React.ReactNode }) {
         const enc = payload as unknown as Encounter;
         setEncounters(prev => prev.find(e => e.id === enc.id) ? prev : [...prev, enc]);
       } else if (type === "ENCOUNTER_STATUS_UPDATE") {
-        const { encounterId, status, endTime } = payload as {
+        const { encounterId, status, endTime, petName, patientId } = payload as {
           encounterId: string; status: EncounterStatus; endTime?: string;
+          petName?: string; patientId?: string;
         };
-        setEncounters(prev =>
-          prev.map(enc =>
+        setEncounters(prev => {
+          const updated = prev.map(enc =>
             enc.id === encounterId ? { ...enc, status, ...(endTime ? { endTime } : {}) } : enc
-          )
-        );
-        setActiveEncounter(prev =>
-          prev?.id === encounterId ? { ...prev, status } : prev
-        );
-        // Dispatch local notification for cross-tab updates
-        const enc = encounters.find(e => e.id === encounterId);
-        if (enc) {
+          );
+          // Use the freshly-updated list to find encounter info for notification
+          const enc = updated.find(e => e.id === encounterId);
+          const resolvedName = petName || enc?.petName || "A patient";
           window.dispatchEvent(new CustomEvent("acf:notification", {
             detail: {
               type: status === "TRIAGED" ? "success" : "info",
-              patientId: enc.patientId,
-              patientName: enc.petName,
+              patientId: patientId || enc?.patientId,
+              patientName: resolvedName,
               step: status,
-              message: `${enc.petName || "A patient"} — ${STEP_LABELS[status] ?? status}`,
+              message: `${resolvedName} — ${STEP_LABELS[status] ?? status}`,
             },
           }));
-        }
+          return updated;
+        });
+        setActiveEncounter(prev =>
+          prev?.id === encounterId ? { ...prev, status } : prev
+        );
       }
     };
     encounterChannel.addEventListener("message", handle);
-    return () => encounterChannel.removeEventListener("message", handle);
-  }, [encounters]);
+
+    // Also listen for localStorage changes from other tabs as fallback
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === STORAGE_KEY && e.newValue) {
+        try {
+          const fresh = JSON.parse(e.newValue) as Encounter[];
+          setEncounters(fresh);
+        } catch {}
+      }
+    };
+    window.addEventListener("storage", onStorage);
+
+    return () => {
+      encounterChannel.removeEventListener("message", handle);
+      window.removeEventListener("storage", onStorage);
+    };
+  }, []);
 
   const createEncounter = (patientId: string, data: Partial<Encounter>): Encounter => {
     const newEncounter: Encounter = {
@@ -108,9 +124,15 @@ export function EncounterProvider({ children }: { children: React.ReactNode }) {
     setActiveEncounter(prev =>
       prev?.id === encounterId ? { ...prev, status } : prev
     );
+    const encForBroadcast = encounters.find(e => e.id === encounterId);
     encounterChannel.postMessage({
       type: "ENCOUNTER_STATUS_UPDATE",
-      payload: { encounterId, status, ...(endTime ? { endTime } : {}) },
+      payload: {
+        encounterId, status,
+        ...(endTime ? { endTime } : {}),
+        petName: encForBroadcast?.petName,
+        patientId: encForBroadcast?.patientId,
+      },
     });
     // Same-tab notification
     const enc = encounters.find(e => e.id === encounterId);
