@@ -15,7 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import {
   User, Mail, Shield, Bell, Palette, Settings, LogOut,
   CheckCircle, Lock, Stethoscope, ClipboardList, UserCheck,
-  Package, Save, ChevronRight,
+  Package, Save, ChevronRight, Link, Printer, Workflow,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
@@ -225,36 +225,42 @@ export default function UserProfile() {
         </CardContent>
       </Card>
 
-      {/* Quick settings links */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base flex items-center gap-2">
-            <Settings className="h-4 w-4" />
-            Settings
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-1 p-0">
+      {/* Settings Grid - Like /settings page */}
+      <div>
+        <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+          <Settings className="h-5 w-5" />
+          Settings
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {[
-            { label: "Appearance",        desc: "Theme, accent colour, border radius", route: "/appearance", icon: Palette },
-            { label: "Workflow Settings", desc: "Steps order, currency, role options",  route: "/workflow-settings", icon: Settings },
-          ].map(item => (
-            <button
-              key={item.route}
-              onClick={() => navigate(item.route)}
-              className="w-full flex items-center justify-between px-6 py-3 hover:bg-muted/50 transition-colors text-left"
+            { id: "generate-link", name: "Generate Upload Link", desc: "Create secure upload links for owners, labs, and specialists", icon: Link, href: "/generate-link" },
+            { id: "appearance", name: "Appearance", desc: "Customize the look and feel of your clinic portal", icon: Palette, href: "/appearance" },
+            { id: "workflow", name: "Workflow Settings", desc: "Configure clinical workflows and automation", icon: Workflow, href: "/workflow-settings" },
+            { id: "printing", name: "Printing & Forms", desc: "Configure print templates and physical forms", icon: Printer, href: "/settings/printing" },
+          ].map((item) => (
+            <Card
+              key={item.id}
+              className="cursor-pointer hover:shadow-md transition-shadow"
+              onClick={() => navigate(item.href)}
             >
-              <div className="flex items-center gap-3">
-                <item.icon className="h-4 w-4 text-muted-foreground" />
-                <div>
-                  <p className="text-sm font-medium">{item.label}</p>
-                  <p className="text-xs text-muted-foreground">{item.desc}</p>
+              <CardContent className="p-4">
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-teal-100 dark:bg-teal-900/30 rounded-lg">
+                      <item.icon className="h-5 w-5 text-teal-600 dark:text-teal-400" />
+                    </div>
+                    <div>
+                      <p className="font-medium">{item.name}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">{item.desc}</p>
+                    </div>
+                  </div>
+                  <ChevronRight className="h-5 w-5 text-muted-foreground" />
                 </div>
-              </div>
-              <ChevronRight className="h-4 w-4 text-muted-foreground" />
-            </button>
+              </CardContent>
+            </Card>
           ))}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {/* Danger zone */}
       <Card className="border-destructive/30">

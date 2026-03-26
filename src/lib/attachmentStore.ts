@@ -25,6 +25,7 @@ export interface Attachment {
   isUsed?: boolean;
   // New fields for lab-test binding
   labTestId?: string;
+  labOrderId?: string;
 }
 
 export interface UploadLink {
@@ -431,26 +432,40 @@ export function completeLabOrder(orderId: string, attachmentIds: string[], labNo
     });
     
     if (success) {
-      // Dispatch real-time notification
+      // Dispatch real-time notification with rich metadata
+      const urgencyPrefix = order.urgency === "stat" ? "[STAT] " : order.urgency === "urgent" ? "[URGENT] " : "";
+      
       window.dispatchEvent(new CustomEvent("acf:notification", {
         detail: {
-          type: "success",
-          message: `New Results: ${order.patientName} - ${order.testName}`,
+          type: order.urgency === "stat" ? "critical" : order.urgency === "urgent" ? "warning" : "success",
+          message: `${urgencyPrefix}New Results: ${order.patientName} - ${order.testName}`,
           patientId: order.patientId,
+          patientName: order.patientName,
           targetRoles: ["SuperAdmin", "Vet", "Nurse"],
           metadata: {
             orderId: order.id,
             testName: order.testName,
             testType: order.testType,
             urgency: order.urgency,
+            caseId: order.caseId,
+            labName: order.labName,
+            attachmentIds: attachmentIds,
+            completedAt: new Date().toISOString(),
+            actionUrl: `/records/new?patient=${order.patientId}`,
           }
         }
       }));
       
       // Update linked attachments to reference this lab order
       attachmentIds.forEach(attachmentId => {
-        // This would need to be implemented in the attachment store
-        // updateAttachment(attachmentId, { labOrderId: orderId });
+        // Update the attachment to reference the completed lab order
+        const attachments = loadAttachments();
+        const attachment = attachments.find(a => a.id === attachmentId);
+        if (attachment) {
+          attachment.labOrderId = orderId;
+          // In a real implementation, you'd save this back to storage
+          localStorage.setItem('acf_attachments', JSON.stringify(attachments));
+        }
       });
     }
     

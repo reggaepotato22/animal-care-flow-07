@@ -16,6 +16,7 @@ import {
   Send, Building2, User, Stethoscope, CheckCircle2, Zap,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useNavigate } from "react-router-dom";
 import {
   generateUploadLink,
   loadAttachments,
@@ -47,6 +48,7 @@ interface AttachmentManagerProps {
 
 export function AttachmentManager({ patientId, patientName, createdBy, encounterId }: AttachmentManagerProps) {
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [uploadLinks, setUploadLinks] = useState<UploadLink[]>([]);
   const [pendingLabs, setPendingLabs] = useState<PendingLabTest[]>([]);
@@ -302,7 +304,10 @@ export function AttachmentManager({ patientId, patientName, createdBy, encounter
             <Eye className="h-3.5 w-3.5 mr-1" />
             View All
           </Button>
-          <Button size="sm" onClick={() => setIsGenerateOpen(true)}>
+          <Button 
+            size="sm" 
+            onClick={() => navigate(`/generate-link?patientId=${encodeURIComponent(patientId)}&patientName=${encodeURIComponent(patientName)}`)}
+          >
             <Send className="h-3.5 w-3.5 mr-1" />
             Generate Upload Link
           </Button>
