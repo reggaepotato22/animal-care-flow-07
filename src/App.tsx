@@ -35,6 +35,10 @@ import Hospitalization from "./pages/Hospitalization";
 import Treatments from "./pages/Treatments";
 import Inventory from "./pages/Inventory";
 import ExternalUpload from "./pages/ExternalUpload";
+import UploadPortal from "./pages/UploadPortal";
+import GenerateLink from "./pages/GenerateLink";
+import Settings from "./pages/Settings";
+import SettingsCommunications from "./pages/SettingsCommunications";
 import NotFound from "./pages/NotFound";
 import { WorkflowProvider } from "@/contexts/WorkflowContext";
 import { EncounterProvider } from "@/contexts/EncounterContext";
@@ -83,6 +87,9 @@ function ProtectedRoutes() {
         <Route path="/records/:id" element={<ClinicalRecordDetails />} />
         <Route path="/patients/:id/journey" element={<PatientJourney />} />
         <Route path="/workflow-settings" element={<WorkflowSettings />} />
+        <Route path="/settings" element={<Settings />} />
+        <Route path="/settings/communications" element={<SettingsCommunications />} />
+        <Route path="/generate-link" element={<GenerateLink />} />
         <Route path="/appearance" element={<AppearanceSettings />} />
         <Route path="/profile" element={<UserProfile />} />
         <Route path="*" element={<NotFound />} />
@@ -122,6 +129,7 @@ const App = () => (
                       <Route path="/login" element={<Login />} />
                       <Route path="/admin/login" element={<AdminLogin />} />
                       <Route path="/external-upload" element={<ExternalUpload />} />
+                      <Route path="/upload-portal/:token" element={<UploadPortal />} />
                       <Route path="/admin" element={<ProtectedAdminLayout />}>
                         <Route index element={<AdminDashboard />} />
                         <Route element={<PermissionRoute permission="can_manage_users" />}>

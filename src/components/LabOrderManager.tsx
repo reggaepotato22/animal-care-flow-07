@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,13 +13,19 @@ import { Separator } from "@/components/ui/separator";
 import {
   Microscope, Plus, Send, Copy, Check, X, FileText, Clock,
   ExternalLink, Trash2, Eye, AlertTriangle, Zap, FlaskConical,
-  Activity, Bone, Stethoscope,
+  Activity, Bone, Stethoscope, Mail, CheckCircle,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
   saveLabOrder, loadLabOrders, deleteLabOrder, generateLabUploadToken,
   generateLabUploadEmailTemplate, type LabOrder, subscribeToLabOrders,
+  loadAttachments, type Attachment,
 } from "@/lib/attachmentStore";
+import {
+  getDefaultEmailTemplate, getEmailTemplatesByType, processTemplate,
+  type EmailTemplate,
+} from "@/lib/communicationsStore";
+import { FileViewer, FileList } from "@/components/FileViewer";
 import { format } from "date-fns";
 
 interface LabOrderManagerProps {
@@ -106,12 +113,19 @@ const TEST_CODES: Record<string, string> = {
 };
 
 export function LabOrderManager({ patientId, patientName, createdBy, encounterId }: LabOrderManagerProps) {
+  const navigate = useNavigate();
   const { toast } = useToast();
   const [labOrders, setLabOrders] = useState<LabOrder[]>([]);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isEmailPreviewOpen, setIsEmailPreviewOpen] = useState(false);
   const [lastGeneratedUrl, setLastGeneratedUrl] = useState("");
   const [emailPreview, setEmailPreview] = useState<{ subject: string; html: string } | null>(null);
+  const [availableTemplates, setAvailableTemplates] = useState<EmailTemplate[]>([]);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
+  const [isSendingEmail, setIsSendingEmail] = useState(false);
+  const [selectedAttachment, setSelectedAttachment] = useState<Attachment | null>(null);
+  const [isFileViewerOpen, setIsFileViewerOpen] = useState(false);
+  const [patientAttachments, setPatientAttachments] = useState<Attachment[]>([]);
 
   // Form state
   const [testName, setTestName] = useState("");
@@ -128,9 +142,24 @@ export function LabOrderManager({ patientId, patientName, createdBy, encounterId
     return `VET-${year}-${random}`;
   };
 
-  // Load lab orders
+  // Load lab orders and email templates
   useEffect(() => {
     setLabOrders(loadLabOrders(patientId));
+    
+    // Load relevant email templates
+    const templates = getEmailTemplatesByType("lab_request");
+    const defaultTemplate = getDefaultEmailTemplate();
+    if (defaultTemplate && !templates.find(t => t.id === defaultTemplate.id)) {
+      templates.unshift(defaultTemplate);
+    }
+    setAvailableTemplates(templates);
+    
+    if (templates.length > 0) {
+      setSelectedTemplateId(templates[0].id);
+    }
+    
+    // Load patient attachments
+    setPatientAttachments(loadAttachments(patientId));
   }, [patientId]);
 
   // Subscribe to updates
@@ -172,8 +201,36 @@ export function LabOrderManager({ patientId, patientName, createdBy, encounterId
     const uploadUrl = `${window.location.origin}/external-upload?token=${token}`;
     setLastGeneratedUrl(uploadUrl);
 
-    // Generate email preview
-    const emailTemplate = generateLabUploadEmailTemplate(order, uploadUrl, "Veti-Vision Animal Care", createdBy);
+    // Generate email preview using selected template
+    const selectedTemplate = availableTemplates.find(t => t.id === selectedTemplateId);
+    let emailTemplate;
+    
+    if (selectedTemplate) {
+      // Process template with variables
+      const variables = {
+        patient_name: order.patientName,
+        patient_id: order.patientId,
+        case_id: order.caseId,
+        test_type: order.testType,
+        test_name: order.testName,
+        species: order.species,
+        urgency: order.urgency,
+        clinic_name: "Veti-Vision Animal Care",
+        upload_url: uploadUrl,
+        primary_color: "#0d9488",
+        secondary_color: "#065f46",
+      };
+      
+      const processed = processTemplate(selectedTemplate, variables);
+      emailTemplate = {
+        subject: processed.subject,
+        html: processed.htmlBody,
+      };
+    } else {
+      // Fallback to default template
+      emailTemplate = generateLabUploadEmailTemplate(order, uploadUrl, "Veti-Vision Animal Care", createdBy);
+    }
+    
     setEmailPreview(emailTemplate);
 
     toast({
@@ -235,9 +292,19 @@ export function LabOrderManager({ patientId, patientName, createdBy, encounterId
   };
 
   return (
-    <div className="space-y-6">
+    <div 
+      className="space-y-6 pointer-events-auto bg-white dark:bg-gray-950 rounded-lg border p-4"
+      onClick={(e) => {
+        e.stopPropagation();
+        e.nativeEvent.stopImmediatePropagation();
+      }}
+      onMouseDown={(e) => {
+        e.stopPropagation();
+        e.nativeEvent.stopImmediatePropagation();
+      }}
+    >
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between isolate">
         <div>
           <h3 className="text-lg font-semibold flex items-center gap-2">
             <Microscope className="h-5 w-5 text-teal-600" />
@@ -245,10 +312,19 @@ export function LabOrderManager({ patientId, patientName, createdBy, encounterId
           </h3>
           <p className="text-sm text-muted-foreground">Manage diagnostic test orders and secure result uploads</p>
         </div>
-        <Button onClick={() => setIsCreateOpen(true)}>
+        <div className="relative z-50">
+          <Button 
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            navigate(`/generate-link?patientId=${encodeURIComponent(patientId)}&patientName=${encodeURIComponent(patientName)}&category=lab&recipientType=lab`);
+          }}
+          className="relative"
+        >
           <Plus className="h-4 w-4 mr-2" />
           Create Lab Order
         </Button>
+        </div>
       </div>
 
       {/* Lab Orders List */}
@@ -312,12 +388,44 @@ export function LabOrderManager({ patientId, patientName, createdBy, encounterId
         )}
       </div>
 
+      {/* Recent Lab Results */}
+      {patientAttachments.filter(a => a.category === "lab" || a.labOrderId).length > 0 && (
+        <div className="space-y-3">
+          <h4 className="text-md font-semibold flex items-center gap-2">
+            <CheckCircle className="h-4 w-4 text-green-600" />
+            Recent Lab Results
+          </h4>
+          <FileList
+            attachments={patientAttachments.filter(a => a.category === "lab" || a.labOrderId)}
+            patientName={patientName}
+            onFileClick={(attachment) => {
+              setSelectedAttachment(attachment);
+              setIsFileViewerOpen(true);
+            }}
+          />
+        </div>
+      )}
+
       {/* Create Lab Order Dialog */}
-      <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-        <DialogContent className="sm:max-w-[600px] max-h-[90vh]">
+      {isCreateOpen && (
+        <Dialog 
+          open={true} 
+          onOpenChange={() => setIsCreateOpen(false)}
+        >
+          <DialogContent 
+            className="sm:max-w-[600px] max-h-[90vh] !z-[9999] !bg-white dark:!bg-gray-950 border-4 border-teal-600 shadow-2xl"
+            onPointerDownOutside={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+            }}
+            onInteractOutside={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+            }}
+          >
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Microscope className="h-5 w-5 text-teal-600" />
+            <DialogTitle className="flex items-center gap-2 text-xl">
+              <Microscope className="h-6 w-6 text-teal-600" />
               Create Lab Order
             </DialogTitle>
             <DialogDescription>
@@ -426,6 +534,34 @@ export function LabOrderManager({ patientId, patientName, createdBy, encounterId
               </Select>
             </div>
 
+            {/* Email Template */}
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Email Template</Label>
+              <Select value={selectedTemplateId} onValueChange={setSelectedTemplateId}>
+                <SelectTrigger className="h-9 text-sm">
+                  <SelectValue placeholder="Select email template..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableTemplates.map((template) => (
+                    <SelectItem key={template.id} value={template.id}>
+                      <div className="flex items-center gap-2">
+                        <Mail className="h-3 w-3" />
+                        {template.name}
+                        {template.isDefault && (
+                          <Badge variant="secondary" className="text-xs">Default</Badge>
+                        )}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {selectedTemplateId && (
+                <p className="text-xs text-muted-foreground">
+                  Template: {availableTemplates.find(t => t.id === selectedTemplateId)?.subject}
+                </p>
+              )}
+            </div>
+
             {/* Notes */}
             <div className="space-y-2">
               <Label className="text-sm font-medium">Additional Notes (Optional)</Label>
@@ -450,6 +586,7 @@ export function LabOrderManager({ patientId, patientName, createdBy, encounterId
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      )}
 
       {/* Email Preview Dialog */}
       <Dialog open={isEmailPreviewOpen} onOpenChange={setIsEmailPreviewOpen}>
@@ -472,6 +609,29 @@ export function LabOrderManager({ patientId, patientName, createdBy, encounterId
               </Button>
               <Button size="sm" onClick={openEmailClient}>
                 <Send className="h-3.5 w-3.5 mr-1.5" /> Open in Email Client
+              </Button>
+              <Button size="sm" onClick={() => {
+                // Simulate sending email
+                setIsSendingEmail(true);
+                setTimeout(() => {
+                  setIsSendingEmail(false);
+                  toast({ 
+                    title: "Email Sent", 
+                    description: "Lab request has been sent to the lab." 
+                  });
+                }, 2000);
+              }} disabled={isSendingEmail}>
+                {isSendingEmail ? (
+                  <>
+                    <div className="h-3.5 w-3.5 mr-1.5 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                    Sending...
+                  </>
+                ) : (
+                  <>
+                    <Send className="h-3.5 w-3.5 mr-1.5" />
+                    Send Email
+                  </>
+                )}
               </Button>
             </div>
 
@@ -503,6 +663,14 @@ export function LabOrderManager({ patientId, patientName, createdBy, encounterId
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* File Viewer */}
+      <FileViewer
+        attachment={selectedAttachment}
+        isOpen={isFileViewerOpen}
+        onClose={() => setIsFileViewerOpen(false)}
+        patientName={patientName}
+      />
     </div>
   );
 }

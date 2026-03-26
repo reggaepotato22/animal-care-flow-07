@@ -18,6 +18,7 @@ import {
   FileText,
   Settings2,
   Palette,
+  Mail,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -39,6 +40,7 @@ const navigationItems = [
   { name: "Team Management", href: "/admin/staff", icon: UsersIcon },
   { name: "Audit Trails", href: "/audit", icon: ScrollText },
   { name: "Workflow Settings", href: "/workflow-settings", icon: Settings2 },
+  { name: "Communications", href: "/settings/communications", icon: Mail },
   { name: "Appearance", href: "/appearance", icon: Palette },
   { name: "Clinic Settings", href: "/admin/settings", icon: ScrollText },
 ];
@@ -86,6 +88,8 @@ export function Navigation() {
             if (item.name === "Clinic Settings") return has("can_manage_users");
             if (item.name === "Team Management") return has("can_manage_users");
             if (item.name === "Workflow Settings") return true; // All roles can access workflow settings
+            if (item.name === "Communications") return has("can_manage_users");
+            if (item.name === "Appearance") return true;
             if (item.name === "Inventory") return has("can_manage_inventory");
             if (item.name === "Pharmacy") return has("can_dispense");
             if (item.name === "Billing") return has("can_access_billing");
