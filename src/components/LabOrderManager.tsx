@@ -13,7 +13,7 @@ import { Separator } from "@/components/ui/separator";
 import {
   Microscope, Plus, Send, Copy, Check, X, FileText, Clock,
   ExternalLink, Trash2, Eye, AlertTriangle, Zap, FlaskConical,
-  Activity, Bone, Stethoscope, Mail, CheckCircle,
+  Activity, Bone, Stethoscope, Mail, CheckCircle, Home, Building2, Filter,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -126,6 +126,7 @@ export function LabOrderManager({ patientId, patientName, createdBy, encounterId
   const [selectedAttachment, setSelectedAttachment] = useState<Attachment | null>(null);
   const [isFileViewerOpen, setIsFileViewerOpen] = useState(false);
   const [patientAttachments, setPatientAttachments] = useState<Attachment[]>([]);
+  const [labFilter, setLabFilter] = useState<"all" | "internal" | "external">("all");
 
   // Form state
   const [testName, setTestName] = useState("");
@@ -327,6 +328,31 @@ export function LabOrderManager({ patientId, patientName, createdBy, encounterId
         </div>
       </div>
 
+      {/* Filter Buttons */}
+      <div className="flex items-center gap-2">
+        <Filter className="h-4 w-4 text-muted-foreground" />
+        <div className="flex gap-1">
+          {(["all", "internal", "external"] as const).map((filter) => (
+            <Button
+              key={filter}
+              size="sm"
+              variant={labFilter === filter ? "default" : "outline"}
+              onClick={() => setLabFilter(filter)}
+              className="text-xs h-7 px-3"
+            >
+              {filter === "internal" && <Home className="h-3 w-3 mr-1" />}
+              {filter === "external" && <Building2 className="h-3 w-3 mr-1" />}
+              {filter.charAt(0).toUpperCase() + filter.slice(1)}
+              <Badge variant="secondary" className="ml-1.5 text-[10px] h-4 px-1">
+                {filter === "all" 
+                  ? labOrders.length 
+                  : labOrders.filter(o => (o.labDestination || "external") === filter).length}
+              </Badge>
+            </Button>
+          ))}
+        </div>
+      </div>
+
       {/* Lab Orders List */}
       <div className="space-y-3">
         {labOrders.length === 0 ? (
@@ -336,55 +362,72 @@ export function LabOrderManager({ patientId, patientName, createdBy, encounterId
             <p className="text-xs mt-1">Create a lab order to generate secure upload links for external labs</p>
           </div>
         ) : (
-          labOrders.map((order) => (
-            <div key={order.id} className="border rounded-lg p-4 space-y-3">
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-2">
-                    {getTestTypeIcon(order.testType)}
-                    <span className="font-medium">{order.testName}</span>
-                    <Badge variant="outline" className={getStatusColor(order.status)}>
-                      {order.status}
-                    </Badge>
-                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                      {getUrgencyIcon(order.urgency)}
-                      <span>{order.urgency}</span>
+          labOrders
+            .filter(order => labFilter === "all" || (order.labDestination || "external") === labFilter)
+            .map((order) => {
+              const isInternal = (order.labDestination || "external") === "internal";
+              return (
+                <div key={order.id} className={`border rounded-lg p-4 space-y-3 ${isInternal ? "border-l-4 border-l-blue-500" : "border-l-4 border-l-teal-500"}`}>
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-2">
+                        {/* Internal/External Icon */}
+                        {isInternal ? (
+                          <div className="flex items-center gap-1 px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900/30 rounded text-blue-700 dark:text-blue-300" title="Internal Lab">
+                            <Home className="h-3 w-3" />
+                            <span className="text-[10px] font-semibold uppercase">INT</span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1 px-1.5 py-0.5 bg-teal-100 dark:bg-teal-900/30 rounded text-teal-700 dark:text-teal-300" title="External Lab">
+                            <Building2 className="h-3 w-3" />
+                            <span className="text-[10px] font-semibold uppercase">EXT</span>
+                          </div>
+                        )}
+                        {getTestTypeIcon(order.testType)}
+                        <span className="font-medium">{order.testName}</span>
+                        <Badge variant="outline" className={getStatusColor(order.status)}>
+                          {order.status}
+                        </Badge>
+                        <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                          {getUrgencyIcon(order.urgency)}
+                          <span>{order.urgency}</span>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
+                        <span>Lab: {order.labName || (isInternal ? "In-House" : "N/A")}</span>
+                        <span>Case ID: #{order.caseId}</span>
+                        <span>Ordered: {format(new Date(order.orderedAt), "MMM d, yyyy")}</span>
+                        <span>Species: {order.species}</span>
+                      </div>
+                      {order.notes && (
+                        <p className="text-xs text-muted-foreground mt-2 italic">"{order.notes}"</p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1">
+                      {order.uploadToken && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            const url = `${window.location.origin}/external-upload?token=${order.uploadToken}`;
+                            copyLink(url);
+                          }}
+                        >
+                          <Copy className="h-3 w-3" />
+                        </Button>
+                      )}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => deleteLabOrder(order.id)}
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
-                    <span>Lab: {order.labName}</span>
-                    <span>Case ID: #{order.caseId}</span>
-                    <span>Ordered: {format(new Date(order.orderedAt), "MMM d, yyyy")}</span>
-                    <span>Species: {order.species}</span>
-                  </div>
-                  {order.notes && (
-                    <p className="text-xs text-muted-foreground mt-2 italic">"{order.notes}"</p>
-                  )}
                 </div>
-                <div className="flex items-center gap-1">
-                  {order.uploadToken && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => {
-                        const url = `${window.location.origin}/external-upload?token=${order.uploadToken}`;
-                        copyLink(url);
-                      }}
-                    >
-                      <Copy className="h-3 w-3" />
-                    </Button>
-                  )}
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => deleteLabOrder(order.id)}
-                  >
-                    <Trash2 className="h-3 w-3" />
-                  </Button>
-                </div>
-              </div>
-            </div>
-          ))
+              );
+            })
         )}
       </div>
 

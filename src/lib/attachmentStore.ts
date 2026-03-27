@@ -48,6 +48,8 @@ export interface UploadLink {
   urgency?: "routine" | "urgent" | "stat";
 }
 
+export type LabDestination = "internal" | "external";
+
 export interface LabOrder {
   id: string;
   patientId: string;
@@ -62,6 +64,8 @@ export interface LabOrder {
   status: LabTestStatus;
   completedAt?: string;
   labName?: string;
+  labDestination?: LabDestination;
+  labEmail?: string;
   uploadLinkToken?: string;
   uploadToken?: string; // Session-tokenized URL
   uploadExpiresAt?: string;
