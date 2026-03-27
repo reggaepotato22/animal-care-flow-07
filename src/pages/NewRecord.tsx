@@ -937,8 +937,8 @@ export default function NewRecord() {
   const isInTriage       = activeEncounter?.status === "IN_TRIAGE";
   const isTriaged        = activeEncounter?.status === "TRIAGED";
   const isInConsultation = activeEncounter?.status === "IN_CONSULTATION";
-  // Allow editing during consultation; read-only only when waiting/in-triage/triaged/discharged
-  const canEdit = isInConsultation || (!isDischarged && !isWaiting && !isInTriage && !isTriaged);
+  // Allow editing during consultation, waiting, in-triage, or triaged; read-only only when discharged
+  const canEdit = !isDischarged;
 
   // Bottom panel state
   const [isBottomOpen, setIsBottomOpen] = useState(false);
@@ -1249,9 +1249,6 @@ export default function NewRecord() {
         if (prev.some(n => n.id.startsWith("triage-soap-"))) return prev;
         return [triageSoapNote, ...prev];
       });
-      
-      // Ensure the newly created note is expanded
-      setCollapsedNotes(new Set()); 
     }
   }, [visitData]);
   
@@ -1315,9 +1312,15 @@ export default function NewRecord() {
   });
   const [isAddNoteOpen, setIsAddNoteOpen] = useState(false);
   
-  // Collapsed notes state - tracks which notes are collapsed
-  // When a note is expanded, all others are automatically collapsed
-  const [collapsedNotes, setCollapsedNotes] = useState<Set<string>>(new Set());
+  // Active note state - tracks which note is currently being edited
+  const [activeNoteId, setActiveNoteId] = useState<string | null>(null);
+
+  // Auto-select first note when notes are added
+  useEffect(() => {
+    if (clinicalNotes.length > 0 && !activeNoteId) {
+      setActiveNoteId(clinicalNotes[0].id);
+    }
+  }, [clinicalNotes.length, activeNoteId]);
 
   // ── Auto-save draft to localStorage ─────────────────────────────────────────
   const draftPatientId = selectedPatient || urlPatientId;
@@ -1327,23 +1330,95 @@ export default function NewRecord() {
       localStorage.setItem(DRAFT_RECORD_KEY(draftPatientId), JSON.stringify(clinicalNotes));
     } catch {}
   }, [clinicalNotes, draftPatientId]);
+  
+  // Triage data state
+  const [triageData, setTriageData] = useState({
+    chiefComplaint: activeEncounter?.chiefComplaint || "",
+    presentingHistory: "",
+    triageLevel: "3",
+    painScore: "",
+    temperature: "",
+    heartRate: "",
+    respiratoryRate: "",
+    weight: "",
+    mucousMembranes: "",
+    capillaryRefillTime: "",
+    hydrationStatus: "",
+    mentation: "",
+    riskFlags: [] as string[],
+  });
 
-  // Toggle note collapse - accordion behavior: only one note expanded at a time
-  const toggleNoteCollapse = (noteId: string) => {
-    setCollapsedNotes(prev => {
-      const isCurrentlyCollapsed = prev.has(noteId);
-      
-      if (isCurrentlyCollapsed) {
-        // Expanding this note - collapse all others
-        const allNoteIds = new Set(clinicalNotes.map(n => n.id));
-        allNoteIds.delete(noteId); // Remove the note being expanded
-        return allNoteIds; // All other notes are now collapsed
-      } else {
-        // Collapsing this note - add it to collapsed set
-        // All notes should be collapsed now
-        return new Set(clinicalNotes.map(n => n.id));
-      }
+  // Update triage data when encounter changes
+  useEffect(() => {
+    if (activeEncounter?.chiefComplaint && !triageData.chiefComplaint) {
+      setTriageData(prev => ({ ...prev, chiefComplaint: activeEncounter.chiefComplaint || "" }));
+    }
+  }, [activeEncounter?.chiefComplaint]);
+
+  const updateTriageData = (partial: Partial<typeof triageData>) => {
+    setTriageData(prev => ({ ...prev, ...partial }));
+  };
+
+  const toggleTriageRiskFlag = (flag: string) => {
+    setTriageData(prev => ({
+      ...prev,
+      riskFlags: prev.riskFlags.includes(flag)
+        ? prev.riskFlags.filter(f => f !== flag)
+        : [...prev.riskFlags, flag]
+    }));
+  };
+
+  const completeTriageInRecord = () => {
+    if (!activeEncounter) return;
+    
+    // Update encounter with triage data
+    if (triageData.chiefComplaint && !activeEncounter.chiefComplaint) {
+      // Update encounter chiefComplaint if not already set
+      const updatedEncounter = { ...activeEncounter, chiefComplaint: triageData.chiefComplaint };
+      setActiveEncounter(updatedEncounter);
+    }
+    
+    // Transition to consultation
+    updateEncounterStatus(activeEncounter.id, "IN_CONSULTATION");
+    
+    // Optionally create a triage SOAP note
+    const triageNoteId = "triage-soap-" + Date.now();
+    const triageSoapNote: ClinicalNote = {
+      id: triageNoteId,
+      type: "soap",
+      title: "Triage / Intake Note",
+      content: `Chief Complaint: ${triageData.chiefComplaint}\n\nHistory: ${triageData.presentingHistory}`,
+      createdAt: new Date().toISOString(),
+      author: selectedVeterinarian || "Veterinarian",
+      soapData: {
+        subjective: triageData.presentingHistory,
+        objective: `Triage Level: ${triageData.triageLevel}\nTemperature: ${triageData.temperature}°F\nHR: ${triageData.heartRate} bpm\nRR: ${triageData.respiratoryRate} rpm\nWeight: ${triageData.weight} kg\nMucous Membranes: ${triageData.mucousMembranes}\nCRT: ${triageData.capillaryRefillTime}s\nHydration: ${triageData.hydrationStatus}\nMentation: ${triageData.mentation}`,
+        assessment: `Primary Concern: ${triageData.chiefComplaint}\nPain Score: ${triageData.painScore}/10${triageData.riskFlags.length > 0 ? `\nRisk Flags: ${triageData.riskFlags.join(", ")}` : ""}`,
+        plan: "Proceeding with veterinary examination and consultation.",
+        temperature: triageData.temperature,
+        heartRate: triageData.heartRate,
+        respiratoryRate: triageData.respiratoryRate,
+        weight: triageData.weight,
+        bloodPressure: "",
+        bodyConditionScore: "",
+        otherObservations: `MM: ${triageData.mucousMembranes}, CRT: ${triageData.capillaryRefillTime}s, Hydration: ${triageData.hydrationStatus}, Mentation: ${triageData.mentation}`,
+        primaryDiagnosis: "",
+        differentialDiagnoses: [],
+        clinicalSummary: `Triage completed by ${selectedVeterinarian || "veterinarian"}. ${triageData.chiefComplaint}.`,
+        prognosis: "",
+        prognosisReason: "",
+        riskFactors: triageData.riskFlags,
+        notes: "",
+        clinicalFindings: [],
+      },
+    };
+    
+    setClinicalNotes(prev => {
+      if (prev.some(n => n.id.startsWith("triage-soap-"))) return prev;
+      return [triageSoapNote, ...prev];
     });
+    
+    setActiveTab("overview");
   };
   
   // Get note preview text
@@ -1784,12 +1859,8 @@ const applyTemplate = (templateName: string, noteId?: string) => {
       createdAt: new Date().toISOString(),
       author: selectedVeterinarian || "Unassigned"
     };
-    setClinicalNotes((prev) => {
-      const updated = [...prev, newNote];
-      // Auto-expand the new note and collapse all others
-      setCollapsedNotes(new Set(prev.map(n => n.id)));
-      return updated;
-    });
+    setClinicalNotes((prev) => [...prev, newNote]);
+    setActiveNoteId(newNote.id); // Set new note as active
     setNoteDraft((prev) => ({ ...prev, title: "", content: "" }));
     setIsAddNoteOpen(false);
   };
@@ -2042,12 +2113,8 @@ const applyTemplate = (templateName: string, noteId?: string) => {
         }
       } : {})
     };
-    setClinicalNotes((prev) => {
-      const updated = [...prev, newNote];
-      // Auto-expand the new note and collapse all others
-      setCollapsedNotes(new Set(prev.map(n => n.id)));
-      return updated;
-    });
+    setClinicalNotes((prev) => [...prev, newNote]);
+    setActiveNoteId(newNote.id); // Set new note as active
   };
 
   const handleUpdateClinicalNote = (id: string, content: string) => {
@@ -2640,26 +2707,8 @@ const applyTemplate = (templateName: string, noteId?: string) => {
             <Button onClick={() => navigate("/patients")}>Go to Patients</Button>
           </div>
         </Card>
-      ) : (isWaiting || isInTriage) ? (
-        <Card className="p-12 text-center">
-          <div className="flex flex-col items-center gap-4">
-            <Clock className="h-12 w-12 text-blue-500" />
-            <h2 className="text-xl font-bold">Patient in Triage</h2>
-            <p className="text-muted-foreground">This visit is currently in the triage phase. Please complete triage before starting clinical work.</p>
-            <Button onClick={() => navigate("/triage", { state: { patient: mockPatientData } })}>Go to Triage Page</Button>
-          </div>
-        </Card>
-      ) : isTriaged ? (
-        <Card className="p-12 text-center">
-          <div className="flex flex-col items-center gap-4">
-            <Check className="h-12 w-12 text-green-500" />
-            <h2 className="text-xl font-bold">Triage Completed</h2>
-            <p className="text-muted-foreground">Triage assessment has been finalized. You can now start the formal consultation.</p>
-            <Button size="lg" onClick={() => updateEncounterStatus(activeEncounter.id, "IN_CONSULTATION")}>Start Consultation</Button>
-          </div>
-        </Card>
       ) : (
-      <div className={cn("transition-opacity", !isInConsultation && "opacity-50 pointer-events-none")}>
+      <div className="transition-opacity">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           {/* Tabs UI... */}
         <div className="relative">
@@ -2812,6 +2861,87 @@ const applyTemplate = (templateName: string, noteId?: string) => {
                 </div>
               </CardContent>
             </Card>
+
+            {/* Clinical Notes List */}
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0">
+                <div>
+                  <CardTitle className="text-sm font-semibold">Clinical Notes</CardTitle>
+                  <CardDescription className="text-xs">
+                    Select a note to view and edit
+                  </CardDescription>
+                </div>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button size="sm">
+                      <Plus className="h-4 w-4 mr-1" />
+                      Add Note
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    {NOTE_TYPES.map((type) => (
+                      <DropdownMenuItem
+                        key={type.value}
+                        onSelect={() => {
+                          handleAddClinicalNoteDirectly(type.value as NoteType);
+                        }}
+                      >
+                        {type.label}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {clinicalNotes.length > 0 ? (
+                  <div className="space-y-2">
+                    {clinicalNotes.map((note) => (
+                      <button
+                        key={note.id}
+                        type="button"
+                        onClick={() => setActiveNoteId(note.id)}
+                        className={cn(
+                          "w-full text-left rounded-lg border p-3 transition-colors",
+                          activeNoteId === note.id 
+                            ? "bg-primary/10 border-primary shadow-sm" 
+                            : "hover:bg-muted/40"
+                        )}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <Badge variant="secondary" className="text-xs">
+                                {NOTE_TYPES.find((t) => t.value === note.type)?.label ?? note.type}
+                              </Badge>
+                            </div>
+                            <p className="text-sm font-medium truncate">{note.title}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {format(new Date(note.createdAt), "MMM d, h:mm a")}
+                            </p>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 shrink-0"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteClinicalNote(note.id);
+                            }}
+                            title="Delete note"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-muted-foreground text-center py-4">
+                    No clinical notes yet. Click "Add Note" to create one.
+                  </p>
+                )}
+              </CardContent>
+            </Card>
             </TabsContent>
             
           {/* Add Treatment - visible only on Treatments tab */}
@@ -2909,52 +3039,203 @@ const applyTemplate = (templateName: string, noteId?: string) => {
             <TabsContent value="triage" className="space-y-6">
               <Card>
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Stethoscope className="h-5 w-5" />
-                    Triage Results
-                  </CardTitle>
-                  <CardDescription>Initial clinical assessment from the triage phase</CardDescription>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="flex items-center gap-2">
+                        <Stethoscope className="h-5 w-5" />
+                        Triage & Intake
+                      </CardTitle>
+                      <CardDescription>Complete triage assessment directly in the clinical record</CardDescription>
+                    </div>
+                    {(isWaiting || isInTriage || isTriaged) && (
+                      <Button 
+                        onClick={completeTriageInRecord}
+                        disabled={!triageData.chiefComplaint || !triageData.temperature}
+                        className="bg-veterinary-teal hover:bg-veterinary-teal/90"
+                      >
+                        <Check className="h-4 w-4 mr-2" />
+                        Complete Triage & Start Consultation
+                      </Button>
+                    )}
+                  </div>
                 </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    <div className="space-y-4">
-                      <div>
-                        <Label className="text-xs text-muted-foreground uppercase tracking-wider">Chief Complaint</Label>
-                        <p className="text-sm font-medium mt-1">{activeEncounter?.chiefComplaint}</p>
+                <CardContent className="space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <Label className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Chief Complaint</Label>
+                      <Input
+                        value={triageData.chiefComplaint}
+                        onChange={(e) => updateTriageData({ chiefComplaint: e.target.value })}
+                        placeholder="e.g., limping, vomiting, lethargy"
+                        className="h-11"
+                        disabled={!canEdit}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Triage Level</Label>
+                      <Select
+                        value={triageData.triageLevel}
+                        onValueChange={(value) => updateTriageData({ triageLevel: value })}
+                        disabled={!canEdit}
+                      >
+                        <SelectTrigger className="h-11">
+                          <SelectValue placeholder="Select triage level" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="1" className="text-destructive font-bold">1 - Critical (Immediate)</SelectItem>
+                          <SelectItem value="2" className="text-orange-600 font-semibold">2 - Emergent (15m)</SelectItem>
+                          <SelectItem value="3" className="text-amber-600">3 - Urgent (30-60m)</SelectItem>
+                          <SelectItem value="4" className="text-veterinary-teal">4 - Less urgent</SelectItem>
+                          <SelectItem value="5" className="text-muted-foreground">5 - Non-urgent</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Presenting History</Label>
+                    <Textarea
+                      value={triageData.presentingHistory}
+                      onChange={(e) => updateTriageData({ presentingHistory: e.target.value })}
+                      placeholder="Short history, onset, progression, exposures, etc."
+                      className="min-h-[120px] resize-none"
+                      disabled={!canEdit}
+                    />
+                  </div>
+
+                  <div className="bg-muted/30 p-4 rounded-xl space-y-4">
+                    <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Vital Signs</h3>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <div className="space-y-2">
+                        <Label className="text-xs font-medium">Temperature</Label>
+                        <Input
+                          value={triageData.temperature}
+                          onChange={(e) => updateTriageData({ temperature: e.target.value })}
+                          placeholder="°F/°C"
+                          className="h-9"
+                          disabled={!canEdit}
+                        />
                       </div>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <Label className="text-xs text-muted-foreground uppercase tracking-wider">Triage Level</Label>
-                          <div className="mt-1">
-                            <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">Level 3 - Urgent</Badge>
-                          </div>
+                      <div className="space-y-2">
+                        <Label className="text-xs font-medium">Heart Rate</Label>
+                        <Input
+                          value={triageData.heartRate}
+                          onChange={(e) => updateTriageData({ heartRate: e.target.value })}
+                          placeholder="bpm"
+                          className="h-9"
+                          disabled={!canEdit}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-xs font-medium">Resp. Rate</Label>
+                        <Input
+                          value={triageData.respiratoryRate}
+                          onChange={(e) => updateTriageData({ respiratoryRate: e.target.value })}
+                          placeholder="rpm"
+                          className="h-9"
+                          disabled={!canEdit}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-xs font-medium">Weight</Label>
+                        <Input
+                          value={triageData.weight}
+                          onChange={(e) => updateTriageData({ weight: e.target.value })}
+                          placeholder="kg"
+                          className="h-9"
+                          disabled={!canEdit}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="space-y-2">
+                      <Label className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Physical Exam</Label>
+                      <div className="space-y-3">
+                        <div className="space-y-1">
+                          <span className="text-xs font-medium">Mucous Membranes</span>
+                          <Input
+                            value={triageData.mucousMembranes}
+                            onChange={(e) => updateTriageData({ mucousMembranes: e.target.value })}
+                            placeholder="pink, pale, etc."
+                            className="h-9"
+                            disabled={!canEdit}
+                          />
                         </div>
-                        <div>
-                          <Label className="text-xs text-muted-foreground uppercase tracking-wider">Pain Score</Label>
-                          <p className="text-sm font-medium mt-1">2 / 10</p>
+                        <div className="space-y-1">
+                          <span className="text-xs font-medium">CRT</span>
+                          <Input
+                            value={triageData.capillaryRefillTime}
+                            onChange={(e) => updateTriageData({ capillaryRefillTime: e.target.value })}
+                            placeholder="sec"
+                            className="h-9"
+                            disabled={!canEdit}
+                          />
                         </div>
                       </div>
                     </div>
-                    <div className="space-y-4">
-                      <Label className="text-xs text-muted-foreground uppercase tracking-wider">Vital Signs</Label>
-                      <div className="grid grid-cols-2 gap-y-4 gap-x-8">
-                        <div>
-                          <p className="text-xs text-muted-foreground">Temperature</p>
-                          <p className="text-sm font-semibold">38.5 °C</p>
+                    <div className="space-y-2">
+                      <Label className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Hydration & Mentation</Label>
+                      <div className="space-y-3">
+                        <div className="space-y-1">
+                          <span className="text-xs font-medium">Hydration</span>
+                          <Input
+                            value={triageData.hydrationStatus}
+                            onChange={(e) => updateTriageData({ hydrationStatus: e.target.value })}
+                            placeholder="euhydrated, mild"
+                            className="h-9"
+                            disabled={!canEdit}
+                          />
                         </div>
-                        <div>
-                          <p className="text-xs text-muted-foreground">Weight</p>
-                          <p className="text-sm font-semibold">10.0 kg</p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-muted-foreground">Heart Rate</p>
-                          <p className="text-sm font-semibold">100 bpm</p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-muted-foreground">Resp. Rate</p>
-                          <p className="text-sm font-semibold">24 brpm</p>
+                        <div className="space-y-1">
+                          <span className="text-xs font-medium">Mentation</span>
+                          <Input
+                            value={triageData.mentation}
+                            onChange={(e) => updateTriageData({ mentation: e.target.value })}
+                            placeholder="BAR, QAR, depressed"
+                            className="h-9"
+                            disabled={!canEdit}
+                          />
                         </div>
                       </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Pain Score</Label>
+                      <div className="space-y-3">
+                        <div className="space-y-1">
+                          <span className="text-xs font-medium">Pain Score (0-10)</span>
+                          <Input
+                            value={triageData.painScore}
+                            onChange={(e) => updateTriageData({ painScore: e.target.value })}
+                            placeholder="0-10"
+                            className="h-9"
+                            disabled={!canEdit}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <Separator />
+
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2">
+                      <AlertTriangle className="h-4 w-4 text-warning" />
+                      <p className="text-sm font-bold uppercase tracking-widest text-muted-foreground">Risk Flags</p>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {["Respiratory distress", "Active bleeding", "Neurologic changes", "Known toxin exposure", "Pregnant/lactating"].map((flag) => (
+                        <label key={flag} className="flex items-center gap-3 p-3 border rounded-lg hover:bg-muted/50 transition-colors cursor-pointer group">
+                          <Checkbox
+                            checked={triageData.riskFlags.includes(flag)}
+                            onCheckedChange={() => toggleTriageRiskFlag(flag)}
+                            className="data-[state=checked]:bg-warning data-[state=checked]:border-warning"
+                            disabled={!canEdit}
+                          />
+                          <span className="text-sm group-data-[state=checked]:font-semibold">{flag}</span>
+                        </label>
+                      ))}
                     </div>
                   </div>
                 </CardContent>
@@ -3642,107 +3923,50 @@ const applyTemplate = (templateName: string, noteId?: string) => {
               </div>
             </TabsContent>
 
-            {/* Notes Tab (formerly SOAP Notes tab) */}
+            {/* Notes Tab - Single Active Note View */}
             <TabsContent value="notes" className="space-y-6">
-              {/* Clinical Notes list logic... */}
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0">
-                  <div className="space-y-1">
-                    <CardTitle className="flex items-center gap-2">
-                      <FileText className="h-5 w-5" />
-                      Clinical Notes
-                    </CardTitle>
-                    <CardDescription>
-                      Add SOAP notes, procedure notes, anesthesia records, discharge instructions, or other clinical notes.
-                    </CardDescription>
-                  </div>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button size="sm">
-                        <Plus className="h-4 w-4 mr-1" />
-                        Add Note
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      {NOTE_TYPES.map((type) => (
-                        <DropdownMenuItem
-                          key={type.value}
-                          onSelect={() => {
-                            handleAddClinicalNoteDirectly(type.value as NoteType);
-                          }}
+              {activeNoteId && clinicalNotes.length > 0 ? (() => {
+                const note = clinicalNotes.find(n => n.id === activeNoteId);
+                if (!note) return <p className="text-center text-muted-foreground py-8">Note not found</p>;
+                
+                const isSoapNote = note.type === "soap" && note.soapData;
+                const isProcedureNote = note.type === "procedure" && note.procedureData;
+                const isAnesthesiaNote = note.type === "anesthesia" && note.anesthesiaData;
+                const isDischargeNote = note.type === "discharge" && note.dischargeData;
+                const isFollowUpNote = note.type === "follow-up" && note.followUpData;
+                const isProgressNote = note.type === "progress" && note.progressData;
+                
+                return (
+                  <Card>
+                    <CardHeader>
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="space-y-1 flex-1">
+                          <div className="flex items-center gap-2">
+                            <Badge variant="secondary">
+                              {NOTE_TYPES.find((t) => t.value === note.type)?.label ?? note.type}
+                            </Badge>
+                            <Input
+                              value={note.title}
+                              onChange={(e) => handleUpdateClinicalNoteTitle(note.id, e.target.value)}
+                              className="h-7 text-sm font-medium border-none shadow-none px-0 focus-visible:ring-0"
+                              placeholder="Note title"
+                            />
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            Added by {note.author || "Unknown"} on {format(new Date(note.createdAt), "PPp")}
+                          </p>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleDeleteClinicalNote(note.id)}
+                          title="Delete note"
                         >
-                          {type.label}
-                        </DropdownMenuItem>
-                      ))}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {clinicalNotes.length > 0 ? (
-                    <div className="space-y-3">
-                      {clinicalNotes.map((note) => {
-                        const isSoapNote = note.type === "soap" && note.soapData;
-                        const isProcedureNote = note.type === "procedure" && note.procedureData;
-                        const isAnesthesiaNote = note.type === "anesthesia" && note.anesthesiaData;
-                        const isDischargeNote = note.type === "discharge" && note.dischargeData;
-                        const isFollowUpNote = note.type === "follow-up" && note.followUpData;
-                        const isProgressNote = note.type === "progress" && note.progressData;
-                        const isCollapsed = collapsedNotes.has(note.id);
-                        return (
-                          <Card key={note.id} className="border-dashed">
-                            <CardHeader 
-                              className={cn(
-                                "pb-2 cursor-pointer hover:bg-muted/50 transition-colors",
-                                isCollapsed && "border-b"
-                              )}
-                              onClick={() => toggleNoteCollapse(note.id)}
-                            >
-                              <div className="flex items-start justify-between gap-2">
-                                <div className="space-y-1 flex-1">
-                                  <div className="flex items-center gap-2">
-                                    <ChevronDown 
-                                      className={cn(
-                                        "h-4 w-4 text-muted-foreground transition-transform flex-shrink-0",
-                                        isCollapsed ? "-rotate-90" : "rotate-0"
-                                      )} 
-                                    />
-                                    <Badge variant="secondary">
-                                      {NOTE_TYPES.find((t) => t.value === note.type)?.label ?? note.type}
-                                    </Badge>
-                                    <Input
-                                      value={note.title}
-                                      onChange={(e) => handleUpdateClinicalNoteTitle(note.id, e.target.value)}
-                                      onClick={(e) => e.stopPropagation()} // Prevent collapse when clicking input
-                                      onFocus={(e) => e.stopPropagation()} // Prevent collapse when focusing input
-                                      className="h-7 text-sm font-medium border-none shadow-none px-0 focus-visible:ring-0"
-                                      placeholder="Note title"
-                                    />
-                                  </div>
-                                  <p className="text-xs text-muted-foreground">
-                                    Added by {note.author || "Unknown"} on {format(new Date(note.createdAt), "PPp")}
-                                  </p>
-                                  {/* Show preview when collapsed */}
-                                  {isCollapsed && (
-                                    <p className="text-xs text-muted-foreground line-clamp-2 mt-2 pl-6">
-                                      {getNotePreview(note)}
-                                    </p>
-                                  )}
-                                </div>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={(e) => {
-                                    e.stopPropagation(); // Prevent collapse when clicking delete
-                                    handleDeleteClinicalNote(note.id);
-                                  }}
-                                  title="Remove note"
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              </div>
-                            </CardHeader>
-                            {!isCollapsed && (
-                            <CardContent>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
                               {isSoapNote ? (
                                 // Render SOAP form
                                 <div className="space-y-8">
@@ -7214,20 +7438,18 @@ const applyTemplate = (templateName: string, noteId?: string) => {
                                   className="min-h-[100px]"
                                 />
                               )}
-                            </CardContent>
-                            )}
-                          </Card>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">
-                      No notes yet. Use the "Add Note" action to create SOAP, procedure, discharge, or
-                      other context-specific notes.
-                    </p>
-                  )}
-                </CardContent>
-              </Card>
+                    </CardContent>
+                  </Card>
+                );
+              })() : (
+                <Card className="p-12 text-center">
+                  <div className="flex flex-col items-center gap-4">
+                    <FileText className="h-12 w-12 text-muted-foreground" />
+                    <h2 className="text-xl font-bold">No Clinical Notes</h2>
+                    <p className="text-muted-foreground">Select a note from the left panel or create a new one to get started.</p>
+                  </div>
+                </Card>
+              )}
             </TabsContent>
 
 
