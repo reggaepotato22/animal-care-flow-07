@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -67,6 +67,20 @@ interface LabOrderDialogProps {
   onLabOrderCreated?: (orderData: LabOrderFormData & { orderId: string; testName: string }) => void;
 }
 
+// Load real patients from localStorage
+function loadKnownPatients(): Array<{
+  patientId: string;
+  petName: string;
+  ownerName: string;
+  species?: string;
+  breed?: string;
+}> {
+  try {
+    const raw = localStorage.getItem("acf_known_patients");
+    return raw ? JSON.parse(raw) : [];
+  } catch { return []; }
+}
+
 const availableTests = [
   // Bloodwork
   { id: "cbc", name: "Complete Blood Count (CBC)", category: "Bloodwork", isCommon: true },
@@ -102,13 +116,6 @@ const commonTests = availableTests.filter(test => test.isCommon);
 // Define test categories in preferred order
 const testCategories = ["Bloodwork", "Urinalysis", "Imaging", "Pathology"];
 
-const patients = [
-  { id: "P001", name: "Max", species: "Canine", breed: "Golden Retriever" },
-  { id: "P002", name: "Luna", species: "Feline", breed: "Domestic Shorthair" },
-  { id: "P003", name: "Rocky", species: "Canine", breed: "German Shepherd" },
-  { id: "P004", name: "Whiskers", species: "Feline", breed: "Persian" },
-];
-
 const veterinarians = [
   "Dr. Smith",
   "Dr. Johnson", 
@@ -125,6 +132,17 @@ export function LabOrderDialog({ children, patientName, prefillData, onLabOrderC
   const [emailPreview, setEmailPreview] = useState<{ subject: string; html: string; body: string } | null>(null);
   const [copied, setCopied] = useState(false);
   const [emailTo, setEmailTo] = useState("");
+  
+  // Load real patients from localStorage
+  const patients = useMemo(() => {
+    const knownPatients = loadKnownPatients();
+    return knownPatients.map(p => ({
+      id: p.patientId,
+      name: p.petName,
+      species: p.species || "Unknown",
+      breed: p.breed || "Unknown",
+    }));
+  }, []);
 
   const form = useForm<LabOrderFormData>({
     resolver: zodResolver(labOrderSchema),

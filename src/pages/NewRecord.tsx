@@ -845,34 +845,71 @@ const mockMedicalHistory: MedicalHistory = {
   ]
 };
 
-// Mock patient data for demonstration
-const mockPatientData = {
-  id: "P001",
-  name: "Max",
-  species: "Canine",
-  breed: "Golden Retriever",
-  sex: "Male (Neutered)",
-  age: "5 years 3 months",
-  weight: "32.5 kg",
-  color: "Golden",
-  microchip: "985112345678901",
-  microchipId: "985112345678901",
-  owner: {
-    name: "Sarah Johnson",
-    phone: "(555) 123-4567",
-    email: "sarah.johnson@email.com",
-    address: "123 Oak Street, Springfield, IL 62701"
-  },
-  phone: "(555) 123-4567",
-  email: "sarah.johnson@email.com",
-  address: "123 Oak Street, Springfield, IL 62701",
-  allergies: ["Penicillin", "Bee stings"],
-  emergencyContact: {
-    name: "Mike Johnson",
-    phone: "(555) 987-6543",
-    relationship: "Spouse"
-  }
-};
+// Load real patient data from localStorage based on patientId
+function loadPatientData(patientId: string | undefined, encounter?: any) {
+  const fallback = {
+    id: patientId || "",
+    name: encounter?.petName || "Unknown Patient",
+    species: "",
+    breed: "",
+    sex: "",
+    age: "",
+    weight: "",
+    color: "",
+    microchip: "",
+    microchipId: "",
+    owner: {
+      name: encounter?.ownerName || "",
+      phone: "",
+      email: "",
+      address: ""
+    },
+    phone: "",
+    email: "",
+    address: "",
+    allergies: [] as string[],
+    emergencyContact: {
+      name: "",
+      phone: "",
+      relationship: ""
+    }
+  };
+  if (!patientId) return fallback;
+  try {
+    const raw = localStorage.getItem("acf_known_patients");
+    if (!raw) return fallback;
+    const patients = JSON.parse(raw) as Array<Record<string, any>>;
+    const p = patients.find(pt => pt.patientId === patientId);
+    if (!p) return fallback;
+    return {
+      id: patientId,
+      name: p.petName || fallback.name,
+      species: p.species || "",
+      breed: p.breed || "",
+      sex: p.gender || "",
+      age: p.age || "",
+      weight: p.weight || "",
+      color: p.color || "",
+      microchip: "",
+      microchipId: "",
+      owner: {
+        name: p.ownerName || encounter?.ownerName || "",
+        phone: p.ownerPhone || "",
+        email: p.ownerEmail || "",
+        address: p.ownerAddress || ""
+      },
+      phone: p.ownerPhone || "",
+      email: p.ownerEmail || "",
+      address: p.ownerAddress || "",
+      allergies: p.allergies || [],
+      emergencyContact: {
+        name: p.emergencyContact || "",
+        phone: p.emergencyPhone || "",
+        relationship: ""
+      }
+    };
+  } catch { return fallback; }
+}
 
 const DRAFT_RECORD_KEY = (patientId: string) => `acf_draft_record_${patientId}`;
 
@@ -939,6 +976,12 @@ export default function NewRecord() {
   const isInConsultation = activeEncounter?.status === "IN_CONSULTATION";
   // Allow editing during consultation, waiting, in-triage, or triaged; read-only only when discharged
   const canEdit = !isDischarged;
+
+  // Dynamic patient data from real patients (replaces hardcoded mock)
+  const mockPatientData = React.useMemo(
+    () => loadPatientData(activeEncounter?.patientId || urlPatientId, activeEncounter),
+    [activeEncounter, urlPatientId]
+  );
 
   // Bottom panel state
   const [isBottomOpen, setIsBottomOpen] = useState(false);
@@ -1201,9 +1244,9 @@ export default function NewRecord() {
     chiefComplaint: activeEncounter?.chiefComplaint,
   } : null);
 
-  // Patient display name (from URL params when coming via Consult button)
-  const displayPetName  = urlPetName  ?? activeEncounter?.petName  ?? "";
-  const displayOwner    = urlOwner    ?? activeEncounter?.ownerName ?? "";
+  // Patient display name (from URL params, encounter, or real patient data)
+  const displayPetName  = urlPetName  ?? activeEncounter?.petName  ?? mockPatientData?.name ?? "";
+  const displayOwner    = urlOwner    ?? activeEncounter?.ownerName ?? mockPatientData?.owner?.name ?? "";
 
   // Patient and veterinarian state
   const [selectedPatient, setSelectedPatient] = useState(

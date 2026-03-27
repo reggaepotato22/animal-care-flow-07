@@ -11,6 +11,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useEncounter } from "@/contexts/EncounterContext";
 import { loadAttachments } from "@/lib/attachmentStore";
+import { toast } from "sonner";
 
 interface ClinicalRecord {
   id: string;
@@ -45,30 +46,37 @@ function loadKnownPatients(): Array<{
   } catch { return []; }
 }
 
-// Build records from real encounter data
+// Build records from real encounter data - filter out records with unknown owners
 function buildRecordsFromEncounters(encounters: any[]): ClinicalRecord[] {
   const patients = loadKnownPatients();
   
-  return encounters.map(enc => {
-    const patient = patients.find(p => p.patientId === enc.patientId);
-    const attachments = loadAttachments(enc.patientId).length;
-    
-    return {
-      id: enc.id,
-      patientId: enc.patientId,
-      patientName: patient?.ownerName || enc.ownerName || "Unknown Owner",
-      petName: patient?.petName || enc.petName || enc.patientId,
-      species: patient?.species || enc.species || "—",
-      breed: patient?.breed || "—",
-      date: enc.startTime ? enc.startTime.split("T")[0] : new Date().toISOString().split("T")[0],
-      veterinarian: enc.veterinarian || "—",
-      complaint: enc.chiefComplaint || enc.reason || "Consultation",
-      diagnosis: "—", // Will be populated from SOAP notes
-      treatment: "—",
-      status: mapEncounterStatus(enc.status),
-      attachments,
-    };
-  });
+  return encounters
+    .filter(enc => {
+      const patient = patients.find(p => p.patientId === enc.patientId);
+      const ownerName = patient?.ownerName || enc.ownerName;
+      // Filter out records with no owner information
+      return ownerName && ownerName !== "Unknown Owner" && ownerName.trim() !== "";
+    })
+    .map(enc => {
+      const patient = patients.find(p => p.patientId === enc.patientId);
+      const attachments = loadAttachments(enc.patientId).length;
+      
+      return {
+        id: enc.id,
+        patientId: enc.patientId,
+        patientName: patient?.ownerName || enc.ownerName || "Unknown Owner",
+        petName: patient?.petName || enc.petName || enc.patientId,
+        species: patient?.species || enc.species || "—",
+        breed: patient?.breed || "—",
+        date: enc.startTime ? enc.startTime.split("T")[0] : new Date().toISOString().split("T")[0],
+        veterinarian: enc.veterinarian || "—",
+        complaint: enc.chiefComplaint || enc.reason || "Consultation",
+        diagnosis: "—", // Will be populated from SOAP notes
+        treatment: "—",
+        status: mapEncounterStatus(enc.status),
+        attachments,
+      };
+    });
 }
 
 function mapEncounterStatus(status: string): ClinicalRecord["status"] {
@@ -114,18 +122,22 @@ export default function Records() {
   const recordsBase = location.pathname.startsWith("/admin") ? "/admin/records" : "/records";
   
   // Merge localStorage-saved records (from NewRecord save) with real encounter records
+  // Filter out records with "Unknown Owner"
   const [records] = useState<ClinicalRecord[]>(() => [
-    ...loadSavedRecords(),
+    ...loadSavedRecords().filter(r => r.patientName !== "Unknown Owner" && r.patientName.trim() !== ""),
     ...buildRecordsFromEncounters(encounters),
   ]);
+
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedStatus, setSelectedStatus] = useState<string>("all");
   const [expandedRecords, setExpandedRecords] = useState<Set<string>>(new Set());
+
   const filteredRecords = records.filter(record => {
     const matchesSearch = record.petName.toLowerCase().includes(searchQuery.toLowerCase()) || record.patientName.toLowerCase().includes(searchQuery.toLowerCase()) || record.diagnosis.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesStatus = selectedStatus === "all" || record.status === selectedStatus;
     return matchesSearch && matchesStatus;
   });
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case "ongoing":
@@ -146,6 +158,7 @@ export default function Records() {
         return "bg-muted/10 text-muted-foreground border-muted/20";
     }
   };
+
   return <div className="space-y-6">
       <div className="flex justify-between items-start">
         <div>

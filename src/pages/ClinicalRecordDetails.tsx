@@ -1,4 +1,4 @@
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate, useLocation, useParams } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -9,8 +9,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { ArrowLeft, Calendar, User, Stethoscope, Paperclip, FileText, Pill, Heart, FlaskConical, TestTube, Clock, Image, FileImage, FileScan, Syringe, ChevronDown, ChevronUp, Shield, DollarSign } from "lucide-react";
 import { LabOrderDialog } from "@/components/LabOrderDialog";
 import { format } from "date-fns";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { cn } from "@/lib/utils";
+import { useEncounter } from "@/contexts/EncounterContext";
+import { loadAttachments } from "@/lib/attachmentStore";
 
 const NOTE_TYPES = [
   { value: "soap", label: "SOAP" },
@@ -615,10 +617,117 @@ const mockRecord = {
   ]
 };
 
+// Helper functions to load real patient data
+function loadKnownPatients(): Array<{
+  patientId: string;
+  petName: string;
+  ownerName: string;
+  ownerPhone?: string;
+  ownerEmail?: string;
+  species?: string;
+  breed?: string;
+  age?: string;
+  weight?: string;
+}> {
+  try {
+    const raw = localStorage.getItem("acf_known_patients");
+    return raw ? JSON.parse(raw) : [];
+  } catch { return []; }
+}
+
+function getPatientData(patientId: string | undefined, encounter?: any) {
+  if (!patientId) {
+    return {
+      id: "",
+      patientId: "",
+      patientName: "",
+      petName: encounter?.petName || "Unknown Patient",
+      species: "—",
+      breed: "",
+      age: "",
+      weight: "",
+      date: new Date().toISOString().split("T")[0],
+      veterinarian: encounter?.veterinarian || "—",
+      complaint: encounter?.reason || "—",
+      diagnosis: "—",
+      treatment: "—",
+      status: "ongoing" as const,
+      attachments: [],
+      clinicalNotes: [],
+      vaccinations: [],
+      medications: [],
+      labRequests: [],
+      encounterItems: []
+    };
+  }
+  const patients = loadKnownPatients();
+  const p = patients.find(pt => pt.patientId === patientId);
+  const attachments = loadAttachments(patientId);
+  return {
+    id: patientId,
+    patientId: patientId,
+    patientName: p?.ownerName || encounter?.ownerName || "",
+    petName: p?.petName || encounter?.petName || patientId,
+    species: p?.species || encounter?.species || "—",
+    breed: p?.breed || "",
+    age: p?.age || "",
+    weight: p?.weight || "",
+    date: encounter?.startTime ? encounter.startTime.split("T")[0] : new Date().toISOString().split("T")[0],
+    veterinarian: encounter?.veterinarian || "—",
+    complaint: encounter?.reason || encounter?.chiefComplaint || "—",
+    diagnosis: "—",
+    treatment: "—",
+    status: mapEncounterStatus(encounter?.status),
+    attachments: attachments.map(a => ({
+      id: a.id,
+      name: a.name,
+      type: a.category,
+      uploadDate: a.uploadedAt.split("T")[0],
+      size: formatFileSize(a.size)
+    })),
+    clinicalNotes: [],
+    vaccinations: [],
+    medications: [],
+    labRequests: [],
+    encounterItems: []
+  };
+}
+
+function mapEncounterStatus(status?: string): "ongoing" | "completed" | "follow-up" {
+  if (!status) return "ongoing";
+  if (status === "DISCHARGED") return "completed";
+  if (status === "TRIAGED") return "follow-up";
+  return "ongoing";
+}
+
+function formatFileSize(bytes: number): string {
+  if (bytes === 0) return "0 B";
+  const k = 1024;
+  const sizes = ["B", "KB", "MB", "GB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
+}
+
 export default function ClinicalRecordDetails() {
   const navigate = useNavigate();
   const location = useLocation();
+  const params = useParams();
+  const { encounters, getEncountersByPatient } = useEncounter();
   const recordsBase = location.pathname.startsWith("/admin") ? "/admin/records" : "/records";
+  
+  // Get record ID from URL params
+  const recordId = params.id;
+  
+  // Find encounter by record ID
+  const encounter = useMemo(() => {
+    return encounters.find(e => e.id === recordId);
+  }, [encounters, recordId]);
+  
+  // Load real patient data
+  const patientData = useMemo(() => {
+    return getPatientData(encounter?.patientId || recordId, encounter);
+  }, [encounter, recordId]);
+  
   const [activeTab, setActiveTab] = useState("soap");
   const [collapsedNotes, setCollapsedNotes] = useState<Set<string>>(new Set());
   const [noteSearch, setNoteSearch] = useState("");
@@ -627,9 +736,7 @@ export default function ClinicalRecordDetails() {
   const [treatmentStatusFilter, setTreatmentStatusFilter] = useState<"all" | "pending" | "completed" | "cancelled">("all");
   const [treatmentCategoryFilter, setTreatmentCategoryFilter] = useState<string>("all");
   const [treatmentSort, setTreatmentSort] = useState<"recent" | "category" | "status">("recent");
-  const [collapsedVaccinations, setCollapsedVaccinations] = useState<Set<string>>(
-    () => new Set(mockRecord.vaccinations.map(v => v.id))
-  );
+  const [collapsedVaccinations, setCollapsedVaccinations] = useState<Set<string>>(new Set());
 
   const toggleNoteCollapse = (noteId: string) => {
     setCollapsedNotes(prev => {
@@ -1160,7 +1267,7 @@ export default function ClinicalRecordDetails() {
     return null;
   };
 
-  const filteredNotes = mockRecord.clinicalNotes
+  const filteredNotes = patientData.clinicalNotes
     .filter(note => noteTypeFilters.size === 0 || noteTypeFilters.has(note.type))
     .filter(note => {
       const query = noteSearch.trim().toLowerCase();
@@ -1183,7 +1290,7 @@ export default function ClinicalRecordDetails() {
       return 0;
     });
 
-  const treatmentItems = mockRecord.encounterItems || [];
+  const treatmentItems = patientData.encounterItems || [];
   const filteredTreatments = treatmentItems
     .filter(item => treatmentStatusFilter === "all" || item.status === treatmentStatusFilter)
     .filter(item => treatmentCategoryFilter === "all" || item.category === treatmentCategoryFilter)
@@ -1219,20 +1326,20 @@ export default function ClinicalRecordDetails() {
         </Button>
         
         <div className="flex-1">
-          <h1 className="text-3xl font-bold">{mockRecord.petName} - Clinical Record</h1>
+          <h1 className="text-3xl font-bold">{patientData.petName} - Clinical Record</h1>
           <p className="text-muted-foreground flex items-center gap-4 mt-1">
             <span className="flex items-center gap-1">
               <User className="h-4 w-4" />
-              {mockRecord.patientName}
+              {patientData.patientName}
             </span>
-            <span>{mockRecord.species}</span>
+            <span>{patientData.species}</span>
             <span className="flex items-center gap-1">
               <Calendar className="h-4 w-4" />
-              {new Date(mockRecord.date).toLocaleDateString()}
+              {new Date(patientData.date).toLocaleDateString()}
             </span>
             <span className="flex items-center gap-1">
               <Stethoscope className="h-4 w-4" />
-              {mockRecord.veterinarian}
+              {patientData.veterinarian}
             </span>
           </p>
         </div>
@@ -1240,9 +1347,9 @@ export default function ClinicalRecordDetails() {
         <div className="flex items-center gap-2">
           <LabOrderDialog 
             prefillData={{
-              patientId: mockRecord.id,
-              veterinarian: mockRecord.veterinarian,
-              diagnosis: mockRecord.diagnosis
+              patientId: patientData.id,
+              veterinarian: patientData.veterinarian,
+              diagnosis: patientData.diagnosis
             }}
           >
             <Button variant="default" size="sm" className="flex items-center gap-2">
@@ -1251,8 +1358,8 @@ export default function ClinicalRecordDetails() {
             </Button>
           </LabOrderDialog>
           
-          <Badge className={getStatusColor(mockRecord.status)}>
-            {mockRecord.status}
+          <Badge className={getStatusColor(patientData.status)}>
+            {patientData.status}
           </Badge>
         </div>
       </div>
@@ -1273,24 +1380,24 @@ export default function ClinicalRecordDetails() {
         <CardContent>
           <div className="mb-4 pb-4 border-b">
             <p className="text-sm font-medium">Patient ID</p>
-            <p className="text-lg font-mono font-semibold text-primary">{mockRecord.patientId}</p>
+            <p className="text-lg font-mono font-semibold text-primary">{patientData.patientId}</p>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div>
               <p className="text-sm font-medium">Age</p>
-              <p className="text-muted-foreground">{mockRecord.age}</p>
+              <p className="text-muted-foreground">{patientData.age}</p>
             </div>
             <div>
               <p className="text-sm font-medium">Weight</p>
-              <p className="text-muted-foreground">{mockRecord.weight}</p>
+              <p className="text-muted-foreground">{patientData.weight}</p>
             </div>
             <div>
               <p className="text-sm font-medium">Chief Complaint</p>
-              <p className="text-muted-foreground">{mockRecord.complaint}</p>
+              <p className="text-muted-foreground">{patientData.complaint}</p>
             </div>
             <div>
               <p className="text-sm font-medium">Diagnosis</p>
-              <p className="text-muted-foreground">{mockRecord.diagnosis}</p>
+              <p className="text-muted-foreground">{patientData.diagnosis}</p>
             </div>
           </div>
         </CardContent>
@@ -1571,9 +1678,9 @@ export default function ClinicalRecordDetails() {
               <CardDescription>Vaccine administration details</CardDescription>
             </CardHeader>
             <CardContent>
-              {mockRecord.vaccinations.length > 0 ? (
+              {patientData.vaccinations.length > 0 ? (
                 <div className="space-y-6">
-                  {mockRecord.vaccinations.map((vaccination) => {
+                  {patientData.vaccinations.map((vaccination) => {
                     const isCollapsed = collapsedVaccinations.has(vaccination.id);
                     return (
                       <div key={vaccination.id} className="border rounded-lg">
@@ -1668,7 +1775,7 @@ export default function ClinicalRecordDetails() {
               <CardDescription>Current medications and treatment instructions</CardDescription>
             </CardHeader>
             <CardContent>
-              {mockRecord.medications.length > 0 ? (
+              {patientData.medications.length > 0 ? (
                 <div className="space-y-6">
                   <div className="rounded-md border">
                     <Table>
@@ -1683,7 +1790,7 @@ export default function ClinicalRecordDetails() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {mockRecord.medications.map((med, index) => (
+                        {patientData.medications.map((med, index) => (
                           <TableRow key={index}>
                             <TableCell className="font-medium">
                               <div className="space-y-1">
@@ -1723,7 +1830,7 @@ export default function ClinicalRecordDetails() {
                       </CardHeader>
                       <CardContent>
                         <div className="space-y-2">
-                          {mockRecord.medications.filter(m => m.status === "active").map((med, index) => (
+                          {patientData.medications.filter(m => m.status === "active").map((med, index) => (
                             <div key={index} className="flex items-center justify-between text-sm">
                               <span>{med.name}</span>
                               <Badge variant="outline" className="text-xs">{med.duration}</Badge>
@@ -1738,7 +1845,7 @@ export default function ClinicalRecordDetails() {
                       </CardHeader>
                       <CardContent>
                         <div className="space-y-2">
-                          {mockRecord.medications.filter(m => m.status === "completed").map((med, index) => (
+                          {patientData.medications.filter(m => m.status === "completed").map((med, index) => (
                             <div key={index} className="flex items-center justify-between text-sm">
                               <span>{med.name}</span>
                               <Badge variant="outline" className="text-xs">{med.duration}</Badge>
@@ -1768,7 +1875,7 @@ export default function ClinicalRecordDetails() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {mockRecord.labRequests.map((labRequest) => (
+                {patientData.labRequests.map((labRequest) => (
                   <div key={labRequest.id} className="border rounded-lg p-4">
                     <div className="flex items-center justify-between mb-3">
                       <div className="flex items-center gap-2">
@@ -1845,7 +1952,7 @@ export default function ClinicalRecordDetails() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {mockRecord.encounterItems && mockRecord.encounterItems.length > 0 ? (
+              {patientData.encounterItems && patientData.encounterItems.length > 0 ? (
                 <div className="space-y-4">
                   {/* Encounter Items Table */}
                   <div className="rounded-md border">
@@ -1862,7 +1969,7 @@ export default function ClinicalRecordDetails() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {mockRecord.encounterItems.map((item: any) => (
+                        {patientData.encounterItems.map((item: any) => (
                           <TableRow key={item.id}>
                             <TableCell className="font-mono text-xs">{item.treatmentCode}</TableCell>
                             <TableCell className="font-medium">{item.title}</TableCell>
@@ -1908,7 +2015,7 @@ export default function ClinicalRecordDetails() {
                           <TableCell className="text-right">
                             <div className="flex items-center justify-end space-x-1">
                               <DollarSign className="h-3 w-3" />
-                              <span>{mockRecord.encounterItems.reduce((sum: number, item: any) => sum + item.total, 0).toFixed(2)}</span>
+                              <span>{patientData.encounterItems.reduce((sum: number, item: any) => sum + item.total, 0).toFixed(2)}</span>
                             </div>
                           </TableCell>
                           <TableCell></TableCell>
@@ -1928,7 +2035,7 @@ export default function ClinicalRecordDetails() {
                           <TableCell className="text-right">
                             <div className="flex items-center justify-end space-x-1">
                               <DollarSign className="h-4 w-4" />
-                              <span>{mockRecord.encounterItems.reduce((sum: number, item: any) => sum + item.total, 0).toFixed(2)}</span>
+                              <span>{patientData.encounterItems.reduce((sum: number, item: any) => sum + item.total, 0).toFixed(2)}</span>
                             </div>
                           </TableCell>
                           <TableCell></TableCell>
@@ -1938,13 +2045,13 @@ export default function ClinicalRecordDetails() {
                   </div>
 
                   {/* Billing Notes */}
-                  {mockRecord.billingNotes && (
+                  {patientData.billingNotes && (
                     <Card>
                       <CardHeader>
                         <CardTitle className="text-sm">Billing Notes</CardTitle>
                       </CardHeader>
                       <CardContent>
-                        <p className="text-sm text-muted-foreground whitespace-pre-wrap">{mockRecord.billingNotes}</p>
+                        <p className="text-sm text-muted-foreground whitespace-pre-wrap">{patientData.billingNotes}</p>
                       </CardContent>
                     </Card>
                   )}
@@ -1975,13 +2082,13 @@ export default function ClinicalRecordDetails() {
             <CardContent>
               <div className="space-y-4">
                 {Object.entries(
-                  mockRecord.attachments.reduce((acc, attachment) => {
+                  patientData.attachments.reduce((acc, attachment) => {
                     if (!acc[attachment.type]) {
                       acc[attachment.type] = [];
                     }
                     acc[attachment.type].push(attachment);
                     return acc;
-                  }, {} as Record<string, typeof mockRecord.attachments>)
+                  }, {} as Record<string, typeof patientData.attachments>)
                 ).map(([type, files]) => (
                   <div key={type} className="space-y-2">
                     <div className="flex items-center gap-2 mb-2">
