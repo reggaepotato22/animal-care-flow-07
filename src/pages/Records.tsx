@@ -9,64 +9,79 @@ import { Search, Plus, FileText, Paperclip, User, Stethoscope, ChevronDown, Chev
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { useEncounter } from "@/contexts/EncounterContext";
+import { loadAttachments } from "@/lib/attachmentStore";
+
 interface ClinicalRecord {
   id: string;
   patientId: string;
   patientName: string;
   petName: string;
   species: string;
+  breed: string;
   date: string;
   veterinarian: string;
   complaint: string;
   diagnosis: string;
   treatment: string;
-  status: "ongoing" | "completed" | "follow-up";
+  status: "ongoing" | "completed" | "follow-up" | "waiting" | "in-triage" | "triaged" | "in-consultation" | "discharged";
   attachments: number;
   petImage?: string;
 }
-const mockRecords: ClinicalRecord[] = [{
-  id: "1",
-  patientId: "P-2025-10234",
-  patientName: "Sarah Johnson",
-  petName: "Max",
-  species: "Dog (Golden Retriever)",
-  date: "2024-01-20",
-  veterinarian: "Dr. Smith",
-  complaint: "Limping on left front leg",
-  diagnosis: "Mild sprain in left forelimb",
-  treatment: "Rest, anti-inflammatory medication",
-  status: "ongoing",
-  attachments: 2,
-  petImage: "/placeholder.svg"
-}, {
-  id: "2",
-  patientId: "P-2025-10235",
-  patientName: "Mike Wilson",
-  petName: "Whiskers",
-  species: "Cat (Persian)",
-  date: "2024-01-19",
-  veterinarian: "Dr. Brown",
-  complaint: "Not eating, lethargic",
-  diagnosis: "Upper respiratory infection",
-  treatment: "Antibiotics, supportive care",
-  status: "completed",
-  attachments: 1,
-  petImage: "/placeholder.svg"
-}, {
-  id: "3",
-  patientId: "P-2025-10236",
-  patientName: "Emily Davis",
-  petName: "Bella",
-  species: "Dog (Labrador)",
-  date: "2024-01-18",
-  veterinarian: "Dr. Johnson",
-  complaint: "Annual wellness exam",
-  diagnosis: "Healthy, vaccinations updated",
-  treatment: "Routine vaccinations",
-  status: "completed",
-  attachments: 0,
-  petImage: "/placeholder.svg"
-}];
+
+// Load real patients from localStorage
+function loadKnownPatients(): Array<{
+  patientId: string;
+  petName: string;
+  ownerName: string;
+  ownerPhone?: string;
+  ownerEmail?: string;
+  species?: string;
+  breed?: string;
+}> {
+  try {
+    const raw = localStorage.getItem("acf_known_patients");
+    return raw ? JSON.parse(raw) : [];
+  } catch { return []; }
+}
+
+// Build records from real encounter data
+function buildRecordsFromEncounters(encounters: any[]): ClinicalRecord[] {
+  const patients = loadKnownPatients();
+  
+  return encounters.map(enc => {
+    const patient = patients.find(p => p.patientId === enc.patientId);
+    const attachments = loadAttachments(enc.patientId).length;
+    
+    return {
+      id: enc.id,
+      patientId: enc.patientId,
+      patientName: patient?.ownerName || enc.ownerName || "Unknown Owner",
+      petName: patient?.petName || enc.petName || enc.patientId,
+      species: patient?.species || enc.species || "—",
+      breed: patient?.breed || "—",
+      date: enc.startTime ? enc.startTime.split("T")[0] : new Date().toISOString().split("T")[0],
+      veterinarian: enc.veterinarian || "—",
+      complaint: enc.chiefComplaint || enc.reason || "Consultation",
+      diagnosis: "—", // Will be populated from SOAP notes
+      treatment: "—",
+      status: mapEncounterStatus(enc.status),
+      attachments,
+    };
+  });
+}
+
+function mapEncounterStatus(status: string): ClinicalRecord["status"] {
+  switch (status) {
+    case "WAITING": return "waiting";
+    case "IN_TRIAGE": return "in-triage";
+    case "TRIAGED": return "triaged";
+    case "IN_CONSULTATION": return "in-consultation";
+    case "DISCHARGED": return "completed";
+    default: return "ongoing";
+  }
+}
+
 function loadSavedRecords(): ClinicalRecord[] {
   try {
     const raw = localStorage.getItem("acf_clinical_records");
@@ -95,11 +110,13 @@ function loadSavedRecords(): ClinicalRecord[] {
 export default function Records() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { encounters } = useEncounter();
   const recordsBase = location.pathname.startsWith("/admin") ? "/admin/records" : "/records";
-  // Merge localStorage-saved records (from NewRecord save) with mock records
+  
+  // Merge localStorage-saved records (from NewRecord save) with real encounter records
   const [records] = useState<ClinicalRecord[]>(() => [
     ...loadSavedRecords(),
-    ...mockRecords,
+    ...buildRecordsFromEncounters(encounters),
   ]);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedStatus, setSelectedStatus] = useState<string>("all");
@@ -112,11 +129,19 @@ export default function Records() {
   const getStatusColor = (status: string) => {
     switch (status) {
       case "ongoing":
+      case "in-consultation":
         return "bg-warning/10 text-warning border-warning/20";
       case "completed":
+      case "discharged":
         return "bg-success/10 text-success border-success/20";
       case "follow-up":
         return "bg-info/10 text-info border-info/20";
+      case "waiting":
+        return "bg-muted/10 text-muted-foreground border-muted/20";
+      case "in-triage":
+        return "bg-purple/10 text-purple border-purple/20";
+      case "triaged":
+        return "bg-blue/10 text-blue border-blue/20";
       default:
         return "bg-muted/10 text-muted-foreground border-muted/20";
     }
