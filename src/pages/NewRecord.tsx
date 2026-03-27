@@ -2777,65 +2777,111 @@ const applyTemplate = (templateName: string, noteId?: string) => {
               <ChevronRight className="h-4 w-4" />
             </Button>
           )}
-          {/* Scrollable TabsList */}
-          <div 
-            ref={tabsScrollRef}
-            className="overflow-x-auto scrollbar-hide px-8"
-            onScroll={checkScrollPosition}
-          >
-            <TabsList className="flex w-full h-11 items-center justify-start gap-2 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-              <TabsTrigger 
-                value="overview"
-                className="h-11 px-4 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-foreground hover:bg-muted/50"
+          {/* Clean Alerts Line - Below Header, Above Tabs - RED HIGHLIGHTED */}
+          <div className="px-6 py-2 border-b bg-red-50 dark:bg-red-950/20">
+            <div className="flex items-center gap-2 text-sm">
+              <AlertTriangle className="h-4 w-4 text-red-600" />
+              <span className="font-semibold text-red-700 dark:text-red-400">Patient Alerts:</span>
+              <span className="text-red-600 dark:text-red-300">
+                {mockMedicalHistory.allergies.map((a, index) => (
+                  <span key={a.id}>
+                    <span className="font-medium">{a.allergen}</span>
+                    <span className="text-red-500"> ({a.severity})</span>
+                    {index < mockMedicalHistory.allergies.length - 1 && (
+                      <span className="text-red-400 mx-2">|</span>
+                    )}
+                  </span>
+                ))}
+              </span>
+            </div>
+          </div>
+
+          {/* Navigation Tabs */}
+          <div className="relative">
+            {/* Left Arrow */}
+            {showLeftArrow && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="absolute left-0 top-1/2 -translate-y-1/2 z-10 h-8 w-8 p-0 bg-background/80 backdrop-blur-sm border border-border/50"
+                onClick={() => scrollTabs('left')}
               >
-                Overview
-              </TabsTrigger>
-              <TabsTrigger 
-                value="history"
-                className="h-11 px-4 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-foreground hover:bg-muted/50"
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+            )}
+            {/* Right Arrow */}
+            {showRightArrow && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="absolute right-0 top-1/2 -translate-y-1/2 z-10 h-8 w-8 p-0 bg-background/80 backdrop-blur-sm border border-border/50"
+                onClick={() => scrollTabs('right')}
               >
-                History
-              </TabsTrigger>
-              <TabsTrigger 
-                value="physical-exam"
-                className="h-11 px-4 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-foreground hover:bg-muted/50"
-              >
-                Physical Exam
-              </TabsTrigger>
-              <TabsTrigger 
-                value="diagnostics"
-                className="h-11 px-4 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-foreground hover:bg-muted/50"
-              >
-                Diagnostics
-              </TabsTrigger>
-              <TabsTrigger 
-                value="diagnosis"
-                className="h-11 px-4 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-foreground hover:bg-muted/50"
-              >
-                Diagnosis
-              </TabsTrigger>
-              <TabsTrigger 
-                value="treatment"
-                className="h-11 px-4 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-foreground hover:bg-muted/50"
-              >
-                Treatment
-              </TabsTrigger>
-              <TabsTrigger 
-                value="notes"
-                className="h-11 px-4 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-foreground hover:bg-muted/50"
-              >
-                Notes
-              </TabsTrigger>
-            </TabsList>
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            )}
+            {/* Scrollable TabsList */}
+            <div 
+              ref={tabsScrollRef}
+              className="overflow-x-auto scrollbar-hide px-8"
+              onScroll={checkScrollPosition}
+            >
+              <div className="flex w-full h-11 items-center justify-start gap-1 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+                <TabsList className="flex h-11 items-center justify-start gap-1 bg-transparent border-0 p-0">
+                <TabsTrigger 
+                  value="overview"
+                  className="h-11 px-4 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-foreground hover:bg-muted/50"
+                >
+                  Overview
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="history"
+                  className="h-11 px-4 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-foreground hover:bg-muted/50"
+                >
+                  History
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="physical-exam"
+                  className="h-11 px-4 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-foreground hover:bg-muted/50"
+                >
+                  Physical Exam
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="diagnostics"
+                  className="h-11 px-4 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-foreground hover:bg-muted/50"
+                >
+                  Diagnostics
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="diagnosis"
+                  className="h-11 px-4 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-foreground hover:bg-muted/50"
+                >
+                  Diagnosis
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="treatment"
+                  className="h-11 px-4 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-foreground hover:bg-muted/50"
+                >
+                  Treatment
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="notes"
+                  className="h-11 px-4 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-foreground hover:bg-muted/50"
+                >
+                  Notes
+                </TabsTrigger>
+              </TabsList>
+              </div>
+            </div>
           </div>
         </div>
 
       <div ref={groupRef}>
       <ResizablePanelGroup direction="horizontal" className="min-h-[600px] rounded-lg border mt-4">
-        {/* Left Panel - Quick Templates and Medical History */}
-        <ResizablePanel defaultSize={35} minSize={25}>
+        {/* Left Panel - ONLY for Notes tab, empty for others */}
+        <ResizablePanel defaultSize={0} minSize={0} maxSize={0} className="hidden lg:block">
           <div className="h-full p-6 space-y-6 overflow-y-auto">
-            {/* Quick Templates Section - visible on Notes tab where clinical notes are managed */}
+            {/* Left sidebar intentionally empty - main content is centered */}
             <TabsContent value="notes" className="space-y-6">
             <Card>
               <CardHeader>
@@ -3006,55 +3052,10 @@ const applyTemplate = (templateName: string, noteId?: string) => {
             </Card>
           </TabsContent>
 
-          {/* Default sidebar for other tabs */}
-          {["overview", "history", "physical-exam", "diagnostics", "diagnosis", "discharge"].map(tab => (
+          {/* Default sidebar for other tabs - Sidebar empty, content centered */}
+          {["history", "physical-exam", "diagnostics", "diagnosis", "treatment", "notes"].map(tab => (
             <TabsContent key={tab} value={tab} className="space-y-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                    <AlertTriangle className="h-4 w-4 text-red-500" />
-                    Alerts & Critical Info
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    <Label className="text-xs text-muted-foreground">Allergies</Label>
-                    <div className="flex flex-wrap gap-2">
-                      {mockMedicalHistory.allergies.map(a => (
-                        <Badge key={a.id} variant="destructive" className="text-xs">{a.allergen} ({a.severity})</Badge>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-xs text-muted-foreground">Current Medications</Label>
-                    <div className="space-y-1">
-                      {mockMedicalHistory.currentMedications.map(m => (
-                        <p key={m.id} className="text-xs">• {m.name} {m.dosage} ({m.frequency})</p>
-                      ))}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-sm font-semibold">Visit Details</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-2">
-                  <div className="flex justify-between text-xs">
-                    <span className="text-muted-foreground">Patient:</span>
-                    <span className="font-medium">{mockPatientData.name}</span>
-                  </div>
-                  <div className="flex justify-between text-xs">
-                    <span className="text-muted-foreground">Reason:</span>
-                    <span className="font-medium">{activeEncounter?.reason}</span>
-                  </div>
-                  <div className="flex justify-between text-xs">
-                    <span className="text-muted-foreground">Vet:</span>
-                    <span className="font-medium">{activeEncounter?.veterinarian}</span>
-                  </div>
-                </CardContent>
-              </Card>
+              {/* Sidebar intentionally left empty - main content is centered */}
             </TabsContent>
           ))}
           </div>

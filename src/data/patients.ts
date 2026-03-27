@@ -44,6 +44,12 @@ export type PatientRow = {
   }>;
 };
 
+/**
+ * @deprecated This constant is deprecated. Use the patientStore functions from '@/lib/patientStore' instead.
+ * The sample patients are now stored in localStorage and can be deleted via the Settings page.
+ * Use `initializeSamplePatients()` to create the 5 sample patients on app startup.
+ * Use `getPatients()` to retrieve all patients.
+ */
 export const mockPatients: PatientRow[] = [
   {
     id: "1",
