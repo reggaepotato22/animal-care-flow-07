@@ -2878,10 +2878,10 @@ const applyTemplate = (templateName: string, noteId?: string) => {
 
       <div ref={groupRef}>
       <ResizablePanelGroup direction="horizontal" className="min-h-[600px] rounded-lg border mt-4">
-        {/* Left Panel - ONLY for Notes tab, empty for others */}
-        <ResizablePanel defaultSize={0} minSize={0} maxSize={0} className="hidden lg:block">
+        {/* Left Panel - Quick Templates and Medical History */}
+        <ResizablePanel defaultSize={35} minSize={25}>
           <div className="h-full p-6 space-y-6 overflow-y-auto">
-            {/* Left sidebar intentionally empty - main content is centered */}
+            {/* Quick Templates Section - visible on Notes tab where clinical notes are managed */}
             <TabsContent value="notes" className="space-y-6">
             <Card>
               <CardHeader>
@@ -3052,10 +3052,55 @@ const applyTemplate = (templateName: string, noteId?: string) => {
             </Card>
           </TabsContent>
 
-          {/* Default sidebar for other tabs - Sidebar empty, content centered */}
-          {["history", "physical-exam", "diagnostics", "diagnosis", "treatment", "notes"].map(tab => (
+          {/* Default sidebar for other tabs */}
+          {["overview", "history", "physical-exam", "diagnostics", "diagnosis", "treatment", "notes"].map(tab => (
             <TabsContent key={tab} value={tab} className="space-y-6">
-              {/* Sidebar intentionally left empty - main content is centered */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                    <AlertTriangle className="h-4 w-4 text-red-500" />
+                    Alerts & Critical Info
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <Label className="text-xs text-muted-foreground">Allergies</Label>
+                    <div className="flex flex-wrap gap-2">
+                      {mockMedicalHistory.allergies.map(a => (
+                        <Badge key={a.id} variant="destructive" className="text-xs">{a.allergen} ({a.severity})</Badge>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs text-muted-foreground">Current Medications</Label>
+                    <div className="space-y-1">
+                      {mockMedicalHistory.currentMedications.map(m => (
+                        <p key={m.id} className="text-xs">• {m.name} {m.dosage} ({m.frequency})</p>
+                      ))}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-sm font-semibold">Visit Details</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-muted-foreground">Patient:</span>
+                    <span className="font-medium">{mockPatientData.name}</span>
+                  </div>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-muted-foreground">Reason:</span>
+                    <span className="font-medium">{activeEncounter?.reason}</span>
+                  </div>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-muted-foreground">Vet:</span>
+                    <span className="font-medium">{activeEncounter?.veterinarian}</span>
+                  </div>
+                </CardContent>
+              </Card>
             </TabsContent>
           ))}
           </div>
