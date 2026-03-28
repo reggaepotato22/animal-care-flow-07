@@ -40,63 +40,7 @@ type TemplateFormState = {
   variables: string;
 };
 
-const mockTemplates: TemplateItem[] = [
-  {
-    id: "tpl-1",
-    name: "Appointment Confirmation - SMS",
-    channel: "sms",
-    category: "appointment",
-    subject: "Appointment confirmation",
-    body: "Hi {ownerName}, {petName} is booked for {appointmentDate} at {appointmentTime}. Reply YES to confirm.",
-    active: true,
-    updatedAt: "2024-02-10",
-    variables: ["ownerName", "petName", "appointmentDate", "appointmentTime"],
-  },
-  {
-    id: "tpl-2",
-    name: "Appointment Reminder - Email",
-    channel: "email",
-    category: "appointment",
-    subject: "Appointment reminder for {petName}",
-    body: "Hello {ownerName}, this is a reminder for {petName}'s appointment on {appointmentDate} at {appointmentTime}.",
-    active: true,
-    updatedAt: "2024-02-05",
-    variables: ["ownerName", "petName", "appointmentDate", "appointmentTime"],
-  },
-  {
-    id: "tpl-3",
-    name: "Vaccine Due - Email",
-    channel: "email",
-    category: "vaccine",
-    subject: "{petName} vaccine due",
-    body: "{petName} is due for {vaccineName} on {dueDate}. Schedule a visit at {clinicPhone}.",
-    active: true,
-    updatedAt: "2024-01-22",
-    variables: ["petName", "vaccineName", "dueDate", "clinicPhone"],
-  },
-  {
-    id: "tpl-4",
-    name: "Lab Results Ready - SMS",
-    channel: "sms",
-    category: "lab",
-    subject: "Lab results ready",
-    body: "Lab results for {petName} are ready. Please call {clinicPhone} to review.",
-    active: false,
-    updatedAt: "2024-02-01",
-    variables: ["petName", "clinicPhone"],
-  },
-  {
-    id: "tpl-5",
-    name: "Follow-up Reminder - SMS",
-    channel: "sms",
-    category: "follow-up",
-    subject: "Follow-up reminder",
-    body: "{petName} is due for a follow-up on {followUpDate}. Reply YES to schedule.",
-    active: true,
-    updatedAt: "2024-02-12",
-    variables: ["petName", "followUpDate"],
-  },
-];
+const mockTemplates: TemplateItem[] = [];
 
 const categoryLabels: Record<TemplateCategory, string> = {
   appointment: "Appointment",

@@ -4,76 +4,13 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { format } from "date-fns";
+import { format, parseISO } from "date-fns";
 import { useRole } from "@/contexts/RoleContext";
 import { useWorkflow } from "@/hooks/useWorkflow";
 import { useToast } from "@/hooks/use-toast";
-import { useState } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useEncounter } from "@/contexts/EncounterContext";
-
-// Mock appointment data - in a real app this would come from an API
-const mockAppointments: Record<string, any> = {
-  "1": {
-    id: "1",
-    petName: "Max",
-    ownerName: "Sarah Johnson",
-    ownerId: "C-2025-001",
-    ownerPhone: "+1 (555) 123-4567",
-    ownerEmail: "sarah.johnson@email.com",
-    date: new Date(),
-    time: "09:00",
-    duration: 30,
-    type: "Checkup",
-    vet: "Dr. Sarah Johnson",
-    vetId: "dr-johnson",
-    status: "CONFIRMED",
-    examRoom: "Exam Room 1",
-    location: "Main Clinic",
-    notes: "Annual wellness checkup. Owner reports pet is healthy and active.",
-    reason: "Annual wellness examination",
-    patientId: "1",
-  },
-  "2": {
-    id: "2",
-    petName: "Whiskers",
-    ownerName: "Michael Chen",
-    ownerId: "C-2025-002",
-    ownerPhone: "+1 (555) 234-5678",
-    ownerEmail: "michael.chen@email.com",
-    date: new Date(),
-    time: "10:30",
-    duration: 45,
-    type: "Vaccination",
-    vet: "Dr. Michael Smith",
-    vetId: "dr-smith",
-    status: "CONFIRMED",
-    examRoom: "Exam Room 2",
-    location: "Main Clinic",
-    notes: "Routine vaccination appointment. No special instructions.",
-    reason: "Annual vaccination booster",
-    patientId: "2",
-  },
-  "3": {
-    id: "3",
-    petName: "Luna",
-    ownerName: "Emily Rodriguez",
-    ownerId: "C-2025-003",
-    ownerPhone: "+1 (555) 345-6789",
-    ownerEmail: "emily.rodriguez@email.com",
-    date: new Date(),
-    time: "14:00",
-    duration: 60,
-    type: "Surgery",
-    vet: "Dr. Sarah Johnson",
-    vetId: "dr-johnson",
-    status: "CONFIRMED",
-    examRoom: "Surgery Suite",
-    location: "Main Clinic",
-    notes: "Spay surgery scheduled. Patient should fast 12 hours before procedure.",
-    reason: "Spay surgery",
-    patientId: "3",
-  },
-};
+import { loadStoredAppointments, updateAppointmentStatus, broadcastAppointmentUpdate } from "@/lib/appointmentStore";
 
 export default function AppointmentDetails() {
   const { id } = useParams();
@@ -81,10 +18,62 @@ export default function AppointmentDetails() {
   const { has, role } = useRole();
   const { toast } = useToast();
   
-  const initialAppointment = id ? mockAppointments[id] : null;
-  const [appointment, setAppointment] = useState(initialAppointment);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+
+  const appointment = useMemo(() => {
+    if (!id) return null;
+    const stored = loadStoredAppointments();
+    return stored.find(a => a.id === id) || null;
+  }, [id, refreshTrigger]);
+
   const wf = useWorkflow({ patientId: appointment?.patientId });
   const { createEncounter } = useEncounter();
+
+  const handleCheckIn = () => {
+    if (!appointment) return;
+    // Create encounter from appointment data
+    createEncounter(appointment.patientId, {
+      reason: appointment.type,
+      chiefComplaint: appointment.reason || appointment.notes || "",
+      veterinarian: appointment.vet,
+    });
+
+    // Update appointment status
+    updateAppointmentStatus(appointment.id, "CHECKED_IN");
+    broadcastAppointmentUpdate();
+    setRefreshTrigger(prev => prev + 1);
+    
+    // Move workflow to triage
+    wf.goTo("TRIAGE");
+    
+    toast({
+      title: "Checked-in",
+      description: `${appointment.petName} has been checked-in and moved to Triage.`,
+    });
+  };
+
+  const handleCancel = () => {
+    if (!appointment) return;
+    updateAppointmentStatus(appointment.id, "CANCELLED");
+    broadcastAppointmentUpdate();
+    setRefreshTrigger(prev => prev + 1);
+    toast({
+      title: "Appointment Cancelled",
+      description: `Appointment for ${appointment.petName} has been cancelled.`,
+      variant: "destructive",
+    });
+  };
+
+  const handleComplete = () => {
+    if (!appointment) return;
+    updateAppointmentStatus(appointment.id, "CONFIRMED"); // Or add a COMPLETED status if needed
+    broadcastAppointmentUpdate();
+    setRefreshTrigger(prev => prev + 1);
+    toast({
+      title: "Appointment Completed",
+      description: `Appointment for ${appointment.petName} has been marked as completed.`,
+    });
+  };
 
   if (!appointment) {
     return (
@@ -100,34 +89,7 @@ export default function AppointmentDetails() {
     );
   }
 
-  const handleCheckIn = () => {
-    // Create encounter from appointment data
-    const encounter = createEncounter(appointment.patientId, {
-      reason: appointment.type,
-      chiefComplaint: appointment.reason || appointment.notes || "",
-      veterinarian: appointment.vet,
-    });
-
-    // Update appointment status
-    setAppointment(prev => prev ? { ...prev, status: "CHECKED_IN" as const } : null);
-    
-    // Move workflow to triage
-    wf.goTo("TRIAGE");
-    
-    toast({
-      title: "Checked-in",
-      description: `${appointment.petName} has been checked-in and moved to Triage.`,
-    });
-  };
-
-  const handleCancel = () => {
-    setAppointment(prev => prev ? { ...prev, status: "CANCELLED" as const } : null);
-    toast({
-      title: "Appointment Cancelled",
-      description: `Appointment for ${appointment.petName} has been cancelled.`,
-      variant: "destructive",
-    });
-  };
+  const appointmentDate = parseISO(appointment.date);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -182,7 +144,7 @@ export default function AppointmentDetails() {
             <p className="text-muted-foreground flex items-center gap-4 mt-1">
               <span className="flex items-center gap-1">
                 <Calendar className="h-4 w-4" />
-                {format(appointment.date, "EEEE, MMMM d, yyyy")}
+                {format(appointmentDate, "EEEE, MMMM d, yyyy")}
               </span>
               <span className="flex items-center gap-1">
                 <Clock className="h-4 w-4" />
@@ -225,7 +187,7 @@ export default function AppointmentDetails() {
               <div className="flex justify-between">
                 <span className="text-sm text-muted-foreground">Date & Time</span>
                 <span className="font-medium">
-                  {format(appointment.date, "MMM d, yyyy")} at {appointment.time}
+                  {format(appointmentDate, "MMM d, yyyy")} at {appointment.time}
                 </span>
               </div>
               <Separator />
@@ -370,7 +332,7 @@ export default function AppointmentDetails() {
                 Edit Appointment
               </Button>
             )}
-            {(appointment.status === "confirmed" || appointment.status === "pending") && (
+            {(appointment.status === "CONFIRMED" || appointment.status === "SCHEDULED") && (
               <Button 
                 variant="outline" 
                 className="text-green-600 hover:text-green-700 hover:bg-green-50"
@@ -380,7 +342,7 @@ export default function AppointmentDetails() {
                 Mark as Completed
               </Button>
             )}
-            {appointment.status !== "cancelled" && appointment.status !== "completed" && (
+            {appointment.status !== "CANCELLED" && appointment.status !== "CHECKED_IN" && (
               <Button 
                 variant="outline" 
                 className="text-red-600 hover:text-red-700 hover:bg-red-50"

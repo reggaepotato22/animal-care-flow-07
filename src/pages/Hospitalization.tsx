@@ -33,75 +33,14 @@ interface AwaitingAdmissionRecord {
   estimatedStay: number;
 }
 
-const SEED_RECORDS: HospRecord[] = [
-  {
-    id: "H001", patientId: "1",
-    patientName: "Sarah Johnson", petName: "Max", species: "Dog (Golden Retriever)",
-    admissionDate: "2024-01-20", admissionTime: "14:30",
-    reason: "Post-surgical monitoring", attendingVet: "Dr. Smith", ward: "Surgery Recovery",
-    status: "recovery", surgeryStage: "POST_SURGERY_RECOVERY", daysStay: 2,
-    createdAt: "2024-01-20T14:30:00Z", updatedAt: "2024-01-20T14:30:00Z",
-  },
-  {
-    id: "H002", patientId: "2",
-    patientName: "Mike Wilson", petName: "Whiskers", species: "Cat (Persian)",
-    admissionDate: "2024-01-19", admissionTime: "09:15",
-    reason: "Severe dehydration", attendingVet: "Dr. Brown", ward: "ICU",
-    status: "critical", daysStay: 3,
-    createdAt: "2024-01-19T09:15:00Z", updatedAt: "2024-01-19T09:15:00Z",
-  },
-  {
-    id: "H003", patientId: "3",
-    patientName: "Emily Davis", petName: "Bella", species: "Dog (Labrador)",
-    admissionDate: "2024-01-15", admissionTime: "16:45",
-    reason: "Observation post-trauma", attendingVet: "Dr. Johnson", ward: "General Ward",
-    status: "discharged", surgeryStage: "DISCHARGED", daysStay: 4,
-    createdAt: "2024-01-15T16:45:00Z", updatedAt: "2024-01-15T16:45:00Z",
-  },
-];
+const SEED_RECORDS: HospRecord[] = [];
 
 function buildRecords(): HospRecord[] {
   const stored = loadHospRecords();
-  const merged = [...SEED_RECORDS];
-  stored.forEach(s => { if (!merged.find(m => m.id === s.id)) merged.push(s); });
-  return merged;
+  return stored;
 }
 
-const mockAwaitingRecords: AwaitingAdmissionRecord[] = [
-  {
-    id: "A001",
-    patientName: "John Smith",
-    petName: "Luna",
-    species: "Cat (Maine Coon)",
-    scheduledDate: "2024-01-22",
-    reason: "Spay surgery recovery",
-    attendingVet: "Dr. Smith",
-    priority: "routine",
-    estimatedStay: 2
-  },
-  {
-    id: "A002",
-    patientName: "Lisa Brown",
-    petName: "Rocky",
-    species: "Dog (Bulldog)",
-    scheduledDate: "2024-01-21",
-    reason: "Respiratory distress monitoring",
-    attendingVet: "Dr. Brown",
-    priority: "urgent",
-    estimatedStay: 3
-  },
-  {
-    id: "A003",
-    patientName: "David Wilson",
-    petName: "Milo",
-    species: "Dog (Beagle)",
-    scheduledDate: "2024-01-21",
-    reason: "Emergency toxin ingestion",
-    attendingVet: "Dr. Johnson",
-    priority: "emergency",
-    estimatedStay: 1
-  }
-];
+const mockAwaitingRecords: AwaitingAdmissionRecord[] = [];
 
 export default function Hospitalization() {
   const navigate = useNavigate();

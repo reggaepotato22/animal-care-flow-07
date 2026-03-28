@@ -94,11 +94,8 @@ export default function PatientJourney() {
       },
     }));
     
-    // Add mock historical events
-    const mockEvents: JourneyEvent[] = [
-      { id: "mock-1", date: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(), type: "Visit", title: "Annual Checkup", detail: "Vitals normal, vaccination due in 6 months", status: "completed" },
-      { id: "mock-2", date: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString(), type: "Injection", title: "Rabies Booster", detail: "No adverse reaction observed", status: "completed" },
-    ];
+    // Add mock historical events (cleared)
+    const mockEvents: JourneyEvent[] = [];
     
     // Combine and sort by date (newest first)
     const allEvents = [...labEvents, ...mockEvents].sort((a, b) => 

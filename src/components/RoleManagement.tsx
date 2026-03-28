@@ -49,6 +49,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
+import { getRoles, saveRoles, getGroups, saveGroups, getUsers, saveUsers, type Role, type User, type UserGroup, type ModulePermissions } from "@/lib/roleStore";
+
 // Define system modules
 export const SYSTEM_MODULES = [
   { id: "patients", name: "Patients" },
@@ -75,49 +77,9 @@ export const PERMISSION_TYPES = [
 export type ModuleId = typeof SYSTEM_MODULES[number]["id"];
 export type PermissionType = typeof PERMISSION_TYPES[number]["id"];
 
-export interface ModulePermissions {
-  [moduleId: string]: {
-    read: boolean;
-    create: boolean;
-    write: boolean;
-    delete: boolean;
-  };
-}
-
-export interface Role {
-  id: string;
-  title: string;
-  department: string;
-  staffCount: number;
-  permissions: string[]; // Legacy permissions array
-  modulePermissions?: ModulePermissions; // New module-based permissions
-  description: string;
-  groupId?: string; // User group this role belongs to
-}
-
-export interface UserGroup {
-  id: string;
-  name: string;
-  description: string;
-  roleIds: string[]; // Roles that belong to this group
-  color?: string; // Optional color for visual distinction
-  // Note: Permissions are computed from assigned roles, not stored
-}
-
-export interface User {
-  id: string;
-  name: string;
-  email: string;
-  phone: string;
-  roleId?: string; // Assigned role
-  groupIds: string[]; // Assigned user groups
-  status: "active" | "inactive";
-  startDate: string;
-}
-
 // Initialize default permissions (all false)
 const getDefaultModulePermissions = (): ModulePermissions => {
-  const permissions: ModulePermissions = {};
+  const permissions: any = {};
   SYSTEM_MODULES.forEach((module) => {
     permissions[module.id] = {
       read: false,
@@ -131,14 +93,14 @@ const getDefaultModulePermissions = (): ModulePermissions => {
 
 // Calculate aggregated permissions from roles
 const calculateGroupPermissions = (roleIds: string[], allRoles: Role[]): ModulePermissions => {
-  const aggregatedPermissions: ModulePermissions = getDefaultModulePermissions();
+  const aggregatedPermissions: any = getDefaultModulePermissions();
   
   // Get all roles assigned to this group
   const groupRoles = allRoles.filter((role) => roleIds.includes(role.id));
   
   // Aggregate permissions: if ANY role has a permission, the group has it
   groupRoles.forEach((role) => {
-    const rolePermissions = role.modulePermissions || {};
+    const rolePermissions: any = role.modulePermissions || {};
     SYSTEM_MODULES.forEach((module) => {
       const modulePerms = rolePermissions[module.id];
       if (modulePerms) {
@@ -156,170 +118,8 @@ const calculateGroupPermissions = (roleIds: string[], allRoles: Role[]): ModuleP
   return aggregatedPermissions;
 };
 
-// Mock user groups data
-// Note: Permissions are computed from assigned roles, not stored
-const mockUserGroups: UserGroup[] = [
-  {
-    id: "group-1",
-    name: "Administrators",
-    description: "Full system access and administrative privileges",
-    roleIds: ["3"],
-    color: "bg-red-100 text-red-800",
-  },
-  {
-    id: "group-2",
-    name: "Technicians",
-    description: "Clinical support staff with technical expertise",
-    roleIds: ["2"],
-    color: "bg-blue-100 text-blue-800",
-  },
-  {
-    id: "group-3",
-    name: "Front Desk / Reception",
-    description: "Front office staff handling customer interactions",
-    roleIds: ["4"],
-    color: "bg-green-100 text-green-800",
-  },
-  {
-    id: "group-4",
-    name: "Veterinarians",
-    description: "Licensed veterinarians with clinical authority",
-    roleIds: ["1"],
-    color: "bg-purple-100 text-purple-800",
-  },
-];
+// Helper components for RoleManagement are below
 
-// Mock roles data
-const mockRoles: Role[] = [
-  {
-    id: "1",
-    title: "Senior Veterinarian",
-    department: "Clinical",
-    staffCount: 2,
-    permissions: ["diagnose", "prescribe", "surgery", "supervise"],
-    modulePermissions: {
-      patients: { read: true, create: true, write: true, delete: false },
-      appointments: { read: true, create: true, write: true, delete: true },
-      records: { read: true, create: true, write: true, delete: true },
-      labs: { read: true, create: true, write: true, delete: false },
-      postmortem: { read: true, create: true, write: true, delete: false },
-      hospitalization: { read: true, create: true, write: true, delete: false },
-      treatments: { read: true, create: true, write: true, delete: false },
-      inventory: { read: true, create: false, write: false, delete: false },
-      staff: { read: true, create: false, write: false, delete: false },
-      reports: { read: true, create: true, write: true, delete: false },
-    },
-    description: "Lead veterinarian with full clinical authority",
-    groupId: "group-4",
-  },
-  {
-    id: "2", 
-    title: "Veterinary Technician",
-    department: "Clinical",
-    staffCount: 3,
-    permissions: ["assist", "administer_meds", "lab_work"],
-    modulePermissions: {
-      patients: { read: true, create: false, write: true, delete: false },
-      appointments: { read: true, create: true, write: true, delete: false },
-      records: { read: true, create: true, write: true, delete: false },
-      labs: { read: true, create: true, write: true, delete: false },
-      postmortem: { read: true, create: false, write: false, delete: false },
-      hospitalization: { read: true, create: true, write: true, delete: false },
-      treatments: { read: true, create: true, write: true, delete: false },
-      inventory: { read: true, create: false, write: false, delete: false },
-      staff: { read: false, create: false, write: false, delete: false },
-      reports: { read: true, create: false, write: false, delete: false },
-    },
-    description: "Licensed technician providing veterinary support",
-    groupId: "group-2",
-  },
-  {
-    id: "3",
-    title: "Practice Manager",
-    department: "Administration", 
-    staffCount: 1,
-    permissions: ["manage_staff", "finances", "scheduling", "reports"],
-    modulePermissions: {
-      patients: { read: true, create: true, write: true, delete: true },
-      appointments: { read: true, create: true, write: true, delete: true },
-      records: { read: true, create: true, write: true, delete: true },
-      labs: { read: true, create: true, write: true, delete: true },
-      postmortem: { read: true, create: true, write: true, delete: true },
-      hospitalization: { read: true, create: true, write: true, delete: true },
-      treatments: { read: true, create: true, write: true, delete: true },
-      inventory: { read: true, create: true, write: true, delete: true },
-      staff: { read: true, create: true, write: true, delete: true },
-      reports: { read: true, create: true, write: true, delete: true },
-    },
-    description: "Oversees practice operations and staff management",
-    groupId: "group-1",
-  },
-  {
-    id: "4",
-    title: "Receptionist",
-    department: "Front Office",
-    staffCount: 2,
-    permissions: ["appointments", "customer_service", "billing"],
-    modulePermissions: {
-      patients: { read: true, create: true, write: true, delete: false },
-      appointments: { read: true, create: true, write: true, delete: true },
-      records: { read: true, create: false, write: false, delete: false },
-      labs: { read: true, create: false, write: false, delete: false },
-      postmortem: { read: false, create: false, write: false, delete: false },
-      hospitalization: { read: true, create: false, write: false, delete: false },
-      treatments: { read: true, create: false, write: false, delete: false },
-      inventory: { read: true, create: false, write: false, delete: false },
-      staff: { read: false, create: false, write: false, delete: false },
-      reports: { read: false, create: false, write: false, delete: false },
-    },
-    description: "Front desk operations and customer service",
-    groupId: "group-3",
-  },
-];
-
-// Mock users data
-const mockUsers: User[] = [
-  {
-    id: "user-1",
-    name: "Dr. Sarah Johnson",
-    email: "sarah.johnson@vetcare.com",
-    phone: "(555) 123-4567",
-    roleId: "1",
-    groupIds: ["group-4"],
-    status: "active",
-    startDate: "2022-01-15",
-  },
-  {
-    id: "user-2",
-    name: "Michael Chen",
-    email: "michael.chen@vetcare.com",
-    phone: "(555) 234-5678",
-    roleId: "2",
-    groupIds: ["group-2"],
-    status: "active",
-    startDate: "2023-03-20",
-  },
-  {
-    id: "user-3",
-    name: "Emma Rodriguez",
-    email: "emma.rodriguez@vetcare.com",
-    phone: "(555) 345-6789",
-    roleId: "3",
-    groupIds: ["group-1"],
-    status: "active",
-    startDate: "2021-11-08",
-  },
-  {
-    id: "user-4",
-    name: "David Kim",
-    email: "david.kim@vetcare.com",
-    phone: "(555) 456-7890",
-    roleId: "4",
-    groupIds: ["group-3"],
-    status: "active",
-    startDate: "2023-06-12",
-  },
-];
 
 // Add/Edit Role Dialog Component
 interface RoleDialogProps {
@@ -1330,9 +1130,14 @@ function MassActionsDialog({ group, open, onOpenChange, users }: MassActionsDial
 }
 
 export function RoleManagement() {
-  const [roles, setRoles] = useState<Role[]>(mockRoles);
-  const [userGroups, setUserGroups] = useState<UserGroup[]>(mockUserGroups);
-  const [users, setUsers] = useState<User[]>(mockUsers);
+  const [roles, setRoles] = useState<Role[]>(getRoles);
+  const [userGroups, setUserGroups] = useState<UserGroup[]>(getGroups);
+  const [users, setUsers] = useState<User[]>(getUsers);
+
+  // Sync with localStorage on change
+  useEffect(() => { saveRoles(roles); }, [roles]);
+  useEffect(() => { saveGroups(userGroups); }, [userGroups]);
+  useEffect(() => { saveUsers(users); }, [users]);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [editingRole, setEditingRole] = useState<Role | null>(null);

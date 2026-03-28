@@ -1,13 +1,13 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { useState, useMemo } from "react";
-import { differenceInDays, format } from "date-fns";
+import { differenceInDays, format, isSameDay } from "date-fns";
 import { PatientHeader } from "@/components/PatientHeader";
 import { WorkflowProgress } from "@/components/WorkflowProgress";
 import { AdmissionRequestDialog } from "@/components/AdmissionRequestDialog";
 import { useEncounter } from "@/contexts/EncounterContext";
 import { useWorkflowContext } from "@/contexts/WorkflowContext";
-import { mockAppointments } from "@/pages/Appointments";
-import { mockPatients } from "@/data/patients";
+import { getPatients } from "@/lib/patientStore";
+import { loadStoredAppointments } from "@/lib/appointmentStore";
 import { useRole } from "@/contexts/RoleContext";
 import { useWorkflow } from "@/hooks/useWorkflow";
 import { useToast } from "@/hooks/use-toast";
@@ -33,7 +33,7 @@ export default function PatientDetails() {
   const { setPatientStatus, setStep } = useWorkflowContext();
 
   const patient = useMemo(() => {
-    return mockPatients.find(p => p.id === id || p.patientId === id);
+    return getPatients().find(p => p.id === id || p.patientId === id);
   }, [id]);
 
   const wf = useWorkflow({ patientId: patient?.id });
@@ -51,7 +51,7 @@ export default function PatientDetails() {
     setPatientStatus(id, "Referred");
     setStep(id, "COMPLETED");
     try {
-      const stored: unknown[] = JSON.parse(localStorage.getItem("acf_clinical_records") ?? "[]");
+      const stored: any[] = JSON.parse(localStorage.getItem("acf_clinical_records") ?? "[]");
       stored.unshift({ type: "referral", patientId: id, petName: patient?.name, createdAt: new Date().toISOString(), status: "Referred" });
       localStorage.setItem("acf_clinical_records", JSON.stringify(stored));
       new BroadcastChannel("acf_hospitalization_channel").postMessage({ type: "patient_referred", patientId: id });
@@ -69,7 +69,7 @@ export default function PatientDetails() {
     setPatientStatus(id, "Deceased");
     setStep(id, "COMPLETED");
     try {
-      const stored: unknown[] = JSON.parse(localStorage.getItem("acf_clinical_records") ?? "[]");
+      const stored: any[] = JSON.parse(localStorage.getItem("acf_clinical_records") ?? "[]");
       stored.unshift({ type: "deceased", patientId: id, petName: patient?.name, createdAt: new Date().toISOString(), status: "Deceased" });
       localStorage.setItem("acf_clinical_records", JSON.stringify(stored));
       new BroadcastChannel("acf_hospitalization_channel").postMessage({ type: "patient_deceased", patientId: id });
@@ -82,8 +82,10 @@ export default function PatientDetails() {
 
   const hasAppointmentToday = useMemo(() => {
     if (!patient) return false;
-    return mockAppointments.some(
-      (apt) => apt.patientId === patient.id && format(apt.date, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd')
+    const appointments = loadStoredAppointments();
+    const today = new Date();
+    return appointments.some(
+      (apt) => apt.patientId === patient.id && isSameDay(new Date(apt.date), today)
     );
   }, [patient]);
 

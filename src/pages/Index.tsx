@@ -20,7 +20,7 @@ import { formatDistanceToNow, subMinutes, subHours, subDays, subSeconds } from "
 import { useRole } from "@/contexts/RoleContext";
 import { useWorkflowContext } from "@/contexts/WorkflowContext";
 import { useToast } from "@/hooks/use-toast";
-import { clearAllData, generateMockPatients } from "@/lib/patientStore";
+import { clearAllData, seedMockData } from "@/lib/dataSeed";
 import { WorkflowProgress } from "@/components/WorkflowProgress";
 import { useEncounter } from "@/contexts/EncounterContext";
 import { cn } from "@/lib/utils";
@@ -37,32 +37,25 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { useNotifications } from "@/contexts/NotificationContext";
 import { loadStoredAppointments, subscribeToAppointments, isToday, isoToTimeLabel } from "@/lib/appointmentStore";
+import { getPatients } from "@/lib/patientStore";
 
-// ─── Seed appointment data (always present, merged with stored) ──────────────
-const SEED_APPOINTMENTS = [
-  { id: "appt-1", patient: "Max",      owner: "Sarah Johnson",   time: "9:00 AM",  type: "Checkup",     patientId: "appt-1" },
-  { id: "appt-2", patient: "Whiskers", owner: "Michael Chen",    time: "10:30 AM", type: "Vaccination", patientId: "appt-2" },
-  { id: "appt-3", patient: "Luna",     owner: "Emily Rodriguez", time: "2:00 PM",  type: "Surgery",     patientId: "appt-3" },
-  { id: "appt-4", patient: "Buddy",    owner: "James Kamau",     time: "3:15 PM",  type: "Dental",      patientId: "appt-4" },
-  { id: "appt-5", patient: "Nala",     owner: "Grace Wanjiru",   time: "4:00 PM",  type: "Checkup",     patientId: "appt-5" },
-];
+// ─── Seed appointment data (removed as requested) ──────────────
+const SEED_APPOINTMENTS: any[] = [];
 
 type DashAppt = { id: string; patient: string; owner: string; time: string; type: string; patientId: string };
 
 function buildDashAppointments(): DashAppt[] {
   const stored = loadStoredAppointments().filter(s => isToday(s.date));
-  const merged: DashAppt[] = [...SEED_APPOINTMENTS];
+  const merged: DashAppt[] = [];
   stored.forEach(s => {
-    if (!merged.find(m => m.id === s.id)) {
-      merged.push({
-        id:        s.id,
-        patient:   s.petName,
-        owner:     s.ownerName,
-        time:      isoToTimeLabel(s.date, s.time),
-        type:      s.type,
-        patientId: s.patientId,
-      });
-    }
+    merged.push({
+      id:        s.id,
+      patient:   s.petName,
+      owner:     s.ownerName,
+      time:      isoToTimeLabel(s.date, s.time),
+      type:      s.type,
+      patientId: s.patientId,
+    });
   });
   return merged;
 }
@@ -87,34 +80,13 @@ const ENC_STATUS_CONFIG: Record<EncounterStatus, { label: string; cls: string; p
   DISCHARGED:      { label: "Discharged",         cls: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400 border border-gray-300" },
 };
 
-// ─── Role-specific static alerts ─────────────────────────────────────────────
+// ─── Role-specific static alerts (removed as requested) ──────────────
 const ROLE_ALERTS: Record<string, { message: string; type: string; timestamp: Date }[]> = {
-  Receptionist: [
-    { message: "2 patients waiting in lobby — please check in",      type: "warning",  timestamp: subMinutes(new Date(), 3)  },
-    { message: "Luna appointment confirmed for 2:00 PM",              type: "info",     timestamp: subMinutes(new Date(), 20) },
-    { message: "Buddy: owner requested early slot",                   type: "info",     timestamp: subHours(new Date(), 1)   },
-  ],
-  Nurse: [
-    { message: "Rocky flagged as critical — triage immediately",      type: "critical", timestamp: subMinutes(new Date(), 5)  },
-    { message: "Vaccination due: Luna (Rabies) — review before triage", type: "warning", timestamp: subMinutes(new Date(), 15) },
-    { message: "Vitals kit needs restocking",                          type: "warning",  timestamp: subHours(new Date(), 1)   },
-  ],
-  Vet: [
-    { message: "Whiskers triage complete — ready for consultation",   type: "success",  timestamp: subMinutes(new Date(), 4)  },
-    { message: "Max lab results ready for review",                     type: "info",     timestamp: subMinutes(new Date(), 12) },
-    { message: "Emergency case — immediate consultation needed",       type: "critical", timestamp: subSeconds(new Date(), 30) },
-  ],
-  Pharmacist: [
-    { message: "Inventory low: Heartworm medication",                  type: "warning",  timestamp: subHours(new Date(), 2)   },
-    { message: "New prescription ready for dispensing — Whiskers",    type: "info",     timestamp: subMinutes(new Date(), 8)  },
-    { message: "Prescription refill requested: Buddy",                 type: "info",     timestamp: subHours(new Date(), 1)   },
-  ],
-  SuperAdmin: [
-    { message: "Rocky needs immediate attention",                      type: "critical", timestamp: subMinutes(new Date(), 5)  },
-    { message: "Inventory low: Heartworm medication",                  type: "warning",  timestamp: subHours(new Date(), 2)   },
-    { message: "Staff meeting scheduled for 3 PM",                     type: "info",     timestamp: subDays(new Date(), 1)    },
-    { message: "Equipment maintenance due: X-ray machine",            type: "warning",  timestamp: subDays(new Date(), 2)    },
-  ],
+  Receptionist: [],
+  Nurse: [],
+  Vet: [],
+  Pharmacist: [],
+  SuperAdmin: [],
 };
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -173,6 +145,10 @@ const Index = () => {
     const enc = getActiveEncounterForPatient(p.patientId);
     return enc && ["WAITING", "IN_TRIAGE"].includes(enc.status);
   });
+
+  const stats = {
+    patientCount: getPatients().length
+  };
 
   // Vet: triaged patients ready for consultation
   const vetConsultQueue = allCheckedIn.filter(p => {
@@ -379,13 +355,13 @@ const Index = () => {
         <Button 
           variant="outline"
           onClick={() => {
-            const patients = generateMockPatients(10);
+            seedMockData();
             toast({
               title: "Mock Data Generated",
-              description: `Generated ${patients.length} sample patients.`,
+              description: "System seeded with sample patients, staff, and appointments.",
             });
-            window.location.reload();
           }}
+          className="border-blue-200 text-blue-600 hover:bg-blue-50"
         >
           Generate Mock Data
         </Button>

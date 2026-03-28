@@ -46,71 +46,7 @@ type NotificationItem = {
   error?: string;
 };
 
-const mockNotifications: NotificationItem[] = [
-  {
-    id: "ntf-1",
-    recipient: "Sarah Johnson",
-    petName: "Max",
-    category: "appointment",
-    channel: "sms",
-    status: "scheduled",
-    scheduledAt: "2024-02-15T09:00:00",
-    templateName: "Appointment Confirmation - SMS",
-    subject: "Appointment reminder",
-    message: "Reminder: Max has a checkup tomorrow at 9:00 AM. Reply YES to confirm.",
-  },
-  {
-    id: "ntf-2",
-    recipient: "Michael Chen",
-    petName: "Whiskers",
-    category: "vaccine",
-    channel: "email",
-    status: "sent",
-    scheduledAt: "2024-02-10T13:30:00",
-    deliveredAt: "2024-02-10T13:30:12",
-    templateName: "Vaccine Due - Email",
-    subject: "Vaccine due soon",
-    message: "Whiskers is due for FVRCP on 2024-06-15. Please schedule a visit.",
-  },
-  {
-    id: "ntf-3",
-    recipient: "Emily Rodriguez",
-    petName: "Luna",
-    category: "lab",
-    channel: "sms",
-    status: "failed",
-    scheduledAt: "2024-02-12T15:00:00",
-    templateName: "Lab Results Ready - SMS",
-    subject: "Lab results ready",
-    message: "Luna’s lab results are ready. Please contact the clinic for details.",
-    error: "Carrier rejected: invalid phone number",
-  },
-  {
-    id: "ntf-4",
-    recipient: "David Thompson",
-    petName: "Rocky",
-    category: "follow-up",
-    channel: "email",
-    status: "sent",
-    scheduledAt: "2024-02-05T11:45:00",
-    deliveredAt: "2024-02-05T11:45:08",
-    templateName: "Follow-up Reminder - Email",
-    subject: "Follow-up reminder",
-    message: "Rocky is due for a follow-up on 2024-02-20. Schedule online or call us.",
-  },
-  {
-    id: "ntf-5",
-    recipient: "Lisa Anderson",
-    petName: "Charlie",
-    category: "appointment",
-    channel: "sms",
-    status: "cancelled",
-    scheduledAt: "2024-02-14T10:00:00",
-    templateName: "Appointment Reminder - SMS",
-    subject: "Appointment reminder",
-    message: "Reminder: Charlie has an appointment tomorrow at 10:00 AM.",
-  },
-];
+const mockNotifications: NotificationItem[] = [];
 
 const categoryLabels: Record<NotificationCategory, string> = {
   appointment: "Appointment",

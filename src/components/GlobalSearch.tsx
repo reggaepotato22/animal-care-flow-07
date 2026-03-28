@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { useNavigate } from "react-router-dom";
-import { mockPatients } from "@/data/patients";
+import { getPatients } from "@/lib/patientStore";
 import { Search, User, Stethoscope, FileText, Calendar, Activity } from "lucide-react";
 
 export function GlobalSearch({ open, onOpenChange, initialQuery = "" }: { open: boolean; onOpenChange: (v: boolean) => void; initialQuery?: string }) {
@@ -12,7 +12,7 @@ export function GlobalSearch({ open, onOpenChange, initialQuery = "" }: { open: 
   const patientResults = useMemo(() => {
     const q = value.trim().toLowerCase();
     if (!q) return [];
-    return mockPatients
+    return getPatients()
       .filter((p) => {
         const hay = `${p.name} ${p.owner} ${p.breed} ${p.patientId}`.toLowerCase();
         return hay.includes(q);

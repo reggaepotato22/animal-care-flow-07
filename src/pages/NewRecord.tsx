@@ -744,105 +744,13 @@ const getTemplatesByCategory = (searchQuery: string = "", noteType?: NoteType) =
   }, {} as Record<string, [string, any][]>);
 };
 
-// Mock medical history data
+// Mock medical history data (cleared)
 const mockMedicalHistory: MedicalHistory = {
-  previousVisits: [
-    {
-      id: "1",
-      date: "2024-01-15",
-      veterinarian: "Dr. Smith",
-      complaint: "Annual wellness exam",
-      diagnosis: "Healthy, minor dental tartar",
-      treatment: "Vaccination updates, dental cleaning recommended"
-    },
-    {
-      id: "2", 
-      date: "2023-11-20",
-      veterinarian: "Dr. Johnson",
-      complaint: "Limping on right hind leg",
-      diagnosis: "Minor muscle strain",
-      treatment: "Rest, anti-inflammatory medication"
-    },
-    {
-      id: "3",
-      date: "2023-08-10",
-      veterinarian: "Dr. Brown",
-      complaint: "Ear infection symptoms",
-      diagnosis: "Bacterial otitis externa",
-      treatment: "Antibiotic ear drops, follow-up in 2 weeks"
-    }
-  ],
-  surgeries: [
-    {
-      id: "1",
-      date: "2023-03-15",
-      procedure: "Spay (Ovariohysterectomy)",
-      veterinarian: "Dr. Wilson",
-      outcome: "Successful, no complications"
-    },
-    {
-      id: "2",
-      date: "2022-09-20",
-      procedure: "Dental cleaning with extraction",
-      veterinarian: "Dr. Smith",
-      outcome: "2 premolars extracted, routine recovery"
-    }
-  ],
-  allergies: [
-    {
-      id: "1",
-      allergen: "Chicken protein",
-      reaction: "Skin irritation, itching",
-      severity: "moderate"
-    },
-    {
-      id: "2",
-      allergen: "Penicillin",
-      reaction: "Gastrointestinal upset",
-      severity: "mild"
-    }
-  ],
-  currentMedications: [
-    {
-      id: "1",
-      name: "Apoquel 16mg",
-      dosage: "1 tablet",
-      frequency: "Twice daily",
-      startDate: "2024-01-20",
-      prescribedBy: "Dr. Smith"
-    },
-    {
-      id: "2",
-      name: "Omega-3 supplement",
-      dosage: "1 capsule",
-      frequency: "Daily with food",
-      startDate: "2024-01-15",
-      prescribedBy: "Dr. Smith"
-    }
-  ],
-  vaccinations: [
-    {
-      id: "1",
-      vaccine: "DHPP",
-      date: "2024-01-15",
-      nextDue: "2025-01-15",
-      veterinarian: "Dr. Smith"
-    },
-    {
-      id: "2",
-      vaccine: "Rabies",
-      date: "2024-01-15",
-      nextDue: "2027-01-15",
-      veterinarian: "Dr. Smith"
-    },
-    {
-      id: "3",
-      vaccine: "Bordetella",
-      date: "2024-01-15",
-      nextDue: "2025-01-15",
-      veterinarian: "Dr. Smith"
-    }
-  ]
+  previousVisits: [],
+  surgeries: [],
+  allergies: [],
+  currentMedications: [],
+  vaccinations: [],
 };
 
 // Load real patient data from localStorage based on patientId

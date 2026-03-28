@@ -38,24 +38,8 @@ interface EncounterSidebarProps {
   onItemClick?: (item: EncounterItem) => void;
 }
 
-const mockEncounterItems: EncounterItem[] = [
-  {
-    id: "1",
-    type: "lab",
-    title: "Complete Blood Count",
-    status: "pending",
-    timestamp: "10:30 AM",
-    details: { priority: "routine", estimatedTime: "2 hours" }
-  },
-  {
-    id: "2", 
-    type: "lab",
-    title: "Chemistry Panel",
-    status: "in-progress",
-    timestamp: "10:32 AM",
-    details: { priority: "urgent", estimatedTime: "1 hour" }
-  }
-];
+// Mock encounter items (cleared)
+const mockEncounterItems: EncounterItem[] = [];
 
 const getStatusIcon = (status: string) => {
   switch (status) {

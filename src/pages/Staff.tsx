@@ -8,64 +8,16 @@ import { StaffCard } from "@/components/StaffCard";
 import { AddStaffDialog } from "@/components/AddStaffDialog";
 import { ScheduleManagement } from "@/components/ScheduleManagement";
 
-// Mock data for demonstration
-const mockStaff = [
-  {
-    id: "1",
-    name: "Dr. Sarah Johnson",
-    email: "sarah.johnson@vetcare.com",
-    phone: "(555) 123-4567",
-    role: "Senior Veterinarian",
-    department: "Clinical",
-    status: "active",
-    startDate: "2022-01-15",
-    schedule: "Monday-Friday, 8:00 AM - 6:00 PM",
-    avatar: null,
-  },
-  {
-    id: "2",
-    name: "Michael Chen",
-    email: "michael.chen@vetcare.com", 
-    phone: "(555) 234-5678",
-    role: "Veterinary Technician",
-    department: "Clinical",
-    status: "active",
-    startDate: "2023-03-20",
-    schedule: "Tuesday-Saturday, 9:00 AM - 5:00 PM",
-    avatar: null,
-  },
-  {
-    id: "3",
-    name: "Emma Rodriguez",
-    email: "emma.rodriguez@vetcare.com",
-    phone: "(555) 345-6789",
-    role: "Practice Manager",
-    department: "Administration",
-    status: "active",
-    startDate: "2021-11-08",
-    schedule: "Monday-Friday, 7:00 AM - 4:00 PM",
-    avatar: null,
-  },
-  {
-    id: "4",
-    name: "David Kim",
-    email: "david.kim@vetcare.com",
-    phone: "(555) 456-7890",
-    role: "Receptionist",
-    department: "Front Office",
-    status: "active",
-    startDate: "2023-06-12",
-    schedule: "Wednesday-Sunday, 10:00 AM - 6:00 PM",
-    avatar: null,
-  },
-];
+import { getStaff } from "@/lib/staffStore";
 
 export default function Staff() {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterRole, setFilterRole] = useState("all");
   const [showAddDialog, setShowAddDialog] = useState(false);
+  
+  const staffMembers = getStaff();
 
-  const filteredStaff = mockStaff.filter((staff) => {
+  const filteredStaff = staffMembers.filter((staff) => {
     const matchesSearch = staff.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          staff.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          staff.role.toLowerCase().includes(searchTerm.toLowerCase());
@@ -76,21 +28,21 @@ export default function Staff() {
   const stats = [
     {
       title: "Total Staff",
-      value: mockStaff.length,
+      value: staffMembers.length,
       icon: Users,
-      change: "+2 this month",
+      change: "+0 this month",
     },
     {
       title: "Active Staff",
-      value: mockStaff.filter(s => s.status === "active").length,
+      value: staffMembers.filter(s => s.status === "active").length,
       icon: UserCheck,
       change: "100% active",
     },
     {
       title: "Departments",
-      value: new Set(mockStaff.map(s => s.department)).size,
+      value: new Set(staffMembers.map(s => s.department)).size,
       icon: Filter,
-      change: "3 active",
+      change: "0 active",
     },
   ];
 

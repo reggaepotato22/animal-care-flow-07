@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth, registerUser } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -63,6 +63,14 @@ export default function Signup() {
 
     localStorage.setItem("vetcare_clinic_data", JSON.stringify(clinicData));
     localStorage.setItem("vetcare_staff", JSON.stringify(staff));
+
+    // Register the admin user so they can log in
+    registerUser({
+      id: `user-${Date.now()}`,
+      email: adminEmail,
+      name: clinicName, // Use clinic name as user name for now
+      password: adminPassword,
+    });
 
     // Auto login with the created account
     const success = await login(adminEmail, adminPassword);

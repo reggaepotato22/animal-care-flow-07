@@ -48,11 +48,34 @@ function saveUser(user: User | null) {
   }
 }
 
+const REGISTERED_USERS_KEY = "vetcare_registered_users";
+
+export interface RegisteredUser extends User {
+  password: string;
+}
+
+function getRegisteredUsers(): RegisteredUser[] {
+  try {
+    const raw = localStorage.getItem(REGISTERED_USERS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function registerUser(user: RegisteredUser) {
+  const users = getRegisteredUsers();
+  users.push(user);
+  localStorage.setItem(REGISTERED_USERS_KEY, JSON.stringify(users));
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(loadStoredUser);
 
   const login = useCallback((email: string, password: string): boolean => {
     const normalizedEmail = email.trim().toLowerCase();
+    
+    // Check demo credentials
     if (
       normalizedEmail === DEMO_CREDENTIALS.email &&
       password === DEMO_CREDENTIALS.password
@@ -61,6 +84,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       saveUser(DEMO_USER);
       return true;
     }
+
+    // Check registered users
+    const registeredUsers = getRegisteredUsers();
+    const found = registeredUsers.find(
+      (u) => u.email.trim().toLowerCase() === normalizedEmail && u.password === password
+    );
+
+    if (found) {
+      const { password: _, ...userWithoutPassword } = found;
+      setUser(userWithoutPassword);
+      saveUser(userWithoutPassword);
+      return true;
+    }
+
     return false;
   }, []);
 

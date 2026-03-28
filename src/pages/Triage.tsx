@@ -60,7 +60,7 @@ const riskFlags = [
 ];
 
 import { useEncounter } from "@/contexts/EncounterContext";
-import { mockPatients } from "@/data/patients";
+import { getPatients } from "@/lib/patientStore";
 import { EncounterStatus } from "@/lib/types";
 
 export default function Triage() {
@@ -72,14 +72,15 @@ export default function Triage() {
 
   // Get only patients who have active encounters in triage-relevant statuses
   const triageQueue = useMemo(() => {
+    const patients = getPatients();
     return encounters
       .filter(enc => ["WAITING", "IN_TRIAGE", "TRIAGED"].includes(enc.status))
       .map(enc => {
-        const patient = mockPatients.find(p => p.id === enc.patientId || p.patientId === enc.patientId);
+        const patient = patients.find(p => p.id === enc.patientId || p.patientId === enc.patientId);
         return {
           id: enc.id,
           patientId: enc.patientId,
-          // Use encounter's petName first (from check-in), fallback to mockPatients
+          // Use encounter's petName first (from check-in), fallback to patientStore
           petName: patient?.name || enc.petName || "Unknown Patient",
           species: patient ? `${patient.species} (${patient.breed})` : enc.appointmentType || "Unknown",
           ownerName: patient?.owner || enc.ownerName || "Unknown Owner",
@@ -141,7 +142,7 @@ export default function Triage() {
   }, [selectedId]);
 
   const selectedEncounter = encounters.find((item) => item.id === selectedId);
-  const patientDetails = mockPatients.find(p => p.id === selectedEncounter?.patientId || p.patientId === selectedEncounter?.patientId);
+  const patientDetails = getPatients().find(p => p.id === selectedEncounter?.patientId || p.patientId === selectedEncounter?.patientId);
 
   const intake = intakeById[selectedId] || { ...defaultIntake };
   const patientWorkflow = useWorkflow({ patientId: selectedEncounter?.patientId });
