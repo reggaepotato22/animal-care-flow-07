@@ -4,9 +4,10 @@ import { Header } from "@/components/Header";
 
 interface LayoutProps {
   children: React.ReactNode;
+  footer?: React.ReactNode;
 }
 
-export function Layout({ children }: LayoutProps) {
+export function Layout({ children, footer }: LayoutProps) {
   return (
     <div className="h-screen bg-background flex w-full overflow-hidden">
       <Navigation />
@@ -15,6 +16,7 @@ export function Layout({ children }: LayoutProps) {
         <main className="flex-1 p-6 overflow-y-auto">
           {children}
         </main>
+        {footer}
       </div>
     </div>
   );
