@@ -3,7 +3,7 @@ import { initializeSamplePatients } from "@/lib/patientStore";
 
 export function useInitializeApp() {
   useEffect(() => {
-    // Initialize sample patients if none exist
-    initializeSamplePatients();
+    // We no longer initialize sample patients by default.
+    // The user can generate them via the dashboard button.
   }, []);
 }

@@ -31,62 +31,8 @@ interface LabOrder {
   results?: any;
 }
 
-// Mock lab orders data
-const mockLabOrders: LabOrder[] = [
-  {
-    id: "LAB001",
-    patientId: "P001",
-    patientName: "Max",
-    species: "Canine",
-    breed: "Golden Retriever",
-    orderDate: "2024-03-10",
-    veterinarian: "Dr. Smith",
-    tests: ["CBC", "Chemistry Panel", "Urinalysis"],
-    priority: "routine",
-    status: "completed",
-    diagnosis: "Annual wellness examination",
-    collectedDate: "2024-03-10",
-    collectedBy: "Tech Sarah",
-    sampleType: "Blood, Urine",
-    resultDate: "2024-03-11",
-    results: {
-      CBC: { WBC: "8.2", RBC: "6.1", HGB: "14.2", HCT: "42.1" },
-      Chemistry: { ALT: "45", BUN: "18", CREA: "1.1", GLU: "95" }
-    }
-  },
-  {
-    id: "LAB002",
-    patientId: "P002", 
-    patientName: "Luna",
-    species: "Feline",
-    breed: "Domestic Shorthair",
-    orderDate: "2024-03-12",
-    veterinarian: "Dr. Johnson",
-    tests: ["Fecal Parasite Exam", "FeLV/FIV"],
-    priority: "urgent",
-    status: "in-progress",
-    diagnosis: "Gastrointestinal upset",
-    collectedDate: "2024-03-12",
-    collectedBy: "Tech Mike",
-    sampleType: "Fecal sample, Blood"
-  },
-  {
-    id: "LAB003",
-    patientId: "P003",
-    patientName: "Rocky",
-    species: "Canine", 
-    breed: "German Shepherd",
-    orderDate: "2024-03-13",
-    veterinarian: "Dr. Brown",
-    tests: ["Radiographs - Hip", "CBC"],
-    priority: "stat",
-    status: "collected",
-    diagnosis: "Hip dysplasia evaluation",
-    collectedDate: "2024-03-13",
-    collectedBy: "Tech Lisa",
-    sampleType: "Blood, X-ray"
-  }
-];
+// Mock lab orders data (cleared)
+const mockLabOrders: LabOrder[] = [];
 
 const getStatusColor = (status: string) => {
   switch (status) {

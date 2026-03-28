@@ -17,10 +17,10 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { mockPatients } from "@/data/patients";
+import { getPatients } from "@/lib/patientStore";
 import { useRole } from "@/contexts/RoleContext";
 import { useEncounter } from "@/contexts/EncounterContext";
-import { mockAppointments } from "@/pages/Appointments";
+import { loadStoredAppointments } from "@/lib/appointmentStore";
 import { format, isSameDay } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -35,6 +35,9 @@ export default function Patients() {
   const [speciesFilter, setSpeciesFilter] = useState("all");
   const [sortBy, setSortBy] = useState("name");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+
+  const patients = getPatients();
+  const appointments = loadStoredAppointments();
 
   // Workflow context for check-in action
   const wf = useWorkflowContext();
@@ -71,7 +74,7 @@ export default function Patients() {
   }, [location.search]);
 
   const filteredPatients = useMemo(() => {
-    return mockPatients
+    return patients
       .filter((patient) => {
         const matchesSearch = 
           patient.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -93,8 +96,8 @@ export default function Patients() {
         if (sortBy === "lastVisit") return b.lastVisit.localeCompare(a.lastVisit);
         if (sortBy === "appointment") {
           const today = new Date();
-          const aptA = mockAppointments.find(apt => apt.patientId === a.id && isSameDay(new Date(apt.date), today));
-          const aptB = mockAppointments.find(apt => apt.patientId === b.id && isSameDay(new Date(apt.date), today));
+          const aptA = appointments.find(apt => apt.patientId === a.id && isSameDay(new Date(apt.date), today));
+          const aptB = appointments.find(apt => apt.patientId === b.id && isSameDay(new Date(apt.date), today));
           if (aptA && !aptB) return -1;
           if (!aptA && aptB) return 1;
           if (aptA && aptB) return aptA.time.localeCompare(aptB.time);
@@ -102,17 +105,17 @@ export default function Patients() {
         }
         return 0;
       });
-  }, [searchTerm, statusFilter, speciesFilter, sortBy]);
+  }, [searchTerm, statusFilter, speciesFilter, sortBy, patients, appointments]);
 
   const stats = useMemo(() => {
     const today = new Date();
     return {
-      total: mockPatients.length,
-      appointmentsToday: mockAppointments.filter(apt => isSameDay(new Date(apt.date), today)).length,
+      total: patients.length,
+      appointmentsToday: appointments.filter(apt => isSameDay(new Date(apt.date), today)).length,
       inTriage: encounters.filter(enc => ["WAITING", "IN_TRIAGE", "TRIAGED"].includes(enc.status)).length,
-      critical: mockPatients.filter(p => p.status === "critical").length
+      critical: patients.filter(p => p.status === "critical").length
     };
-  }, [encounters]);
+  }, [encounters, patients, appointments]);
 
   const handleViewDetails = (patient: any) => {
     navigate(`/patients/${patient.id}`);
@@ -268,7 +271,7 @@ export default function Patients() {
                 (enc) => enc.patientId === patient.id && ["WAITING", "IN_TRIAGE", "TRIAGED"].includes(enc.status)
               );
               
-              const todayAppointment = mockAppointments.find(
+              const todayAppointment = appointments.find(
                 (apt) => apt.patientId === patient.id && isSameDay(new Date(apt.date), new Date())
               );
               
@@ -311,7 +314,7 @@ export default function Patients() {
                     }
                   };
 
-                  const todayAppointment = mockAppointments.find(apt => apt.patientId === patient.id && isSameDay(new Date(apt.date), new Date()));
+                  const todayAppointment = appointments.find(apt => apt.patientId === patient.id && isSameDay(new Date(apt.date), new Date()));
 
                   return (
                     <TableRow 

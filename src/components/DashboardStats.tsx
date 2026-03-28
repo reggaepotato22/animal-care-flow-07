@@ -37,32 +37,43 @@ function StatCard({ title, value, change, trend, icon: Icon }: StatCardProps) {
   );
 }
 
+import { getPatients } from "@/lib/patientStore";
+import { loadStoredAppointments } from "@/lib/appointmentStore";
+import { getStaff } from "@/lib/staffStore";
+
 export function DashboardStats() {
+  const patients = getPatients();
+  const appointments = loadStoredAppointments();
+  const staff = getStaff();
+
   const stats = [
     {
       title: "Total Patients",
-      value: "2,847",
-      change: "+12%",
+      value: patients.length.toLocaleString(),
+      change: "+0%",
       trend: "up" as const,
       icon: Heart,
     },
     {
       title: "Today's Appointments",
-      value: "24",
-      change: "+8%",
+      value: appointments.filter(a => {
+        const today = new Date().toISOString().split("T")[0];
+        return a.date === today;
+      }).length.toLocaleString(),
+      change: "+0%",
       trend: "up" as const,
       icon: Calendar,
     },
     {
       title: "Weekly Revenue",
-      value: formatCurrency(18420),
-      change: "+15%",
+      value: formatCurrency(0),
+      change: "+0%",
       trend: "up" as const,
       icon: DollarSign,
     },
     {
       title: "Active Staff",
-      value: "12",
+      value: staff.length.toLocaleString(),
       change: "0%",
       trend: "up" as const,
       icon: Users,

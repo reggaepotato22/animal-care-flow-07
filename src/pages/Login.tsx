@@ -45,15 +45,23 @@ export default function Login() {
       <Card className="w-full max-w-md shadow-lg">
         <CardHeader className="space-y-1 text-center">
           <div className="flex items-center justify-center gap-2 mb-2">
-            <Badge variant="secondary" className="bg-amber-100 text-amber-700 hover:bg-amber-100">
-              <Info className="h-3 w-3 mr-1" />
-              Demo Application
+            <Badge variant="secondary" className="bg-blue-100 text-blue-700 hover:bg-blue-100 border-blue-200">
+              <Info className="h-3.5 w-3.5 mr-1" />
+              Demo Environment
             </Badge>
           </div>
-          <CardTitle className="text-2xl font-bold text-primary">VetCare Pro</CardTitle>
-          <CardDescription>Sign in with the demo account or create your own</CardDescription>
+          <CardTitle className="text-3xl font-bold text-primary">VetCare Pro</CardTitle>
+          <CardDescription className="text-base">
+            This is a demo application. You can use the demo credentials or create a new demo account.
+          </CardDescription>
         </CardHeader>
         <CardContent>
+          <div className="bg-blue-50/50 border border-blue-100 rounded-lg p-4 mb-6">
+            <p className="text-sm text-blue-800 font-medium mb-1">Demo Access</p>
+            <p className="text-xs text-blue-600 leading-relaxed">
+              Explore all features including patient management, clinical records, and hospital workflows.
+            </p>
+          </div>
           <form onSubmit={handleSubmit} className="space-y-4">
             {error && (
               <Alert variant="destructive">
@@ -94,13 +102,13 @@ export default function Login() {
               </Button>
             </div>
           </form>
-          <div className="mt-6 pt-4 border-t">
-            <p className="text-center text-sm text-muted-foreground mb-3">
+          <div className="mt-8 pt-6 border-t">
+            <p className="text-center text-sm font-medium text-slate-900 mb-4">
               Don't have a demo account?
             </p>
             <Link to="/signup">
-              <Button type="button" variant="ghost" className="w-full text-primary">
-                Create Demo Account
+              <Button type="button" variant="outline" className="w-full border-primary text-primary hover:bg-primary/5 h-11 font-semibold">
+                Sign up for Demo Account
               </Button>
             </Link>
           </div>

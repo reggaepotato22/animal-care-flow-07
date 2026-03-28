@@ -28,62 +28,7 @@ interface PostMortemRecord {
   createdDate: string;
 }
 
-const mockPostMortemRecords: PostMortemRecord[] = [
-  {
-    id: "1",
-    reportId: "PM024801",
-    patientName: "Robert Johnson",
-    petName: "Rex",
-    species: "Dog",
-    breed: "German Shepherd",
-    dateOfDeath: "2024-01-15",
-    timeOfDeath: "14:30",
-    examiningVeterinarian: "Dr. Smith",
-    causeOfDeath: "Acute heart failure secondary to dilated cardiomyopathy",
-    mannerOfDeath: "natural",
-    bodyCondition: "fair",
-    externalExamination: "Adult male dog in fair body condition. No external trauma noted.",
-    grossFindings: "Enlarged heart with thin ventricular walls, pulmonary edema present",
-    additionalTesting: ["Histopathology"],
-    createdDate: "2024-01-15"
-  },
-  {
-    id: "2", 
-    reportId: "PM024802",
-    patientName: "Maria Garcia",
-    petName: "Luna",
-    species: "Cat",
-    breed: "Persian",
-    dateOfDeath: "2024-01-12",
-    timeOfDeath: "09:15",
-    examiningVeterinarian: "Dr. Brown",
-    causeOfDeath: "Renal failure with uremia",
-    mannerOfDeath: "euthanasia",
-    bodyCondition: "poor",
-    externalExamination: "Elderly female cat showing signs of chronic illness and weight loss.",
-    grossFindings: "Kidneys small and fibrotic, pale appearance consistent with chronic kidney disease",
-    additionalTesting: ["Histopathology", "Toxicology"],
-    createdDate: "2024-01-12"
-  },
-  {
-    id: "3",
-    reportId: "PM024803", 
-    patientName: "David Thompson",
-    petName: "Buddy",
-    species: "Dog",
-    breed: "Labrador Retriever",
-    dateOfDeath: "2024-01-10",
-    timeOfDeath: "16:45",
-    examiningVeterinarian: "Dr. Wilson",
-    causeOfDeath: "Gastric dilatation-volvulus (bloat)",
-    mannerOfDeath: "accidental",
-    bodyCondition: "good",
-    externalExamination: "Well-muscled adult male dog with distended abdomen.",
-    grossFindings: "Stomach severely distended and rotated 180 degrees, spleen enlarged and congested",
-    additionalTesting: [],
-    createdDate: "2024-01-10"
-  }
-];
+const mockPostMortemRecords: PostMortemRecord[] = [];
 
 export default function Postmortem() {
   const navigate = useNavigate();

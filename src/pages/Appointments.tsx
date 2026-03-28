@@ -27,94 +27,6 @@ const mockResources = [
   { id: "surgery-suite", name: "Surgery Suite", type: "resource" as const, color: "#ec4899" },
 ];
 
-// Mock data for appointments
-export const mockAppointments: Appointment[] = [
-  {
-    id: "1",
-    petName: "Max",
-    ownerName: "Sarah Johnson",
-    date: setMinutes(setHours(new Date(), 9), 0),
-    time: "09:00",
-    duration: 30,
-    type: "Checkup",
-    vet: "dr-johnson",
-    status: "CONFIRMED",
-    examRoom: "exam-room-1",
-    location: "Main Clinic",
-    patientId: "1"
-  },
-  {
-    id: "2",
-    petName: "Whiskers",
-    ownerName: "Michael Chen",
-    date: setMinutes(setHours(new Date(), 10), 30),
-    time: "10:30",
-    duration: 45,
-    type: "Vaccination",
-    vet: "dr-smith",
-    status: "CONFIRMED",
-    examRoom: "exam-room-2",
-    location: "Main Clinic",
-    patientId: "2"
-  },
-  {
-    id: "3",
-    petName: "Luna",
-    ownerName: "Emily Rodriguez",
-    date: setMinutes(setHours(new Date(), 11), 15),
-    time: "11:15",
-    duration: 60,
-    type: "Surgery",
-    vet: "dr-johnson",
-    status: "CONFIRMED",
-    examRoom: "surgery-suite",
-    location: "Main Clinic",
-    patientId: "3"
-  },
-  {
-    id: "4",
-    petName: "Rocky",
-    ownerName: "David Thompson",
-    date: setMinutes(setHours(new Date(), 13), 0),
-    time: "13:00",
-    duration: 30,
-    type: "Checkup",
-    vet: "dr-wilson",
-    status: "SCHEDULED",
-    examRoom: "exam-room-1",
-    location: "Main Clinic",
-    patientId: "4"
-  },
-  {
-    id: "5",
-    petName: "Bella",
-    ownerName: "Lisa Anderson",
-    date: setMinutes(setHours(new Date(), 14), 30),
-    time: "14:30",
-    duration: 30,
-    type: "Follow-up",
-    vet: "dr-smith",
-    status: "CONFIRMED",
-    examRoom: "exam-room-2",
-    location: "Main Clinic",
-    patientId: "5"
-  },
-  {
-    id: "6",
-    petName: "Oliver",
-    ownerName: "James Wilson",
-    date: setMinutes(setHours(new Date(), 15), 45),
-    time: "15:45",
-    duration: 30,
-    type: "Emergency",
-    vet: "dr-wilson",
-    status: "SCHEDULED",
-    examRoom: "exam-room-1",
-    location: "Main Clinic",
-    patientId: "6"
-  },
-];
-
 const ENC_LABEL: Record<string, { label: string; cls: string; pulse?: boolean }> = {
   WAITING:         { label: "Awaiting Triage",  cls: "bg-yellow-100 text-yellow-800 border-yellow-300 dark:bg-yellow-900/30 dark:text-yellow-300" },
   IN_TRIAGE:       { label: "In Triage",         cls: "bg-orange-100 text-orange-800 border-orange-300 dark:bg-orange-900/30 dark:text-orange-300", pulse: true },
@@ -160,7 +72,7 @@ export default function Appointments() {
   // Merge mock + persisted appointments, refresh on every booking event
   const buildAppointments = useCallback(() => {
     const stored = loadStoredAppointments();
-    const merged = [...mockAppointments];
+    const merged: Appointment[] = [];
     stored.forEach((s: StoredAppointment) => {
       if (!merged.find(m => m.id === s.id)) {
         merged.push({

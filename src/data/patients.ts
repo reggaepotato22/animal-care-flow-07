@@ -50,7 +50,7 @@ export type PatientRow = {
  * Use `initializeSamplePatients()` to create the 5 sample patients on app startup.
  * Use `getPatients()` to retrieve all patients.
  */
-export const mockPatients: PatientRow[] = [
+export const samplePatients: PatientRow[] = [
   {
     id: "1",
     patientId: "P-2025-10234",

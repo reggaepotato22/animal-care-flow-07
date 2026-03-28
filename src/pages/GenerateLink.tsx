@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { generateUploadLink, type AttachmentCategory, type RecipientType } from "@/lib/attachmentStore";
-import { mockPatients } from "@/data/patients";
+import { getPatients } from "@/lib/patientStore";
 
 const CATEGORIES: { value: AttachmentCategory; label: string; icon: React.ElementType }[] = [
   { value: "lab", label: "Lab Results", icon: Microscope },
@@ -192,40 +192,31 @@ export default function GenerateLink() {
                   <CommandList>
                     <CommandEmpty>No patients found.</CommandEmpty>
                     <CommandGroup heading="Patients">
-                      {mockPatients
+                      {getPatients()
                         .filter((p) => {
                           const query = searchQuery.toLowerCase();
                           return (
                             p.name.toLowerCase().includes(query) ||
                             p.patientId.toLowerCase().includes(query) ||
-                            p.owner.toLowerCase().includes(query) ||
-                            p.breed.toLowerCase().includes(query)
+                            p.owner.toLowerCase().includes(query)
                           );
                         })
-                        .map((patient) => (
+                        .slice(0, 10)
+                        .map((p) => (
                           <CommandItem
-                            key={patient.id}
-                            value={`${patient.name} ${patient.patientId}`}
+                            key={p.id}
+                            value={`${p.name} ${p.patientId}`}
                             onSelect={() => {
-                              setPatientId(patient.patientId);
-                              setPatientName(patient.name);
+                              setPatientId(p.patientId);
+                              setPatientName(p.name);
                               setOpenPatientSearch(false);
-                              setSearchQuery("");
                             }}
                           >
-                            <div className="flex items-center gap-3 w-full">
-                              <div className="w-8 h-8 rounded-full bg-teal-100 flex items-center justify-center text-teal-700 font-semibold text-sm">
-                                {patient.name.charAt(0).toUpperCase()}
-                              </div>
-                              <div className="flex-1">
-                                <p className="font-medium">{patient.name}</p>
-                                <p className="text-xs text-muted-foreground">
-                                  {patient.patientId} • {patient.species} • {patient.owner}
-                                </p>
-                              </div>
-                              {patientId === patient.patientId && (
-                                <Check className="h-4 w-4 text-teal-600" />
-                              )}
+                            <div className="flex flex-col">
+                              <span className="font-medium">{p.name}</span>
+                              <span className="text-xs text-muted-foreground">
+                                {p.patientId} • Owner: {p.owner}
+                              </span>
                             </div>
                           </CommandItem>
                         ))}

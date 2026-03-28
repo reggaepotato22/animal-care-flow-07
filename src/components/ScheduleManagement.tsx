@@ -46,49 +46,8 @@ interface ScheduleManagementProps {
   staff: Staff[];
 }
 
-// Mock schedule data
-const mockSchedules = [
-  {
-    id: "1",
-    staffId: "1",
-    staffName: "Dr. Sarah Johnson",
-    date: "2024-01-15",
-    startTime: "08:00",
-    endTime: "18:00",
-    shift: "Day Shift",
-    status: "scheduled",
-  },
-  {
-    id: "2", 
-    staffId: "2",
-    staffName: "Michael Chen",
-    date: "2024-01-15",
-    startTime: "09:00",
-    endTime: "17:00",
-    shift: "Day Shift",
-    status: "scheduled",
-  },
-  {
-    id: "3",
-    staffId: "3",
-    staffName: "Emma Rodriguez",
-    date: "2024-01-15",
-    startTime: "07:00",
-    endTime: "16:00",
-    shift: "Early Shift",
-    status: "scheduled",
-  },
-  {
-    id: "4",
-    staffId: "4",
-    staffName: "David Kim",
-    date: "2024-01-15",
-    startTime: "10:00",
-    endTime: "18:00",
-    shift: "Day Shift",
-    status: "scheduled",
-  },
-];
+// Mock schedule data (cleared)
+const mockSchedules: any[] = [];
 
 const shiftTemplates = [
   { name: "Day Shift", start: "08:00", end: "17:00", hours: 9 },

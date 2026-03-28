@@ -5,6 +5,7 @@ export interface StoredAppointment {
   id: string;
   petName: string;
   ownerName: string;
+  ownerId?: string;
   ownerPhone: string;
   ownerEmail: string;
   date: string;        // ISO date string
@@ -12,6 +13,9 @@ export interface StoredAppointment {
   type: string;
   vet: string;
   notes?: string;
+  reason?: string;
+  examRoom?: string;
+  location?: string;
   status: "SCHEDULED" | "CONFIRMED" | "CHECKED_IN" | "NO_SHOW" | "CANCELLED";
   patientId: string;   // used as workflow/encounter ID
   duration: number;    // minutes, default 30

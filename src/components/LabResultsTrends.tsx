@@ -24,18 +24,10 @@ interface LabResultsTrendsProps {
   orders: LabOrder[];
 }
 
-// Mock historical data for trending
-const mockHistoricalData = [
-  { date: "2024-01-15", ALT: 45, BUN: 18, CREA: 1.1, WBC: 8.2 },
-  { date: "2024-02-12", ALT: 52, BUN: 20, CREA: 1.2, WBC: 8.8 },
-  { date: "2024-03-11", ALT: 45, BUN: 18, CREA: 1.1, WBC: 8.2 },
-];
+// Mock historical data for trending (cleared)
+const mockHistoricalData: any[] = [];
 
-const testVolumeData = [
-  { month: "Jan", CBC: 25, Chemistry: 20, Urinalysis: 15, Radiology: 8 },
-  { month: "Feb", CBC: 30, Chemistry: 25, Urinalysis: 18, Radiology: 12 },
-  { month: "Mar", CBC: 28, Chemistry: 22, Urinalysis: 16, Radiology: 10 },
-];
+const testVolumeData: any[] = [];
 
 const normalRanges = {
   ALT: { min: 10, max: 100, unit: "U/L" },

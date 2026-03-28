@@ -61,41 +61,8 @@ const labTestTemplates = {
   }
 };
 
-// Mock orders data - in a real app this would come from an API
-const mockLabOrders: LabOrder[] = [
-  {
-    id: "LAB001",
-    patientId: "P001",
-    patientName: "Max",
-    species: "Canine",
-    breed: "Golden Retriever",
-    orderDate: "2024-03-10",
-    veterinarian: "Dr. Smith",
-    tests: ["CBC", "Chemistry Panel", "Urinalysis"],
-    priority: "routine",
-    status: "in-progress",
-    diagnosis: "Annual wellness examination",
-    collectedDate: "2024-03-10",
-    collectedBy: "Tech Sarah",
-    sampleType: "Blood, Urine"
-  },
-  {
-    id: "LAB002",
-    patientId: "P002", 
-    patientName: "Luna",
-    species: "Feline",
-    breed: "Domestic Shorthair",
-    orderDate: "2024-03-12",
-    veterinarian: "Dr. Johnson",
-    tests: ["Fecal Parasite Exam", "FeLV/FIV"],
-    priority: "urgent",
-    status: "collected",
-    diagnosis: "Gastrointestinal upset",
-    collectedDate: "2024-03-12",
-    collectedBy: "Tech Mike",
-    sampleType: "Fecal sample, Blood"
-  }
-];
+// Mock orders data (cleared)
+const mockLabOrders: LabOrder[] = [];
 
 export default function AddLabResults() {
   const { orderId } = useParams<{ orderId: string }>();
