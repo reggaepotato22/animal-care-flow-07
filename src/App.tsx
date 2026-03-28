@@ -7,6 +7,7 @@ import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { AdminAuthProvider, useAdminAuth } from "@/contexts/AdminAuthContext";
 import { Layout } from "@/components/Layout";
 import { AdminLayout } from "@/components/AdminLayout";
+import Signup from "./pages/Signup";
 import Login from "./pages/Login";
 import AdminLogin from "./pages/admin/AdminLogin";
 import AdminDashboard from "./pages/admin/AdminDashboard";
