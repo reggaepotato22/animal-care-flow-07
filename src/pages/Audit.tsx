@@ -10,7 +10,7 @@ export default function Audit() {
   useEffect(() => {
     setRows(getLogs());
     const unsub = subscribe((r) => setRows(r));
-    return () => unsub();
+    return () => { unsub(); };
   }, []);
 
   return (
@@ -32,6 +32,7 @@ export default function Audit() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Time</TableHead>
+                  <TableHead>Action</TableHead>
                   <TableHead>Entity</TableHead>
                   <TableHead>Entity ID</TableHead>
                   <TableHead>Field Updated</TableHead>
@@ -46,6 +47,14 @@ export default function Audit() {
                   <TableRow key={r.id}>
                     <TableCell className="text-xs text-muted-foreground">
                       {new Date(r.timestamp).toLocaleString()}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={
+                        r.action === 'CREATE' ? 'default' :
+                        r.action === 'DELETE' ? 'destructive' :
+                        r.action === 'LOGIN' || r.action === 'LOGOUT' ? 'secondary' :
+                        'outline'
+                      } className="text-xs">{r.action}</Badge>
                     </TableCell>
                     <TableCell>
                       <Badge variant="outline">{r.entityType}</Badge>

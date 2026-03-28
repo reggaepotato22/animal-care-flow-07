@@ -1,4 +1,5 @@
 import { PatientRow } from "@/data/patients";
+import { logCreate, logUpdate, logDelete } from "./audit";
 
 const PATIENTS_STORAGE_KEY = "vetcare_patients";
 const SAMPLE_PATIENTS_INITIALIZED_KEY = "vetcare_sample_patients_initialized";
@@ -299,7 +300,7 @@ export function savePatients(patients: PatientRow[]): void {
 }
 
 // Add a new patient
-export function addPatient(patient: Omit<PatientRow, "id" | "patientId">): PatientRow {
+export function addPatient(patient: Omit<PatientRow, "id" | "patientId">, userName: string = "System"): PatientRow {
   const patients = getPatients();
   const newPatient: PatientRow = {
     ...patient,
@@ -308,31 +309,75 @@ export function addPatient(patient: Omit<PatientRow, "id" | "patientId">): Patie
   };
   
   savePatients([...patients, newPatient]);
+  
+  // Audit log
+  logCreate({
+    entityType: "Patient",
+    entityId: newPatient.patientId,
+    field: "Patient Registration",
+    previousValue: "",
+    newValue: newPatient.name,
+    changedBy: userName,
+    reason: "New patient registered",
+  });
+  
   return newPatient;
 }
 
 // Delete a patient by ID
-export function deletePatient(patientId: string): boolean {
+export function deletePatient(patientId: string, userName: string = "System"): boolean {
   const patients = getPatients();
+  const patient = patients.find(p => p.id === patientId);
+  
+  if (!patient) return false;
+  
   const filtered = patients.filter(p => p.id !== patientId);
-  
-  if (filtered.length === patients.length) {
-    return false; // Patient not found
-  }
-  
   savePatients(filtered);
+  
+  // Audit log
+  logDelete({
+    entityType: "Patient",
+    entityId: patient.patientId,
+    field: "Patient Deletion",
+    previousValue: patient.name,
+    newValue: "",
+    changedBy: userName,
+    reason: "Patient record deleted",
+  });
+  
   return true;
 }
 
 // Update a patient
-export function updatePatient(patientId: string, updates: Partial<PatientRow>): PatientRow | null {
+export function updatePatient(patientId: string, updates: Partial<PatientRow>, userName: string = "System"): PatientRow | null {
   const patients = getPatients();
   const index = patients.findIndex(p => p.id === patientId);
   
   if (index === -1) return null;
   
+  const oldPatient = { ...patients[index] };
   patients[index] = { ...patients[index], ...updates };
   savePatients(patients);
+  
+  // Audit log for each changed field
+  Object.keys(updates).forEach(key => {
+    if (key !== "id" && key !== "patientId") {
+      const oldValue = oldPatient[key as keyof PatientRow];
+      const newValue = updates[key as keyof PatientRow];
+      if (JSON.stringify(oldValue) !== JSON.stringify(newValue)) {
+        logUpdate({
+          entityType: "Patient",
+          entityId: patients[index].patientId,
+          field: key,
+          previousValue: String(oldValue ?? ""),
+          newValue: String(newValue ?? ""),
+          changedBy: userName,
+          reason: `Updated ${key}`,
+        });
+      }
+    }
+  });
+  
   return patients[index];
 }
 

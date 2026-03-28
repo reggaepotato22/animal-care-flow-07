@@ -20,6 +20,7 @@ import { formatDistanceToNow, subMinutes, subHours, subDays, subSeconds } from "
 import { useRole } from "@/contexts/RoleContext";
 import { useWorkflowContext } from "@/contexts/WorkflowContext";
 import { useToast } from "@/hooks/use-toast";
+import { clearAllData, generateMockPatients } from "@/lib/patientStore";
 import { WorkflowProgress } from "@/components/WorkflowProgress";
 import { useEncounter } from "@/contexts/EncounterContext";
 import { cn } from "@/lib/utils";
@@ -357,6 +358,49 @@ const Index = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Data Management Section */}
+      <div className="mb-8 flex flex-wrap gap-4">
+        <Button 
+          variant="outline" 
+          onClick={() => {
+            clearAllData();
+            toast({
+              title: "Data Cleared",
+              description: "All mock data has been cleared. Stats reset to 0.",
+            });
+            window.location.reload();
+          }}
+          className="border-red-200 text-red-600 hover:bg-red-50"
+        >
+          Clear All Data
+        </Button>
+        
+        <Button 
+          variant="outline"
+          onClick={() => {
+            const patients = generateMockPatients(10);
+            toast({
+              title: "Mock Data Generated",
+              description: `Generated ${patients.length} sample patients.`,
+            });
+            window.location.reload();
+          }}
+        >
+          Generate Mock Data
+        </Button>
+      </div>
+
+      {/* Sync Stats */}
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm text-muted-foreground">Total Patients</p>
+          <p className="text-2xl font-bold">{stats.patientCount || 0}</p>
+        </div>
+        <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
+          <Users className="h-5 w-5 text-blue-600" />
+        </div>
+      </div>
 
       {/* ── Today's Appointments + Alerts row ───────────────────────────────── */}
       <div className="grid gap-6 md:grid-cols-2">
