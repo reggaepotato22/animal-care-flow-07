@@ -7364,13 +7364,16 @@ const applyTemplate = (templateName: string, noteId?: string) => {
       </div>
       )}
 
-      {/* Bottom Panel (collapsible, overlays content when expanded) */}
-      <div
+      {/* Bottom Footer Panel */}
+      <footer
         className={cn(
-          "fixed bottom-0 z-40 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/75 shadow-lg",
+          "fixed bottom-0 left-[var(--sidebar-width,16rem)] right-0 z-50 border-t bg-card shadow-lg overflow-hidden",
           isBottomOpen ? "" : "h-[44px]"
         )}
-        style={{ left: bottomPanelRect.left, width: bottomPanelRect.width, height: isBottomOpen ? bottomHeight : 44 }}
+        style={{ 
+          height: isBottomOpen ? bottomHeight : 44,
+          width: 'calc(100% - var(--sidebar-width, 16rem))'
+        }}
       >
         {/* Resize handle */}
         {isBottomOpen && (
@@ -7506,7 +7509,7 @@ const applyTemplate = (templateName: string, noteId?: string) => {
             </div>
           )}
         </Tabs>
-      </div>
+      </footer>
 
       </div> {/* End fixed-width container */}
       </div> {/* End main content area */}
