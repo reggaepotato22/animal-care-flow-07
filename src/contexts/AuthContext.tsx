@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from "react";
+import { DEMO_CREDENTIALS, DEMO_USER } from "@/lib/authStore";
 
 const AUTH_STORAGE_KEY = "vetcare-demo-auth";
 
@@ -7,17 +8,6 @@ export interface User {
   email: string;
   name: string;
 }
-
-const DEMO_USER: User = {
-  id: "demo-1",
-  email: "demo@vetcare.demo",
-  name: "Demo User",
-};
-
-const DEMO_CREDENTIALS = {
-  email: "demo@vetcare.demo",
-  password: "demo123",
-};
 
 interface AuthContextValue {
   user: User | null;

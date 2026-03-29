@@ -20,7 +20,6 @@ import { formatDistanceToNow, subMinutes, subHours, subDays, subSeconds } from "
 import { useRole } from "@/contexts/RoleContext";
 import { useWorkflowContext } from "@/contexts/WorkflowContext";
 import { useToast } from "@/hooks/use-toast";
-import { clearAllData, seedMockData } from "@/lib/dataSeed";
 import { WorkflowProgress } from "@/components/WorkflowProgress";
 import { useEncounter } from "@/contexts/EncounterContext";
 import { cn } from "@/lib/utils";
@@ -334,38 +333,6 @@ const Index = () => {
           )}
         </CardContent>
       </Card>
-
-      {/* Data Management Section */}
-      <div className="mb-8 flex flex-wrap gap-4">
-        <Button 
-          variant="outline" 
-          onClick={() => {
-            clearAllData();
-            toast({
-              title: "Data Cleared",
-              description: "All mock data has been cleared. Stats reset to 0.",
-            });
-            window.location.reload();
-          }}
-          className="border-red-200 text-red-600 hover:bg-red-50"
-        >
-          Clear All Data
-        </Button>
-        
-        <Button 
-          variant="outline"
-          onClick={() => {
-            seedMockData();
-            toast({
-              title: "Mock Data Generated",
-              description: "System seeded with sample patients, staff, and appointments.",
-            });
-          }}
-          className="border-blue-200 text-blue-600 hover:bg-blue-50"
-        >
-          Generate Mock Data
-        </Button>
-      </div>
 
       {/* Sync Stats */}
       <div className="flex items-center justify-between">

@@ -1,7 +1,7 @@
 
 import { savePatients, samplePatients, generatePatientId, generateOwnerId } from "./patientStore";
 import { saveStaff, sampleStaff } from "./staffStore";
-import { APT_STORAGE_KEY } from "./appointmentStore";
+import { createDemoAppointments, saveAppointments } from "./appointmentStore";
 import { HOSP_STORAGE_KEY } from "./hospitalizationStore";
 import { saveRoles, saveGroups, saveUsers, sampleRoles, sampleGroups, sampleUsers } from "./roleStore";
 
@@ -35,25 +35,7 @@ export function seedMockData() {
   saveGroups(sampleGroups);
   saveUsers(sampleUsers);
 
-  // Seed Appointments (Optional: add some sample appointments)
-  const sampleAppointments = [
-    {
-      id: "appt-1",
-      petName: "Max",
-      ownerName: "Sarah Johnson",
-      ownerPhone: "555-0101",
-      ownerEmail: "sarah@example.com",
-      date: new Date().toISOString().split("T")[0],
-      time: "09:00",
-      type: "Checkup",
-      vet: "Dr. Smith",
-      status: "SCHEDULED",
-      patientId: patients[0]?.id || "p1",
-      duration: 30,
-      createdAt: new Date().toISOString()
-    }
-  ];
-  localStorage.setItem(APT_STORAGE_KEY, JSON.stringify(sampleAppointments));
+  saveAppointments(createDemoAppointments(patients[0]?.id || "p1"));
 
   // Seed Hospitalization (Optional)
   localStorage.setItem(HOSP_STORAGE_KEY, JSON.stringify([]));

@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { clearAllData, seedMockData } from "@/lib/dataSeed";
 
 const ROLE_META: Record<Role, { icon: React.ElementType; color: string; description: string }> = {
   SuperAdmin:    { icon: Shield,        color: "text-purple-600",  description: "Full system access — manage all users, settings, and data." },
@@ -261,6 +262,47 @@ export default function UserProfile() {
           ))}
         </div>
       </div>
+
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">Demo Data</CardTitle>
+          <CardDescription className="text-xs">
+            Generate sample data for demos or clear the system back to an empty state.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-wrap gap-3">
+          <Button
+            variant="outline"
+            className="border-blue-200 text-blue-600 hover:bg-blue-50"
+            onClick={() => {
+              toast({
+                title: "Generating mock data",
+                description: "Seeding patients, staff, roles, and appointments…",
+              });
+              window.setTimeout(() => {
+                seedMockData();
+              }, 250);
+            }}
+          >
+            Generate Mock Data
+          </Button>
+          <Button
+            variant="outline"
+            className="border-red-200 text-red-600 hover:bg-red-50"
+            onClick={() => {
+              toast({
+                title: "Clearing data",
+                description: "Removing all stored data and resetting the app…",
+              });
+              window.setTimeout(() => {
+                clearAllData();
+              }, 250);
+            }}
+          >
+            Clear All Data
+          </Button>
+        </CardContent>
+      </Card>
 
       {/* Danger zone */}
       <Card className="border-destructive/30">
