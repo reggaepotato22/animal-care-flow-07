@@ -15,17 +15,7 @@ import { useWorkflowContext } from "@/contexts/WorkflowContext";
 import { useToast } from "@/hooks/use-toast";
 import { useEffect, useMemo, useCallback } from "react";
 import { cn } from "@/lib/utils";
-import { loadStoredAppointments, subscribeToAppointments, deleteAppointment, broadcastAppointmentUpdate, type StoredAppointment } from "@/lib/appointmentStore";
-
-// Mock resources (doctors, exam rooms, etc.)
-const mockResources = [
-  { id: "dr-johnson", name: "Dr. Sarah Johnson", type: "doctor" as const, color: "#3b82f6" },
-  { id: "dr-smith", name: "Dr. Michael Smith", type: "doctor" as const, color: "#10b981" },
-  { id: "dr-wilson", name: "Dr. Emily Wilson", type: "doctor" as const, color: "#8b5cf6" },
-  { id: "exam-room-1", name: "Exam Room 1", type: "exam-room" as const, color: "#f59e0b" },
-  { id: "exam-room-2", name: "Exam Room 2", type: "exam-room" as const, color: "#ef4444" },
-  { id: "surgery-suite", name: "Surgery Suite", type: "resource" as const, color: "#ec4899" },
-];
+import { loadStoredAppointments, subscribeToAppointments, deleteAppointment, broadcastAppointmentUpdate, type StoredAppointment, DEMO_APPOINTMENT_RESOURCES } from "@/lib/appointmentStore";
 
 const ENC_LABEL: Record<string, { label: string; cls: string; pulse?: boolean }> = {
   WAITING:         { label: "Awaiting Triage",  cls: "bg-yellow-100 text-yellow-800 border-yellow-300 dark:bg-yellow-900/30 dark:text-yellow-300" },
@@ -257,7 +247,7 @@ export default function Appointments() {
         <TabsContent value="calendar" className="space-y-6">
           <MultiColumnCalendar
             appointments={appointments}
-            resources={mockResources}
+            resources={DEMO_APPOINTMENT_RESOURCES}
             timeSlotInterval={30}
             startHour={8}
             endHour={18}
@@ -276,7 +266,7 @@ export default function Appointments() {
           <AppointmentList 
             appointments={appointments.map(apt => ({
               ...apt,
-              vet: mockResources.find(r => r.id === apt.vet)?.name || apt.vet
+              vet: DEMO_APPOINTMENT_RESOURCES.find(r => r.id === apt.vet)?.name || apt.vet
             }))}
             searchTerm={searchTerm}
             onCheckIn={handleCheckIn}

@@ -26,6 +26,22 @@ export const APT_STORAGE_KEY = "acf_appointments";
 export const APT_CHANNEL     = "acf_appointments_channel";
 export const APT_EVENT       = "acf_appointments_updated";
 
+export type AppointmentResource = {
+  id: string;
+  name: string;
+  type: "doctor" | "exam-room" | "resource";
+  color: string;
+};
+
+export const DEMO_APPOINTMENT_RESOURCES: AppointmentResource[] = [
+  { id: "dr-johnson", name: "Dr. Sarah Johnson", type: "doctor", color: "#3b82f6" },
+  { id: "dr-smith", name: "Dr. Michael Smith", type: "doctor", color: "#10b981" },
+  { id: "dr-wilson", name: "Dr. Emily Wilson", type: "doctor", color: "#8b5cf6" },
+  { id: "exam-room-1", name: "Exam Room 1", type: "exam-room", color: "#f59e0b" },
+  { id: "exam-room-2", name: "Exam Room 2", type: "exam-room", color: "#ef4444" },
+  { id: "surgery-suite", name: "Surgery Suite", type: "resource", color: "#ec4899" },
+];
+
 // ── Read ──────────────────────────────────────────────────────────────────────
 
 export function loadStoredAppointments(): StoredAppointment[] {
@@ -50,6 +66,12 @@ export function saveAppointment(appt: StoredAppointment): void {
       existing.push(appt);
     }
     localStorage.setItem(APT_STORAGE_KEY, JSON.stringify(existing));
+  } catch {}
+}
+
+export function saveAppointments(appts: StoredAppointment[]): void {
+  try {
+    localStorage.setItem(APT_STORAGE_KEY, JSON.stringify(appts));
   } catch {}
 }
 
@@ -151,4 +173,26 @@ export function isToday(isoDate: string): boolean {
     apptDate.getMonth()    === now.getMonth()    &&
     apptDate.getDate()     === now.getDate()
   );
+}
+
+export function createDemoAppointments(patientId: string): StoredAppointment[] {
+  const today = new Date().toISOString().split("T")[0];
+  return [
+    {
+      id: "appt-1",
+      petName: "Max",
+      ownerName: "Sarah Johnson",
+      ownerId: "C-DEMO-001",
+      ownerPhone: "555-0101",
+      ownerEmail: "sarah@example.com",
+      date: today,
+      time: "09:00",
+      type: "Checkup",
+      vet: "dr-smith",
+      status: "SCHEDULED",
+      patientId,
+      duration: 30,
+      createdAt: new Date().toISOString(),
+    },
+  ];
 }
