@@ -9,9 +9,12 @@ import { Layout } from "@/components/Layout";
 import { AdminLayout } from "@/components/AdminLayout";
 import Signup from "./pages/Signup";
 import Login from "./pages/Login";
+import DemoLogin from "./pages/DemoLogin";
 import AdminLogin from "./pages/admin/AdminLogin";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import ClinicSettings from "./pages/admin/ClinicSettings";
+import Accounts from "./pages/admin/Accounts";
+import AccountDetails from "./pages/admin/AccountDetails";
 import Index from "./pages/Index";
 import Patients from "./pages/Patients";
 import AddPatient from "./pages/AddPatient";
@@ -54,6 +57,7 @@ import PatientJourney from "./pages/PatientJourney";
 import UserProfile from "./pages/UserProfile";
 import { PermissionRoute } from "@/components/PermissionRoute";
 import { AppearanceProvider } from "@/contexts/AppearanceContext";
+import { AccountProvider } from "@/contexts/AccountContext";
 
 const queryClient = new QueryClient();
 
@@ -124,18 +128,23 @@ const App = () => (
           <AuthProvider>
             <AdminAuthProvider>
               <RoleProvider>
+                <AccountProvider>
                 <AppearanceProvider>
                 <WorkflowProvider>
                   <EncounterProvider>
                     <NotificationProvider>
                     <Routes>
+                      <Route path="/signup" element={<Signup />} />
                       <Route path="/login" element={<Login />} />
+                      <Route path="/login/demo" element={<DemoLogin />} />
                       <Route path="/admin/login" element={<AdminLogin />} />
                       <Route path="/external-upload" element={<ExternalUpload />} />
                       <Route path="/upload-portal/:token" element={<UploadPortal />} />
                       <Route path="/admin" element={<ProtectedAdminLayout />}>
                         <Route index element={<AdminDashboard />} />
                         <Route element={<PermissionRoute permission="can_manage_users" />}>
+                          <Route path="accounts" element={<Accounts />} />
+                          <Route path="accounts/:id" element={<AccountDetails />} />
                           <Route path="settings" element={<ClinicSettings />} />
                           <Route path="users" element={<Users />} />
                         </Route>
@@ -149,6 +158,7 @@ const App = () => (
                   </EncounterProvider>
                 </WorkflowProvider>
                 </AppearanceProvider>
+                </AccountProvider>
               </RoleProvider>
             </AdminAuthProvider>
           </AuthProvider>

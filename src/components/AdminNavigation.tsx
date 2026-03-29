@@ -4,6 +4,7 @@ import {
   LayoutDashboard,
   FileText,
   UserCheck,
+  Building2,
   Bell,
   ChevronLeft,
   ChevronRight,
@@ -15,6 +16,7 @@ import { cn } from "@/lib/utils";
 
 const adminNavItems = [
   { name: "Dashboard", href: "/admin", icon: LayoutDashboard },
+  { name: "Accounts", href: "/admin/accounts", icon: Building2 },
   { name: "Users", href: "/admin/users", icon: UserCheck },
   { name: "Notifications", href: "/admin/notifications", icon: Bell },
   { name: "Templates", href: "/admin/notifications/templates", icon: FileText, isChild: true },

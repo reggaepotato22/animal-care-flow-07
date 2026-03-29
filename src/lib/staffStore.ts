@@ -1,5 +1,6 @@
 
 import { logCreate, logUpdate, logDelete } from "./audit";
+import { getAccountScopedKey } from "@/lib/accountStore";
 
 export interface Staff {
   id: string;
@@ -14,7 +15,11 @@ export interface Staff {
   avatar: string | null;
 }
 
-const STAFF_STORAGE_KEY = "vetcare_staff";
+const STAFF_STORAGE_KEY_BASE = "vetcare_staff";
+
+function staffKey() {
+  return getAccountScopedKey(STAFF_STORAGE_KEY_BASE);
+}
 
 export const sampleStaff: Omit<Staff, "id">[] = [
   {
@@ -65,13 +70,13 @@ export const sampleStaff: Omit<Staff, "id">[] = [
 
 export function getStaff(): Staff[] {
   if (typeof window === "undefined") return [];
-  const stored = localStorage.getItem(STAFF_STORAGE_KEY);
+  const stored = localStorage.getItem(staffKey());
   return stored ? JSON.parse(stored) : [];
 }
 
 export function saveStaff(staff: Staff[]): void {
   if (typeof window === "undefined") return;
-  localStorage.setItem(STAFF_STORAGE_KEY, JSON.stringify(staff));
+  localStorage.setItem(staffKey(), JSON.stringify(staff));
 }
 
 export function addStaff(member: Omit<Staff, "id">): Staff {
@@ -101,5 +106,5 @@ export function initializeSampleStaff(): void {
 
 export function clearStaff(): void {
   if (typeof window === "undefined") return;
-  localStorage.removeItem(STAFF_STORAGE_KEY);
+  localStorage.removeItem(staffKey());
 }

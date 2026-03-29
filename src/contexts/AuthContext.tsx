@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from "react";
-import { DEMO_CREDENTIALS, DEMO_USER } from "@/lib/authStore";
+import { DEMO_USER, getDemoCredentials } from "@/lib/authStore";
+import { DEMO_ACCOUNT_ID, setActiveAccountId } from "@/lib/accountStore";
 
 const AUTH_STORAGE_KEY = "vetcare-demo-auth";
 
@@ -13,6 +14,7 @@ interface AuthContextValue {
   user: User | null;
   isAuthenticated: boolean;
   login: (email: string, password: string) => boolean;
+  loginDemo: (email: string, password: string) => boolean;
   logout: () => void;
 }
 
@@ -42,6 +44,7 @@ const REGISTERED_USERS_KEY = "vetcare_registered_users";
 
 export interface RegisteredUser extends User {
   password: string;
+  accountId: string;
 }
 
 function getRegisteredUsers(): RegisteredUser[] {
@@ -64,16 +67,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback((email: string, password: string): boolean => {
     const normalizedEmail = email.trim().toLowerCase();
-    
-    // Check demo credentials
-    if (
-      normalizedEmail === DEMO_CREDENTIALS.email &&
-      password === DEMO_CREDENTIALS.password
-    ) {
-      setUser(DEMO_USER);
-      saveUser(DEMO_USER);
-      return true;
-    }
 
     // Check registered users
     const registeredUsers = getRegisteredUsers();
@@ -85,9 +78,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const { password: _, ...userWithoutPassword } = found;
       setUser(userWithoutPassword);
       saveUser(userWithoutPassword);
+      if (found.accountId) setActiveAccountId(found.accountId);
       return true;
     }
 
+    return false;
+  }, []);
+
+  const loginDemo = useCallback((email: string, password: string): boolean => {
+    const normalizedEmail = email.trim().toLowerCase();
+    const demoCreds = getDemoCredentials();
+    if (normalizedEmail === demoCreds.email && password === demoCreds.password) {
+      setUser(DEMO_USER);
+      saveUser(DEMO_USER);
+      setActiveAccountId(DEMO_ACCOUNT_ID);
+      return true;
+    }
     return false;
   }, []);
 
@@ -105,6 +111,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     user,
     isAuthenticated: !!user,
     login,
+    loginDemo,
     logout,
   };
 
@@ -116,5 +123,3 @@ export function useAuth(): AuthContextValue {
   if (!ctx) throw new Error("useAuth must be used within AuthProvider");
   return ctx;
 }
-
-export { DEMO_CREDENTIALS };

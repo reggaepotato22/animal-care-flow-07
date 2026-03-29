@@ -9,6 +9,8 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertCircle, Info, Building2, UserCircle } from "lucide-react";
+import { createAccount, getAccountScopedKey, setActiveAccountId } from "@/lib/accountStore";
+import { saveStaff } from "@/lib/staffStore";
 
 interface StaffMember {
   name: string;
@@ -53,16 +55,35 @@ export default function Signup() {
       return;
     }
 
-    // Save clinic and staff data
+    const account = createAccount({
+      name: clinicName,
+      ownerEmail: adminEmail,
+      mode: "demo",
+    });
+    setActiveAccountId(account.id);
+
     const clinicData = {
+      accountId: account.id,
       name: clinicName,
       adminEmail,
-      staff,
       createdAt: new Date().toISOString(),
     };
 
-    localStorage.setItem("vetcare_clinic_data", JSON.stringify(clinicData));
-    localStorage.setItem("vetcare_staff", JSON.stringify(staff));
+    localStorage.setItem(getAccountScopedKey("vetcare_clinic_data", account.id), JSON.stringify(clinicData));
+
+    const staffRecords = staff.map((s, i) => ({
+      id: `staff-${Date.now()}-${i}`,
+      name: s.name,
+      email: "",
+      phone: "",
+      role: s.role,
+      department: s.role === "doctor" ? "Clinical" : "Front Office",
+      status: "active",
+      startDate: new Date().toISOString().split("T")[0],
+      schedule: "",
+      avatar: null,
+    }));
+    saveStaff(staffRecords);
 
     // Register the admin user so they can log in
     registerUser({
@@ -70,6 +91,7 @@ export default function Signup() {
       email: adminEmail,
       name: clinicName, // Use clinic name as user name for now
       password: adminPassword,
+      accountId: account.id,
     });
 
     // Auto login with the created account

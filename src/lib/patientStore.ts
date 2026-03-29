@@ -1,8 +1,17 @@
 import { PatientRow } from "@/data/patients";
 import { logCreate, logUpdate, logDelete } from "./audit";
+import { getAccountScopedKey } from "@/lib/accountStore";
 
-const PATIENTS_STORAGE_KEY = "vetcare_patients";
-const SAMPLE_PATIENTS_INITIALIZED_KEY = "vetcare_sample_patients_initialized";
+const PATIENTS_STORAGE_KEY_BASE = "vetcare_patients";
+const SAMPLE_PATIENTS_INITIALIZED_KEY_BASE = "vetcare_sample_patients_initialized";
+
+function patientsKey() {
+  return getAccountScopedKey(PATIENTS_STORAGE_KEY_BASE);
+}
+
+function initializedKey() {
+  return getAccountScopedKey(SAMPLE_PATIENTS_INITIALIZED_KEY_BASE);
+}
 
 // Generate unique IDs
 export function generatePatientId(): string {
@@ -258,12 +267,12 @@ export const samplePatients: Omit<PatientRow, "id" | "patientId">[] = [
 export function initializeSamplePatients(): void {
   if (typeof window === "undefined") return;
   
-  const alreadyInitialized = localStorage.getItem(SAMPLE_PATIENTS_INITIALIZED_KEY);
+  const alreadyInitialized = localStorage.getItem(initializedKey());
   if (alreadyInitialized) return;
 
   const existingPatients = getPatients();
   if (existingPatients.length > 0) {
-    localStorage.setItem(SAMPLE_PATIENTS_INITIALIZED_KEY, "true");
+    localStorage.setItem(initializedKey(), "true");
     return;
   }
 
@@ -276,14 +285,14 @@ export function initializeSamplePatients(): void {
   }));
 
   savePatients(patients);
-  localStorage.setItem(SAMPLE_PATIENTS_INITIALIZED_KEY, "true");
+  localStorage.setItem(initializedKey(), "true");
 }
 
 // Get all patients from localStorage
 export function getPatients(): PatientRow[] {
   if (typeof window === "undefined") return [];
   
-  const stored = localStorage.getItem(PATIENTS_STORAGE_KEY);
+  const stored = localStorage.getItem(patientsKey());
   if (!stored) return [];
   
   try {
@@ -296,7 +305,7 @@ export function getPatients(): PatientRow[] {
 // Save patients to localStorage
 export function savePatients(patients: PatientRow[]): void {
   if (typeof window === "undefined") return;
-  localStorage.setItem(PATIENTS_STORAGE_KEY, JSON.stringify(patients));
+  localStorage.setItem(patientsKey(), JSON.stringify(patients));
 }
 
 // Add a new patient
@@ -391,13 +400,13 @@ export function clearCache(): void {
   if (typeof window === "undefined") return;
   
   // Preserve patients and initialization flag
-  const patients = localStorage.getItem(PATIENTS_STORAGE_KEY);
-  const initialized = localStorage.getItem(SAMPLE_PATIENTS_INITIALIZED_KEY);
+  const patients = localStorage.getItem(patientsKey());
+  const initialized = localStorage.getItem(initializedKey());
   
   // List of keys to preserve (patients and related)
   const keysToPreserve = [
-    PATIENTS_STORAGE_KEY,
-    SAMPLE_PATIENTS_INITIALIZED_KEY,
+    patientsKey(),
+    initializedKey(),
     "user_preferences",
     "appearance_settings",
   ];
@@ -413,8 +422,8 @@ export function clearCache(): void {
   });
   
   // Restore preserved data
-  if (patients) localStorage.setItem(PATIENTS_STORAGE_KEY, patients);
-  if (initialized) localStorage.setItem(SAMPLE_PATIENTS_INITIALIZED_KEY, initialized);
+  if (patients) localStorage.setItem(patientsKey(), patients);
+  if (initialized) localStorage.setItem(initializedKey(), initialized);
 }
 
 // Clear all app data including patients (complete reset)
@@ -427,7 +436,7 @@ export function clearAllData(): void {
 export function resetSamplePatients(): void {
   if (typeof window === "undefined") return;
   
-  localStorage.removeItem(PATIENTS_STORAGE_KEY);
-  localStorage.removeItem(SAMPLE_PATIENTS_INITIALIZED_KEY);
+  localStorage.removeItem(patientsKey());
+  localStorage.removeItem(initializedKey());
   initializeSamplePatients();
 }

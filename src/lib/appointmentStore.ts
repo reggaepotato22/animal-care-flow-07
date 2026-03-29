@@ -1,6 +1,8 @@
 // Shared appointment persistence + cross-tab sync
 // All appointment booking flows write here; dashboards & lists read from here.
 
+import { getAccountScopedKey, getActiveAccountId } from "@/lib/accountStore";
+
 export interface StoredAppointment {
   id: string;
   petName: string;
@@ -22,9 +24,22 @@ export interface StoredAppointment {
   createdAt: string;   // ISO
 }
 
-export const APT_STORAGE_KEY = "acf_appointments";
-export const APT_CHANNEL     = "acf_appointments_channel";
-export const APT_EVENT       = "acf_appointments_updated";
+const APT_STORAGE_KEY_BASE = "acf_appointments";
+const APT_CHANNEL_BASE = "acf_appointments_channel";
+const APT_EVENT_BASE = "acf_appointments_updated";
+
+function appointmentsKey() {
+  return getAccountScopedKey(APT_STORAGE_KEY_BASE);
+}
+
+function appointmentsEventName() {
+  return getAccountScopedKey(APT_EVENT_BASE);
+}
+
+function appointmentsChannelName() {
+  const id = getActiveAccountId();
+  return `acct:${id}:${APT_CHANNEL_BASE}`;
+}
 
 export type AppointmentResource = {
   id: string;
@@ -46,7 +61,7 @@ export const DEMO_APPOINTMENT_RESOURCES: AppointmentResource[] = [
 
 export function loadStoredAppointments(): StoredAppointment[] {
   try {
-    const raw = localStorage.getItem(APT_STORAGE_KEY);
+    const raw = localStorage.getItem(appointmentsKey());
     if (!raw) return [];
     return JSON.parse(raw) as StoredAppointment[];
   } catch {
@@ -65,13 +80,13 @@ export function saveAppointment(appt: StoredAppointment): void {
     } else {
       existing.push(appt);
     }
-    localStorage.setItem(APT_STORAGE_KEY, JSON.stringify(existing));
+    localStorage.setItem(appointmentsKey(), JSON.stringify(existing));
   } catch {}
 }
 
 export function saveAppointments(appts: StoredAppointment[]): void {
   try {
-    localStorage.setItem(APT_STORAGE_KEY, JSON.stringify(appts));
+    localStorage.setItem(appointmentsKey(), JSON.stringify(appts));
   } catch {}
 }
 
@@ -84,40 +99,52 @@ export function updateAppointmentStatus(
   if (idx < 0) return;
   existing[idx] = { ...existing[idx], status };
   try {
-    localStorage.setItem(APT_STORAGE_KEY, JSON.stringify(existing));
+    localStorage.setItem(appointmentsKey(), JSON.stringify(existing));
   } catch {}
 }
 
 // ── Broadcast (same-tab + cross-tab) ─────────────────────────────────────────
 
 let _channel: BroadcastChannel | null = null;
+let _channelAccountId: string | null = null;
 function getChannel(): BroadcastChannel {
-  if (!_channel) _channel = new BroadcastChannel(APT_CHANNEL);
+  const accountId = getActiveAccountId();
+  if (_channel && _channelAccountId && _channelAccountId !== accountId) {
+    try { _channel.close(); } catch {}
+    _channel = null;
+  }
+  if (!_channel) {
+    _channel = new BroadcastChannel(appointmentsChannelName());
+    _channelAccountId = accountId;
+  }
   return _channel;
 }
 
 export function broadcastAppointmentUpdate(): void {
   // Same-tab listeners
-  window.dispatchEvent(new CustomEvent(APT_EVENT));
+  window.dispatchEvent(new CustomEvent(appointmentsEventName()));
   // Cross-tab listeners
   try {
-    getChannel().postMessage({ type: APT_EVENT });
+    getChannel().postMessage({ type: appointmentsEventName() });
   } catch {}
 }
 
 /** Call this in a component to subscribe to appointment changes */
 export function subscribeToAppointments(cb: () => void): () => void {
   const onEvent = () => cb();
-  window.addEventListener(APT_EVENT, onEvent);
+  const eventName = appointmentsEventName();
+  window.addEventListener(eventName, onEvent);
 
   let ch: BroadcastChannel | null = null;
   try {
-    ch = new BroadcastChannel(APT_CHANNEL);
-    ch.onmessage = () => cb();
+    ch = new BroadcastChannel(appointmentsChannelName());
+    ch.onmessage = (event) => {
+      if (event.data?.type === eventName) cb();
+    };
   } catch {}
 
   return () => {
-    window.removeEventListener(APT_EVENT, onEvent);
+    window.removeEventListener(eventName, onEvent);
     ch?.close();
   };
 }
@@ -135,7 +162,7 @@ export function updateAppointment(
     if (idx < 0) return null;
     const updated = { ...existing[idx], ...updates, updatedAt: new Date().toISOString() };
     existing[idx] = updated;
-    localStorage.setItem(APT_STORAGE_KEY, JSON.stringify(existing));
+    localStorage.setItem(appointmentsKey(), JSON.stringify(existing));
     return updated;
   } catch {
     return null;
@@ -148,7 +175,7 @@ export function deleteAppointment(id: string): boolean {
     const existing = loadStoredAppointments();
     const filtered = existing.filter(a => a.id !== id);
     if (filtered.length === existing.length) return false;
-    localStorage.setItem(APT_STORAGE_KEY, JSON.stringify(filtered));
+    localStorage.setItem(appointmentsKey(), JSON.stringify(filtered));
     return true;
   } catch {
     return false;

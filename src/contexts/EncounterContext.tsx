@@ -1,6 +1,8 @@
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useState, useEffect, useRef } from "react";
 import { Encounter, EncounterStatus } from "@/lib/types";
 import { toast } from "sonner";
+import { getAccountScopedKey, getActiveAccountId } from "@/lib/accountStore";
+import { useAccount } from "@/contexts/AccountContext";
 
 interface EncounterContextValue {
   encounters: Encounter[];
@@ -15,8 +17,17 @@ interface EncounterContextValue {
 
 const EncounterContext = createContext<EncounterContextValue | null>(null);
 
-const STORAGE_KEY = "acf_encounters";
-const encounterChannel = new BroadcastChannel("acf_encounter_updates");
+const STORAGE_KEY_BASE = "acf_encounters";
+const CHANNEL_BASE = "acf_encounter_updates";
+
+function encountersKey() {
+  return getAccountScopedKey(STORAGE_KEY_BASE);
+}
+
+function encounterChannelName() {
+  const id = getActiveAccountId();
+  return `acct:${id}:${CHANNEL_BASE}`;
+}
 
 const STEP_LABELS: Record<string, string> = {
   WAITING: "awaiting triage",
@@ -29,21 +40,41 @@ const STEP_LABELS: Record<string, string> = {
 };
 
 export function EncounterProvider({ children }: { children: React.ReactNode }) {
+  const { activeAccountId } = useAccount();
+  const encounterChannelRef = useRef<BroadcastChannel | null>(null);
   const [encounters, setEncounters] = useState<Encounter[]>(() => {
     try {
-      const stored = localStorage.getItem(STORAGE_KEY);
+      const stored = localStorage.getItem(encountersKey());
       return stored ? JSON.parse(stored) : [];
-    } catch { return []; }
+    } catch {
+      return [];
+    }
   });
   const [activeEncounter, setActiveEncounter] = useState<Encounter | null>(null);
 
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(encountersKey());
+      setEncounters(stored ? JSON.parse(stored) : []);
+      setActiveEncounter(null);
+    } catch {
+      setEncounters([]);
+      setActiveEncounter(null);
+    }
+  }, [activeAccountId]);
+
   // Persist to localStorage whenever encounters change
   useEffect(() => {
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(encounters)); } catch {}
+    try { localStorage.setItem(encountersKey(), JSON.stringify(encounters)); } catch {}
   }, [encounters]);
 
   // Cross-tab sync via BroadcastChannel
   useEffect(() => {
+    try {
+      encounterChannelRef.current?.close();
+    } catch {}
+    encounterChannelRef.current = new BroadcastChannel(encounterChannelName());
+
     const handle = (event: MessageEvent) => {
       const { type, payload } = event.data as { type: string; payload: Record<string, unknown> };
 
@@ -78,11 +109,11 @@ export function EncounterProvider({ children }: { children: React.ReactNode }) {
         );
       }
     };
-    encounterChannel.addEventListener("message", handle);
+    encounterChannelRef.current.addEventListener("message", handle);
 
     // Also listen for localStorage changes from other tabs as fallback
     const onStorage = (e: StorageEvent) => {
-      if (e.key === STORAGE_KEY && e.newValue) {
+      if (e.key === encountersKey() && e.newValue) {
         try {
           const fresh = JSON.parse(e.newValue) as Encounter[];
           setEncounters(fresh);
@@ -92,10 +123,14 @@ export function EncounterProvider({ children }: { children: React.ReactNode }) {
     window.addEventListener("storage", onStorage);
 
     return () => {
-      encounterChannel.removeEventListener("message", handle);
+      encounterChannelRef.current?.removeEventListener("message", handle);
       window.removeEventListener("storage", onStorage);
+      try {
+        encounterChannelRef.current?.close();
+      } catch {}
+      encounterChannelRef.current = null;
     };
-  }, []);
+  }, [activeAccountId]);
 
   const createEncounter = (patientId: string, data: Partial<Encounter>): Encounter => {
     const newEncounter: Encounter = {
@@ -109,7 +144,9 @@ export function EncounterProvider({ children }: { children: React.ReactNode }) {
       ...data,
     };
     setEncounters(prev => [...prev, newEncounter]);
-    encounterChannel.postMessage({ type: "ENCOUNTER_CREATED", payload: newEncounter });
+    try {
+      encounterChannelRef.current?.postMessage({ type: "ENCOUNTER_CREATED", payload: newEncounter });
+    } catch {}
     toast.success(`Visit created for ${newEncounter.petName || "patient"}`);
     return newEncounter;
   };
@@ -125,15 +162,17 @@ export function EncounterProvider({ children }: { children: React.ReactNode }) {
       prev?.id === encounterId ? { ...prev, status } : prev
     );
     const encForBroadcast = encounters.find(e => e.id === encounterId);
-    encounterChannel.postMessage({
-      type: "ENCOUNTER_STATUS_UPDATE",
-      payload: {
-        encounterId, status,
-        ...(endTime ? { endTime } : {}),
-        petName: encForBroadcast?.petName,
-        patientId: encForBroadcast?.patientId,
-      },
-    });
+    try {
+      encounterChannelRef.current?.postMessage({
+        type: "ENCOUNTER_STATUS_UPDATE",
+        payload: {
+          encounterId, status,
+          ...(endTime ? { endTime } : {}),
+          petName: encForBroadcast?.petName,
+          patientId: encForBroadcast?.patientId,
+        },
+      });
+    } catch {}
     // Same-tab notification
     const enc = encounters.find(e => e.id === encounterId);
     window.dispatchEvent(new CustomEvent("acf:notification", {

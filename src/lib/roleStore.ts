@@ -1,5 +1,6 @@
 
 import { logCreate } from "./audit";
+import { getAccountScopedKey } from "@/lib/accountStore";
 
 export interface Role {
   id: string;
@@ -40,41 +41,53 @@ export interface ModulePermissions {
   };
 }
 
-const ROLES_KEY = "vetcare_roles";
-const GROUPS_KEY = "vetcare_groups";
-const USERS_KEY = "vetcare_users";
+const ROLES_KEY_BASE = "vetcare_roles";
+const GROUPS_KEY_BASE = "vetcare_groups";
+const USERS_KEY_BASE = "vetcare_users";
+
+function rolesKey() {
+  return getAccountScopedKey(ROLES_KEY_BASE);
+}
+
+function groupsKey() {
+  return getAccountScopedKey(GROUPS_KEY_BASE);
+}
+
+function usersKey() {
+  return getAccountScopedKey(USERS_KEY_BASE);
+}
 
 export function getRoles(): Role[] {
   if (typeof window === "undefined") return [];
-  const stored = localStorage.getItem(ROLES_KEY);
+  const stored = localStorage.getItem(rolesKey());
   return stored ? JSON.parse(stored) : [];
 }
 
 export function saveRoles(roles: Role[]): void {
   if (typeof window === "undefined") return;
-  localStorage.setItem(ROLES_KEY, JSON.stringify(roles));
+  localStorage.setItem(rolesKey(), JSON.stringify(roles));
 }
 
 export function getGroups(): UserGroup[] {
   if (typeof window === "undefined") return [];
-  const stored = localStorage.getItem(GROUPS_KEY);
+  const stored = localStorage.getItem(groupsKey());
   return stored ? JSON.parse(stored) : [];
 }
 
 export function saveGroups(groups: UserGroup[]): void {
   if (typeof window === "undefined") return;
-  localStorage.setItem(GROUPS_KEY, JSON.stringify(groups));
+  localStorage.setItem(groupsKey(), JSON.stringify(groups));
 }
 
 export function getUsers(): User[] {
   if (typeof window === "undefined") return [];
-  const stored = localStorage.getItem(USERS_KEY);
+  const stored = localStorage.getItem(usersKey());
   return stored ? JSON.parse(stored) : [];
 }
 
 export function saveUsers(users: User[]): void {
   if (typeof window === "undefined") return;
-  localStorage.setItem(USERS_KEY, JSON.stringify(users));
+  localStorage.setItem(usersKey(), JSON.stringify(users));
 }
 
 export const sampleRoles: Role[] = [
