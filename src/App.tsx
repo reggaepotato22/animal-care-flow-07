@@ -83,6 +83,8 @@ function ProtectedRoutes() {
         <Route path="/triage" element={<Triage />} />
         <Route path="/audit" element={<Audit />} />
         <Route path="/billing" element={<Billing />} />
+        <Route path="/staff" element={<Staff />} />
+        <Route path="/reports" element={<Reports />} />
         <Route path="/records" element={<Records />} />
         <Route path="/records/new" element={<NewRecord />} />
         <Route path="/records/:id" element={<ClinicalRecordDetails />} />
@@ -137,8 +139,6 @@ const App = () => (
                           <Route path="settings" element={<ClinicSettings />} />
                           <Route path="users" element={<Users />} />
                         </Route>
-                        <Route path="staff" element={<Staff />} />
-                        <Route path="reports" element={<Reports />} />
                         <Route path="notifications" element={<Notifications />} />
                         <Route path="notifications/templates" element={<NotificationTemplates />} />
                         <Route path="*" element={<NotFound />} />

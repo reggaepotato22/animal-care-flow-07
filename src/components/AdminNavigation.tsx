@@ -3,9 +3,7 @@ import { NavLink } from "react-router-dom";
 import {
   LayoutDashboard,
   FileText,
-  UserCog,
   UserCheck,
-  BarChart,
   Bell,
   ChevronLeft,
   ChevronRight,
@@ -17,9 +15,7 @@ import { cn } from "@/lib/utils";
 
 const adminNavItems = [
   { name: "Dashboard", href: "/admin", icon: LayoutDashboard },
-  { name: "Staff", href: "/admin/staff", icon: UserCog },
   { name: "Users", href: "/admin/users", icon: UserCheck },
-  { name: "Reports", href: "/admin/reports", icon: BarChart },
   { name: "Notifications", href: "/admin/notifications", icon: Bell },
   { name: "Templates", href: "/admin/notifications/templates", icon: FileText, isChild: true },
 ];
