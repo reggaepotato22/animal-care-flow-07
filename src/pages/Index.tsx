@@ -37,6 +37,9 @@ import { Separator } from "@/components/ui/separator";
 import { useNotifications } from "@/contexts/NotificationContext";
 import { loadStoredAppointments, subscribeToAppointments, isToday, isoToTimeLabel } from "@/lib/appointmentStore";
 import { getPatients } from "@/lib/patientStore";
+import { useAccount } from "@/contexts/AccountContext";
+import { getAccountScopedKey } from "@/lib/accountStore";
+import { getHospChannelName } from "@/lib/hospitalizationStore";
 
 // ─── Seed appointment data (removed as requested) ──────────────
 const SEED_APPOINTMENTS: any[] = [];
@@ -93,6 +96,7 @@ const ROLE_ALERTS: Record<string, { message: string; type: string; timestamp: Da
 const Index = () => {
   const navigate = useNavigate();
   const { has, role } = useRole();
+  const { activeAccountId } = useAccount();
   const { toast } = useToast();
   const wf = useWorkflowContext();
   const { createEncounter, getActiveEncounterForPatient, updateEncounterStatus } = useEncounter();
@@ -111,20 +115,20 @@ const Index = () => {
   useEffect(() => {
     const bump = () => forceRefresh(n => n + 1);
     const channels: BroadcastChannel[] = [];
-    ["acf_hospitalization_channel", "acf_workflow_updates", "acf_encounter_updates"].forEach(name => {
+    [getHospChannelName(), "acf_workflow_updates", `acct:${activeAccountId}:acf_encounter_updates`].forEach(name => {
       try { const ch = new BroadcastChannel(name); ch.onmessage = bump; channels.push(ch); } catch {}
     });
     const onStorage = (e: StorageEvent) => {
       if (
-        e.key === "acf_clinical_records" ||
-        e.key === "acf_hospitalization_records" ||
+        e.key === getAccountScopedKey("acf_clinical_records", activeAccountId) ||
+        e.key === getAccountScopedKey("acf_hospitalization_records", activeAccountId) ||
         e.key === "acf_workflow_patient_steps" ||
         e.key === "acf_patient_lifecycle_status"
       ) bump();
     };
     window.addEventListener("storage", onStorage);
     return () => { channels.forEach(c => c.close()); window.removeEventListener("storage", onStorage); };
-  }, []);
+  }, [activeAccountId]);
 
   const allCheckedIn  = wf.getCheckedInPatients();
   const activePatients    = allCheckedIn.filter(p => p.step !== "COMPLETED");

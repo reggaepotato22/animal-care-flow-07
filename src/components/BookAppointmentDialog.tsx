@@ -39,6 +39,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { toast } from "@/components/ui/use-toast";
 import { saveAppointment, broadcastAppointmentUpdate } from "@/lib/appointmentStore";
@@ -132,6 +133,11 @@ export function BookAppointmentDialog({ isOpen, onClose }: BookAppointmentDialog
   const [patientSearch, setPatientSearch] = useState("");
   const [selectedPatient, setSelectedPatient] = useState<KnownPatient | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [reminderPrefs, setReminderPrefs] = useState<{ m30: boolean; m15: boolean; m5: boolean }>({
+    m30: true,
+    m15: true,
+    m5: true,
+  });
 
   const knownPatients = useMemo(() => loadKnownPatients(), [isOpen]);
 
@@ -199,13 +205,18 @@ export function BookAppointmentDialog({ isOpen, onClose }: BookAppointmentDialog
 
   function onSubmit(values: z.infer<typeof formSchema>) {
     const patientId = selectedPatient?.patientId ?? `appt-${Date.now()}`;
+    const reminderMinutes = [
+      reminderPrefs.m30 ? 30 : null,
+      reminderPrefs.m15 ? 15 : null,
+      reminderPrefs.m5 ? 5 : null,
+    ].filter((v): v is number => typeof v === "number");
     saveAppointment({
       id:          `apt-${Date.now()}`,
       petName:     values.petName,
       ownerName:   values.ownerName,
       ownerPhone:  values.ownerPhone,
       ownerEmail:  values.ownerEmail,
-      date:        values.date.toISOString(),
+      date:        format(values.date, "yyyy-MM-dd"),
       time:        values.time,
       type:        values.type,
       vet:         values.vet,
@@ -214,6 +225,7 @@ export function BookAppointmentDialog({ isOpen, onClose }: BookAppointmentDialog
       patientId,
       duration:    30,
       createdAt:   new Date().toISOString(),
+      reminderMinutes,
     });
     broadcastAppointmentUpdate();
     // Notify all role dashboards
@@ -233,6 +245,7 @@ export function BookAppointmentDialog({ isOpen, onClose }: BookAppointmentDialog
     form.reset();
     handleClearPatient();
     setPatientMode("existing");
+    setReminderPrefs({ m30: true, m15: true, m5: true });
     onClose();
   }
 
@@ -566,6 +579,24 @@ export function BookAppointmentDialog({ isOpen, onClose }: BookAppointmentDialog
                 </FormItem>
               )}
             />
+
+            <div className="space-y-2">
+              <div className="text-sm font-medium">Appointment Reminders</div>
+              <div className="grid gap-2 rounded-md border p-3">
+                <div className="flex items-center justify-between">
+                  <div className="text-sm">30 minutes before</div>
+                  <Switch checked={reminderPrefs.m30} onCheckedChange={(v) => setReminderPrefs(p => ({ ...p, m30: !!v }))} />
+                </div>
+                <div className="flex items-center justify-between">
+                  <div className="text-sm">15 minutes before</div>
+                  <Switch checked={reminderPrefs.m15} onCheckedChange={(v) => setReminderPrefs(p => ({ ...p, m15: !!v }))} />
+                </div>
+                <div className="flex items-center justify-between">
+                  <div className="text-sm">5 minutes before</div>
+                  <Switch checked={reminderPrefs.m5} onCheckedChange={(v) => setReminderPrefs(p => ({ ...p, m5: !!v }))} />
+                </div>
+              </div>
+            </div>
 
             <DialogFooter>
               <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>

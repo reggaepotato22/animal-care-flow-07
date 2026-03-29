@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useEncounter } from "@/contexts/EncounterContext";
 import { loadAttachments } from "@/lib/attachmentStore";
+import { loadClinicalRecords, subscribeToClinicalRecords } from "@/lib/clinicalRecordStore";
 import { toast } from "sonner";
 
 interface ClinicalRecord {
@@ -92,27 +93,31 @@ function mapEncounterStatus(status: string): ClinicalRecord["status"] {
 
 function loadSavedRecords(): ClinicalRecord[] {
   try {
-    const raw = localStorage.getItem("acf_clinical_records");
-    if (!raw) return [];
-    const items = JSON.parse(raw) as Array<{
-      id: string; patientId: string; petName?: string; ownerName?: string;
-      status?: string; savedAt?: string; notes?: unknown[];
-    }>;
-    return items.map(r => ({
-      id:          r.id,
-      patientId:   r.patientId,
-      patientName: r.ownerName ?? "Owner",
-      petName:     r.petName   ?? r.patientId,
-      species:     "—",
-      breed:       "—",
-      date:        r.savedAt ? r.savedAt.split("T")[0] : new Date().toISOString().split("T")[0],
-      veterinarian: "—",
-      complaint:   "Consultation record",
-      diagnosis:   "—",
-      treatment:   "—",
-      status:      (r.status as ClinicalRecord["status"]) ?? "ongoing",
-      attachments: 0,
-    }));
+    const items = loadClinicalRecords();
+    const patients = loadKnownPatients();
+    return items.map(r => {
+      const patient = patients.find(p => p.patientId === r.patientId);
+      const d = r.data as any;
+      const complaint = d?.chiefComplaint || d?.reason || "Consultation";
+      const diagnosis = d?.primaryDiagnosis || d?.assessment || "—";
+      const veterinarian = r.veterinarian || d?.veterinarian || "—";
+      const attachments = loadAttachments(r.patientId).length;
+      return {
+        id:          r.id,
+        patientId:   r.patientId,
+        patientName: r.ownerName ?? patient?.ownerName ?? "Owner",
+        petName:     r.petName   ?? patient?.petName ?? r.patientId,
+        species:     patient?.species || "—",
+        breed:       patient?.breed || "—",
+        date:        r.savedAt ? r.savedAt.split("T")[0] : new Date().toISOString().split("T")[0],
+        veterinarian,
+        complaint,
+        diagnosis,
+        treatment:   "—",
+        status:      mapEncounterStatus(r.status ?? "ongoing"),
+        attachments,
+      };
+    });
   } catch { return []; }
 }
 
@@ -122,12 +127,18 @@ export default function Records() {
   const { encounters } = useEncounter();
   const recordsBase = "/records";
   
-  // Merge localStorage-saved records (from NewRecord save) with real encounter records
-  // Filter out records with "Unknown Owner"
-  const [records] = useState<ClinicalRecord[]>(() => [
-    ...loadSavedRecords().filter(r => r.patientName !== "Unknown Owner" && r.patientName.trim() !== ""),
-    ...buildRecordsFromEncounters(encounters),
-  ]);
+  const [refresh, setRefresh] = useState(0);
+  useEffect(() => {
+    const unsub = subscribeToClinicalRecords(() => setRefresh(r => r + 1));
+    return () => unsub();
+  }, []);
+
+  const records = useMemo(() => {
+    return [
+      ...loadSavedRecords().filter(r => r.patientName !== "Unknown Owner" && r.patientName.trim() !== ""),
+      ...buildRecordsFromEncounters(encounters),
+    ];
+  }, [encounters, refresh]);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedStatus, setSelectedStatus] = useState<string>("all");

@@ -1,4 +1,6 @@
-import React, { createContext, useContext, useEffect, useReducer } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useReducer, useRef } from "react";
+import { useAccount } from "@/contexts/AccountContext";
+import { getAccountScopedKey } from "@/lib/accountStore";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -96,19 +98,27 @@ function buildPayload(name?: string, step?: string): {
   };
 }
 
-const STORAGE_KEY = "boravet_notifications";
+const STORAGE_KEY_BASE = "boravet_notifications";
+const CHANNEL_BASE = "acf_notifications_channel";
+
+function storageKey(accountId: string) {
+  return getAccountScopedKey(STORAGE_KEY_BASE, accountId);
+}
+
+function channelName(accountId: string) {
+  return `acct:${accountId}:${CHANNEL_BASE}`;
+}
 
 // ─── Context ──────────────────────────────────────────────────────────────────
 
 const NotificationContext = createContext<NotificationContextValue | null>(null);
 
 export function NotificationProvider({ children }: { children: React.ReactNode }) {
-  const [allNotifications, dispatch] = useReducer(reducer, [], () => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      return raw ? JSON.parse(raw) as LiveNotification[] : [];
-    } catch { return []; }
-  });
+  const { activeAccountId } = useAccount();
+  const senderIdRef = useRef(`notif-sender-${Math.random().toString(36).slice(2)}`);
+  const channelRef = useRef<BroadcastChannel | null>(null);
+
+  const [allNotifications, dispatch] = useReducer(reducer, []);
 
   // Role comes from localStorage so we don't create a circular context dep
   const currentRole = (): string => {
@@ -121,8 +131,40 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
 
   // Persist whenever state changes
   useEffect(() => {
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(allNotifications)); } catch {}
-  }, [allNotifications]);
+    try { localStorage.setItem(storageKey(activeAccountId), JSON.stringify(allNotifications)); } catch {}
+  }, [allNotifications, activeAccountId]);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(storageKey(activeAccountId));
+      dispatch({ type: "LOAD", notifications: raw ? (JSON.parse(raw) as LiveNotification[]) : [] });
+    } catch {
+      dispatch({ type: "LOAD", notifications: [] });
+    }
+  }, [activeAccountId]);
+
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (e.key !== storageKey(activeAccountId)) return;
+      try {
+        const parsed = e.newValue ? (JSON.parse(e.newValue) as LiveNotification[]) : [];
+        dispatch({ type: "LOAD", notifications: parsed });
+      } catch {}
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, [activeAccountId]);
+
+  const postAdd = useCallback((payload: Omit<LiveNotification, "id" | "timestamp" | "read">) => {
+    try {
+      channelRef.current?.postMessage({ type: "NOTIF_ADD", payload, senderId: senderIdRef.current });
+    } catch {}
+  }, []);
+
+  const addNotification = useCallback((n: Omit<LiveNotification, "id" | "timestamp" | "read">) => {
+    dispatch({ type: "ADD", payload: n });
+    postAdd(n);
+  }, [postAdd]);
 
   // ── Same-tab: custom event ────────────────────────────────────────────────
   useEffect(() => {
@@ -134,26 +176,28 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       };
       const { message: autoMsg, targetRoles: autoRoles } =
         buildPayload(d.patientName, d.step);
-      dispatch({
-        type: "ADD",
-        payload: {
-          type:        (d.type as LiveNotification["type"]) ?? "info",
-          message:     d.message ?? autoMsg,
-          patientId:   d.patientId,
-          patientName: d.patientName,
-          step:        d.step,
-          targetRoles: d.targetRoles ?? autoRoles,
-        },
+      addNotification({
+        type:        (d.type as LiveNotification["type"]) ?? "info",
+        message:     d.message ?? autoMsg,
+        patientId:   d.patientId,
+        patientName: d.patientName,
+        step:        d.step,
+        targetRoles: d.targetRoles ?? autoRoles,
       });
     };
     window.addEventListener("acf:notification", handleCustom);
     return () => window.removeEventListener("acf:notification", handleCustom);
-  }, []);
+  }, [addNotification]);
 
   // ── Cross-tab: BroadcastChannels ─────────────────────────────────────────
   useEffect(() => {
     const wfCh  = new BroadcastChannel("acf_workflow_updates");
     const encCh = new BroadcastChannel("acf_encounter_updates");
+    try {
+      channelRef.current?.close();
+    } catch {}
+    channelRef.current = new BroadcastChannel(channelName(activeAccountId));
+    const notifCh = channelRef.current;
 
     const handleWf = (e: MessageEvent) => {
       const { type, payload } = e.data as { type: string; payload: Record<string, unknown> };
@@ -161,26 +205,20 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         const meta = payload.meta as { name: string; owner: string } | undefined;
         const name = meta?.name ?? "Patient";
         const { message, targetRoles } = buildPayload(name, "TRIAGE");
-        dispatch({
-          type: "ADD",
-          payload: {
-            type: "success",
-            message: `${name} (${meta?.owner ?? ""}) ${message.split(" — ")[1] ?? "checked in"}`,
-            patientId:   payload.patientId as string,
-            patientName: name,
-            step:        "TRIAGE",
-            targetRoles,
-          },
+        addNotification({
+          type: "success",
+          message: `${name} (${meta?.owner ?? ""}) ${message.split(" — ")[1] ?? "checked in"}`,
+          patientId:   payload.patientId as string,
+          patientName: name,
+          step:        "TRIAGE",
+          targetRoles,
         });
       } else if (type === "STEP_UPDATE") {
         const { patientId, step, petName } = payload as {
           patientId: string; step: string; petName?: string;
         };
         const { message, targetRoles } = buildPayload(petName, step);
-        dispatch({
-          type: "ADD",
-          payload: { type: "info", message, patientId, patientName: petName, step, targetRoles },
-        });
+        addNotification({ type: "info", message, patientId, patientName: petName, step, targetRoles });
       }
     };
 
@@ -190,28 +228,31 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         const status  = payload.status as string;
         const petName = payload.petName as string | undefined;
         const { message, targetRoles } = buildPayload(petName, status);
-        dispatch({
-          type: "ADD",
-          payload: {
-            type: status === "TRIAGED" ? "success" : "info",
-            message,
-            step: status,
-            targetRoles,
-          },
+        addNotification({
+          type: status === "TRIAGED" ? "success" : "info",
+          message,
+          step: status,
+          targetRoles,
         });
       }
     };
 
+    const handleNotif = (e: MessageEvent) => {
+      const data = e.data as { type?: string; payload?: Omit<LiveNotification, "id" | "timestamp" | "read">; senderId?: string };
+      if (data.type !== "NOTIF_ADD" || !data.payload) return;
+      if (data.senderId && data.senderId === senderIdRef.current) return;
+      dispatch({ type: "ADD", payload: data.payload });
+    };
+
     wfCh.addEventListener("message", handleWf);
     encCh.addEventListener("message", handleEnc);
+    notifCh.addEventListener("message", handleNotif);
     return () => {
       wfCh.close();
       encCh.close();
+      try { notifCh.close(); } catch {}
     };
-  }, []);
-
-  const addNotification = (n: Omit<LiveNotification, "id" | "timestamp" | "read">) =>
-    dispatch({ type: "ADD", payload: n });
+  }, [activeAccountId, addNotification]);
 
   const markRead    = (id: string) => dispatch({ type: "MARK_READ", id });
   const markAllRead = () => dispatch({ type: "MARK_ALL_READ" });

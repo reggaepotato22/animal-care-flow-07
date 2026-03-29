@@ -1,6 +1,7 @@
 import { Sidebar } from "@/components/ui/sidebar";
 import { Navigation } from "@/components/Navigation";
 import { Header } from "@/components/Header";
+import { useAppointmentReminders } from "@/hooks/useAppointmentReminders";
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -8,6 +9,7 @@ interface LayoutProps {
 }
 
 export function Layout({ children, footer }: LayoutProps) {
+  useAppointmentReminders();
   return (
     <div className="h-screen bg-background flex w-full overflow-hidden">
       <Navigation />

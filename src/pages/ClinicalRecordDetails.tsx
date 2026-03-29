@@ -9,10 +9,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { ArrowLeft, Calendar, User, Stethoscope, Paperclip, FileText, Pill, Heart, FlaskConical, TestTube, Clock, Image, FileImage, FileScan, Syringe, ChevronDown, ChevronUp, Shield, DollarSign } from "lucide-react";
 import { LabOrderDialog } from "@/components/LabOrderDialog";
 import { format } from "date-fns";
-import { useState, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
 import { useEncounter } from "@/contexts/EncounterContext";
 import { loadAttachments } from "@/lib/attachmentStore";
+import { getClinicalRecordById, subscribeToClinicalRecords } from "@/lib/clinicalRecordStore";
 
 const NOTE_TYPES = [
   { value: "soap", label: "SOAP" },
@@ -305,8 +306,12 @@ function loadKnownPatients(): Array<{
   } catch { return []; }
 }
 
-function getPatientData(patientId: string | undefined, encounter?: any) {
-  if (!patientId) {
+function getPatientData(patientId: string | undefined, encounter?: any, recordId?: string) {
+  const saved = recordId ? getClinicalRecordById(recordId) : null;
+  const savedData = (saved?.data as any) ?? null;
+  const effectivePatientId = patientId ?? saved?.patientId;
+
+  if (!effectivePatientId) {
     return {
       id: "",
       patientId: "",
@@ -317,37 +322,37 @@ function getPatientData(patientId: string | undefined, encounter?: any) {
       age: "",
       weight: "",
       date: new Date().toISOString().split("T")[0],
-      veterinarian: encounter?.veterinarian || "—",
-      complaint: encounter?.reason || "—",
-      diagnosis: "—",
+      veterinarian: saved?.veterinarian || encounter?.veterinarian || "—",
+      complaint: savedData?.reason || savedData?.chiefComplaint || encounter?.reason || "—",
+      diagnosis: savedData?.primaryDiagnosis || "—",
       treatment: "—",
       status: "ongoing" as const,
       attachments: [],
-      clinicalNotes: [],
+      clinicalNotes: savedData?.notes ?? [],
       vaccinations: [],
       medications: [],
       labRequests: [],
-      encounterItems: []
+      encounterItems: savedData?.encounterItems ?? [],
     };
   }
   const patients = loadKnownPatients();
-  const p = patients.find(pt => pt.patientId === patientId);
-  const attachments = loadAttachments(patientId);
+  const p = patients.find(pt => pt.patientId === effectivePatientId);
+  const attachments = loadAttachments(effectivePatientId);
   return {
-    id: patientId,
-    patientId: patientId,
-    patientName: p?.ownerName || encounter?.ownerName || "",
-    petName: p?.petName || encounter?.petName || patientId,
+    id: effectivePatientId,
+    patientId: effectivePatientId,
+    patientName: saved?.ownerName || p?.ownerName || encounter?.ownerName || "",
+    petName: saved?.petName || p?.petName || encounter?.petName || effectivePatientId,
     species: p?.species || encounter?.species || "—",
     breed: p?.breed || "",
     age: p?.age || "",
     weight: p?.weight || "",
     date: encounter?.startTime ? encounter.startTime.split("T")[0] : new Date().toISOString().split("T")[0],
-    veterinarian: encounter?.veterinarian || "—",
-    complaint: encounter?.reason || encounter?.chiefComplaint || "—",
-    diagnosis: "—",
+    veterinarian: saved?.veterinarian || encounter?.veterinarian || "—",
+    complaint: savedData?.reason || savedData?.chiefComplaint || encounter?.reason || encounter?.chiefComplaint || "—",
+    diagnosis: savedData?.primaryDiagnosis || "—",
     treatment: "—",
-    status: mapEncounterStatus(encounter?.status),
+    status: mapEncounterStatus(saved?.status ?? encounter?.status),
     attachments: attachments.map(a => ({
       id: a.id,
       name: a.name,
@@ -355,11 +360,11 @@ function getPatientData(patientId: string | undefined, encounter?: any) {
       uploadDate: a.uploadedAt.split("T")[0],
       size: formatFileSize(a.size)
     })),
-    clinicalNotes: [],
+    clinicalNotes: savedData?.notes ?? [],
     vaccinations: [],
     medications: [],
     labRequests: [],
-    encounterItems: []
+    encounterItems: savedData?.encounterItems ?? []
   };
 }
 
@@ -395,10 +400,16 @@ export default function ClinicalRecordDetails() {
   
   // Load real patient data
   const patientData = useMemo(() => {
-    return getPatientData(encounter?.patientId || recordId, encounter);
-  }, [encounter, recordId]);
+    return getPatientData(encounter?.patientId, encounter, recordId);
+  }, [encounter, recordId, refresh]);
+
+  useEffect(() => {
+    const unsub = subscribeToClinicalRecords(() => setRefresh(r => r + 1));
+    return () => unsub();
+  }, []);
   
   const [activeTab, setActiveTab] = useState("soap");
+  const [refresh, setRefresh] = useState(0);
   const [collapsedNotes, setCollapsedNotes] = useState<Set<string>>(new Set());
   const [noteSearch, setNoteSearch] = useState("");
   const [noteSort, setNoteSort] = useState<"newest" | "oldest" | "type" | "author">("newest");

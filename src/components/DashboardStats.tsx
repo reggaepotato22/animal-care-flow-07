@@ -38,13 +38,16 @@ function StatCard({ title, value, change, trend, icon: Icon }: StatCardProps) {
 }
 
 import { getPatients } from "@/lib/patientStore";
-import { loadStoredAppointments } from "@/lib/appointmentStore";
+import { isToday, loadStoredAppointments } from "@/lib/appointmentStore";
 import { getStaff } from "@/lib/staffStore";
+import { useRole } from "@/contexts/RoleContext";
 
 export function DashboardStats() {
+  const { has } = useRole();
   const patients = getPatients();
   const appointments = loadStoredAppointments();
   const staff = getStaff();
+  const activeStaffCount = staff.filter(s => (s as any).status ? (s as any).status === "active" : true).length;
 
   const stats = [
     {
@@ -56,28 +59,33 @@ export function DashboardStats() {
     },
     {
       title: "Today's Appointments",
-      value: appointments.filter(a => {
-        const today = new Date().toISOString().split("T")[0];
-        return a.date === today;
-      }).length.toLocaleString(),
+      value: appointments.filter(a => isToday(a.date)).length.toLocaleString(),
       change: "+0%",
       trend: "up" as const,
       icon: Calendar,
     },
-    {
-      title: "Weekly Revenue",
-      value: formatCurrency(0),
-      change: "+0%",
-      trend: "up" as const,
-      icon: DollarSign,
-    },
-    {
-      title: "Active Staff",
-      value: staff.length.toLocaleString(),
-      change: "0%",
-      trend: "up" as const,
-      icon: Users,
-    },
+    ...(has("can_view_weekly_revenue")
+      ? [
+          {
+            title: "Weekly Revenue",
+            value: formatCurrency(0),
+            change: "+0%",
+            trend: "up" as const,
+            icon: DollarSign,
+          },
+        ]
+      : []),
+    ...(has("can_view_active_staff")
+      ? [
+          {
+            title: "Active Staff",
+            value: activeStaffCount.toLocaleString(),
+            change: "0%",
+            trend: "up" as const,
+            icon: Users,
+          },
+        ]
+      : []),
   ];
 
   return (
