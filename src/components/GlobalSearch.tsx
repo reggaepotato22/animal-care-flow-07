@@ -25,7 +25,7 @@ export function GlobalSearch({ open, onOpenChange, initialQuery = "" }: { open: 
     { label: "Patients", icon: User, to: "/patients" },
     { label: "Triage", icon: Stethoscope, to: "/triage" },
     { label: "Appointments", icon: Calendar, to: "/appointments" },
-    { label: "Records", icon: FileText, to: "/admin/records" },
+    { label: "Records", icon: FileText, to: "/records" },
   ];
 
   const go = (to: string) => {
@@ -65,4 +65,3 @@ export function GlobalSearch({ open, onOpenChange, initialQuery = "" }: { open: 
     </CommandDialog>
   );
 }
-

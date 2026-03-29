@@ -383,7 +383,7 @@ export default function ClinicalRecordDetails() {
   const location = useLocation();
   const params = useParams();
   const { encounters, getEncountersByPatient } = useEncounter();
-  const recordsBase = location.pathname.startsWith("/admin") ? "/admin/records" : "/records";
+  const recordsBase = "/records";
   
   // Get record ID from URL params
   const recordId = params.id;

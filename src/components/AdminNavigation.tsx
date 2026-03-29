@@ -22,7 +22,6 @@ const adminNavItems = [
   { name: "Reports", href: "/admin/reports", icon: BarChart },
   { name: "Notifications", href: "/admin/notifications", icon: Bell },
   { name: "Templates", href: "/admin/notifications/templates", icon: FileText, isChild: true },
-  { name: "Clinical Records", href: "/admin/records", icon: FileText },
 ];
 
 export function AdminNavigation() {

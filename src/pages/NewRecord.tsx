@@ -825,7 +825,7 @@ export default function NewRecord() {
   const navigate = useNavigate();
   const location = useLocation();
   const { encounters, activeEncounter, setActiveEncounter, updateEncounterStatus, getEncountersByPatient, getActiveEncounterForPatient, createEncounter } = useEncounter();
-  const recordsBase = location.pathname.startsWith("/admin") ? "/admin/records" : "/records";
+  const recordsBase = "/records";
   const [templateSearch, setTemplateSearch] = useState("");
   const [activeTab, setActiveTab] = useState("overview");
 
@@ -1193,6 +1193,7 @@ export default function NewRecord() {
           prognosisReason: "",
           riskFactors: [],
           notes: "",
+          clinicalFindings: [],
         }
       };
       
@@ -3132,7 +3133,7 @@ const applyTemplate = (templateName: string, noteId?: string) => {
                             <p className="text-sm font-medium">{f.finding}</p>
                             <p className="text-[10px] text-muted-foreground">{f.source}{f.confirmedBy ? ` · ${f.confirmedBy}` : ""}</p>
                           </div>
-                          {f.nextStep && f.nextStep !== "" && (
+                          {f.nextStep && (
                             <Badge variant="outline" className="text-[9px] shrink-0 capitalize border-primary/40 text-primary">{f.nextStep.replace("_"," ")}</Badge>
                           )}
                         </div>
@@ -3456,7 +3457,7 @@ const applyTemplate = (templateName: string, noteId?: string) => {
                               {f.confirmationNote ? ` · "${f.confirmationNote}"` : ""}
                             </p>
                           </div>
-                          {f.nextStep && f.nextStep !== "" && (
+                          {f.nextStep && (
                             <Badge variant="outline" className="text-[9px] shrink-0 capitalize border-primary/40 text-primary whitespace-nowrap">
                               → {f.nextStep.replace("_", " ")}
                             </Badge>
@@ -3959,7 +3960,7 @@ const applyTemplate = (templateName: string, noteId?: string) => {
                                         veterinarian: selectedVeterinarian,
                                         diagnosis: note.soapData.primaryDiagnosis,
                                       }}
-                                      onEncounterStatusChange={(s) => activeEncounter && updateEncounterStatus(activeEncounter.id, s)}
+                                      onEncounterStatusChange={(s) => activeEncounter && updateEncounterStatus(activeEncounter.id, s as any)}
                                     />
 
                                     {/* Primary Diagnosis + Differentials */}
