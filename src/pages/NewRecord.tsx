@@ -33,6 +33,8 @@ import {
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { useEncounter } from "@/contexts/EncounterContext";
+import { broadcastClinicalRecordUpdate, upsertClinicalRecord } from "@/lib/clinicalRecordStore";
+import { getHospChannelName } from "@/lib/hospitalizationStore";
 import { EncounterHeader } from "@/components/EncounterHeader";
 import { Separator } from "@/components/ui/separator";
 import { AttachmentManager } from "@/components/AttachmentManager";
@@ -1446,12 +1448,10 @@ export default function NewRecord() {
   // Encounter items state (treatments linked to SOAP notes)
   const [encounterItems, setEncounterItems] = useState<EncounterItem[]>([]);
 
-  // ── Cross-module sync: persist to acf_clinical_records on every change ──
+  // ── Cross-module sync: persist to clinical records store on every change ──
   useEffect(() => {
     if (!activeEncounter) return;
     try {
-      const stored: unknown[] = JSON.parse(localStorage.getItem("acf_clinical_records") ?? "[]");
-      const idx = (stored as { encounterId?: string }[]).findIndex(r => r.encounterId === activeEncounter.id);
       const payload = {
         encounterId:    activeEncounter.id,
         patientId:      selectedPatient,
@@ -1470,11 +1470,18 @@ export default function NewRecord() {
         primaryDiagnosis: clinicalNotes.find(n => n.type === "soap")?.soapData?.primaryDiagnosis ?? "",
         assessment:       clinicalNotes.find(n => n.type === "soap")?.soapData?.assessment ?? "",
       };
-      if (idx >= 0) (stored as unknown[])[idx] = payload;
-      else stored.unshift(payload);
-      localStorage.setItem("acf_clinical_records", JSON.stringify(stored));
-      // Broadcast to other tabs (Dashboard, Hospitalization)
-      try { new BroadcastChannel("acf_hospitalization_channel").postMessage({ type: "clinical_updated", encounterId: activeEncounter.id }); } catch {}
+      upsertClinicalRecord({
+        encounterId: activeEncounter.id,
+        patientId: selectedPatient,
+        petName: mockPatientData?.name ?? "",
+        ownerName: mockPatientData?.owner?.name ?? "",
+        veterinarian: selectedVeterinarian || activeEncounter.veterinarian,
+        status: activeEncounter.status,
+        savedAt: new Date().toISOString(),
+        data: payload as any,
+      });
+      broadcastClinicalRecordUpdate();
+      try { new BroadcastChannel(getHospChannelName()).postMessage({ type: "clinical_updated", encounterId: activeEncounter.id }); } catch {}
     } catch {}
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clinicalNotes, encounterItems, activeEncounter?.status, selectedVeterinarian]);

@@ -42,6 +42,8 @@ const PERM_LABELS: Record<string, string> = {
   can_register_patients:     "Register Patients",
   can_view_patients:         "View Patients",
   can_edit_patients:         "Edit Patient Info",
+  can_view_weekly_revenue:   "View Weekly Revenue",
+  can_view_active_staff:     "View Active Staff",
 };
 
 const NOTIF_KEY = "acf_profile_notifications";

@@ -33,6 +33,8 @@ import { toast } from "sonner";
 import { useWorkflowContext } from "@/contexts/WorkflowContext";
 import { useEncounter } from "@/contexts/EncounterContext";
 import type { WorkflowStepId } from "@/config/workflow";
+import { broadcastClinicalRecordUpdate, upsertClinicalRecord } from "@/lib/clinicalRecordStore";
+import { getHospChannelName } from "@/lib/hospitalizationStore";
 
 const newVisitSchema = z.object({
   type: z.enum(["New Visit", "Start Consultation", "Start Surgery", "Emergency Intake"]),
@@ -118,20 +120,26 @@ export function NewVisitDialog({ children, defaultType = "New Visit" }: NewVisit
     setStep(patientId, stepForType[data.type] ?? "TRIAGE");
 
     try {
-      const stored: unknown[] = JSON.parse(localStorage.getItem("acf_clinical_records") ?? "[]");
-      stored.unshift({
-        type: "new_visit",
+      upsertClinicalRecord({
         encounterId: encounter.id,
         patientId,
-        reason: data.reason,
-        chiefComplaint: data.chiefComplaint,
         veterinarian: data.attendingVet,
-        visitType: data.type,
         status: encStatusMap[data.type] ?? "WAITING",
-        createdAt: new Date().toISOString(),
+        savedAt: new Date().toISOString(),
+        data: {
+          type: "new_visit",
+          encounterId: encounter.id,
+          patientId,
+          reason: data.reason,
+          chiefComplaint: data.chiefComplaint,
+          veterinarian: data.attendingVet,
+          visitType: data.type,
+          status: encStatusMap[data.type] ?? "WAITING",
+          createdAt: new Date().toISOString(),
+        },
       });
-      localStorage.setItem("acf_clinical_records", JSON.stringify(stored));
-      new BroadcastChannel("acf_hospitalization_channel").postMessage({
+      broadcastClinicalRecordUpdate();
+      new BroadcastChannel(getHospChannelName()).postMessage({
         type: "new_visit_created", encounterId: encounter.id, patientId,
       });
     } catch {}

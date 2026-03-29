@@ -127,8 +127,8 @@ const App = () => (
         <BrowserRouter>
           <AuthProvider>
             <AdminAuthProvider>
+              <AccountProvider>
               <RoleProvider>
-                <AccountProvider>
                 <AppearanceProvider>
                 <WorkflowProvider>
                   <EncounterProvider>
@@ -158,8 +158,8 @@ const App = () => (
                   </EncounterProvider>
                 </WorkflowProvider>
                 </AppearanceProvider>
-                </AccountProvider>
               </RoleProvider>
+              </AccountProvider>
             </AdminAuthProvider>
           </AuthProvider>
         </BrowserRouter>

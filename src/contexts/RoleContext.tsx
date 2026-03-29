@@ -1,6 +1,8 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { ROLE_PERMISSIONS, type Permission, type Role } from "@/lib/rbac";
 import { logChange } from "@/lib/audit";
+import { useAccount } from "@/contexts/AccountContext";
+import { getDashboardAccessOverrides, subscribeToDashboardAccessOverrides, type DashboardControlledPermission } from "@/lib/dashboardAccessStore";
 
 const STORAGE_KEY = "acf_role";
 
@@ -14,6 +16,7 @@ interface RoleContextValue {
 const RoleContext = createContext<RoleContextValue | null>(null);
 
 export function RoleProvider({ children }: { children: React.ReactNode }) {
+  const { activeAccountId } = useAccount();
   const [role, setRoleState] = useState<Role>(() => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
@@ -21,7 +24,17 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
     } catch {}
     return "SuperAdmin";
   });
+  const [dashboardOverrides, setDashboardOverrides] = useState(() => getDashboardAccessOverrides(activeAccountId));
   const permissions = useMemo(() => ROLE_PERMISSIONS[role], [role]);
+
+  useEffect(() => {
+    setDashboardOverrides(getDashboardAccessOverrides(activeAccountId));
+    const unsub = subscribeToDashboardAccessOverrides(
+      () => setDashboardOverrides(getDashboardAccessOverrides(activeAccountId)),
+      activeAccountId
+    );
+    return () => unsub();
+  }, [activeAccountId]);
 
   const setRole = (r: Role, changedBy = "admin") => {
     const prev = role;
@@ -40,7 +53,13 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
     });
   };
 
-  const has = (perm: Permission) => permissions.includes(perm);
+  const has = (perm: Permission) => {
+    if (perm === "can_view_weekly_revenue" || perm === "can_view_active_staff") {
+      const override = dashboardOverrides?.[role]?.[perm as DashboardControlledPermission];
+      if (typeof override === "boolean") return override;
+    }
+    return permissions.includes(perm);
+  };
 
   const value: RoleContextValue = { role, permissions, setRole, has };
   return <RoleContext.Provider value={value}>{children}</RoleContext.Provider>;
@@ -51,4 +70,3 @@ export function useRole() {
   if (!ctx) throw new Error("useRole must be used within RoleProvider");
   return ctx;
 }
-

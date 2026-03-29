@@ -22,6 +22,7 @@ export interface StoredAppointment {
   patientId: string;   // used as workflow/encounter ID
   duration: number;    // minutes, default 30
   createdAt: string;   // ISO
+  reminderMinutes?: number[]; // minutes before appointment, default [30,15,5]
 }
 
 const APT_STORAGE_KEY_BASE = "acf_appointments";

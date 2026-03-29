@@ -34,6 +34,8 @@ import * as z from "zod";
 import { toast } from "@/components/ui/use-toast";
 import { useWorkflowContext } from "@/contexts/WorkflowContext";
 import { useEncounter } from "@/contexts/EncounterContext";
+import { broadcastClinicalRecordUpdate, upsertClinicalRecord } from "@/lib/clinicalRecordStore";
+import { getHospChannelName } from "@/lib/hospitalizationStore";
 
 const dischargeSummarySchema = z.object({
   dischargeDate: z.date({
@@ -77,8 +79,10 @@ export function DischargeSummaryDialog({ children, patientId }: DischargeSummary
   const onSubmit = async (data: DischargeSummaryData) => {
     try {
       // ── 1. Update active encounter status ────────────────────────────────
+      let encounterId: string | null = null;
       if (patientId) {
         const enc = getActiveEncounterForPatient(patientId);
+        encounterId = enc?.id ?? null;
         if (enc) updateEncounterStatus(enc.id, "DISCHARGED");
         setPatientStatus(patientId, "Discharged");
         setStep(patientId, "COMPLETED");
@@ -86,8 +90,7 @@ export function DischargeSummaryDialog({ children, patientId }: DischargeSummary
 
       // ── 2. Persist discharge record to acf_clinical_records ──────────────
       try {
-        const stored: unknown[] = JSON.parse(localStorage.getItem("acf_clinical_records") ?? "[]");
-        stored.unshift({
+        const payload = {
           type: "discharge",
           patientId,
           diagnosis: data.diagnosis,
@@ -100,10 +103,20 @@ export function DischargeSummaryDialog({ children, patientId }: DischargeSummary
           dischargeDate: data.dischargeDate.toISOString(),
           createdAt: new Date().toISOString(),
           status: "DISCHARGED",
-        });
-        localStorage.setItem("acf_clinical_records", JSON.stringify(stored));
+        };
+        if (patientId) {
+          upsertClinicalRecord({
+            encounterId: encounterId ?? `discharge-${Date.now()}`,
+            patientId,
+            veterinarian: data.veterinarian,
+            status: "DISCHARGED",
+            savedAt: new Date().toISOString(),
+            data: payload as any,
+          });
+          broadcastClinicalRecordUpdate();
+        }
         // Broadcast so Dashboard + Hospitalization refresh
-        try { new BroadcastChannel("acf_hospitalization_channel").postMessage({ type: "patient_discharged", patientId }); } catch {}
+        try { new BroadcastChannel(getHospChannelName()).postMessage({ type: "patient_discharged", patientId }); } catch {}
       } catch {}
 
       // ── 3. Notify ────────────────────────────────────────────────────

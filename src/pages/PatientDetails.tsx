@@ -23,6 +23,7 @@ import { DischargeSummaryDialog } from "@/components/DischargeSummaryDialog";
 import { PostMortemReportDialog } from "@/components/PostMortemReportDialog";
 import { EditPatientDialog } from "@/components/EditPatientDialog";
 import { ArrowLeft, Calendar, MapPin, Phone, Heart, Edit, Trash2, FileText, Pill, Stethoscope, Activity, MoreVertical, FileSearch, ChevronDown, AlertTriangle, Clock, TestTube, Mail, MessageSquare, User, Building2, MapPinIcon, DollarSign, CheckCircle, Circle, AlertCircle, XCircle, Hospital, ArrowUpRight, Plus } from "lucide-react";
+import { getHospChannelName } from "@/lib/hospitalizationStore";
 
 export default function PatientDetails() {
   const { id } = useParams();
@@ -54,7 +55,7 @@ export default function PatientDetails() {
       const stored: any[] = JSON.parse(localStorage.getItem("acf_clinical_records") ?? "[]");
       stored.unshift({ type: "referral", patientId: id, petName: patient?.name, createdAt: new Date().toISOString(), status: "Referred" });
       localStorage.setItem("acf_clinical_records", JSON.stringify(stored));
-      new BroadcastChannel("acf_hospitalization_channel").postMessage({ type: "patient_referred", patientId: id });
+      new BroadcastChannel(getHospChannelName()).postMessage({ type: "patient_referred", patientId: id });
     } catch {}
     window.dispatchEvent(new CustomEvent("acf:notification", {
       detail: { type: "info", message: `${patient?.name ?? "Patient"} referred to external specialist`, patientId: id },
@@ -72,7 +73,7 @@ export default function PatientDetails() {
       const stored: any[] = JSON.parse(localStorage.getItem("acf_clinical_records") ?? "[]");
       stored.unshift({ type: "deceased", patientId: id, petName: patient?.name, createdAt: new Date().toISOString(), status: "Deceased" });
       localStorage.setItem("acf_clinical_records", JSON.stringify(stored));
-      new BroadcastChannel("acf_hospitalization_channel").postMessage({ type: "patient_deceased", patientId: id });
+      new BroadcastChannel(getHospChannelName()).postMessage({ type: "patient_deceased", patientId: id });
     } catch {}
     window.dispatchEvent(new CustomEvent("acf:notification", {
       detail: { type: "warning", message: `${patient?.name ?? "Patient"} marked as deceased`, patientId: id },

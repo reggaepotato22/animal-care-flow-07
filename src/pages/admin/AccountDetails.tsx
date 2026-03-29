@@ -6,13 +6,17 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { DEMO_ACCOUNT_ID, getAccounts, getPlan, PLANS, type Account, type AccountLifecycle, type AccountMode, updateAccount } from "@/lib/accountStore";
 import { appendAccountAudit, getAccountAudit } from "@/lib/accountAuditStore";
 import { DEFAULT_DEMO_CREDENTIALS, getDemoCredentials, resetDemoCredentials, setDemoCredentials, subscribeToDemoCredentials } from "@/lib/authStore";
+import { getDashboardAccessOverrides, setDashboardAccessOverride, subscribeToDashboardAccessOverrides } from "@/lib/dashboardAccessStore";
+import { ROLE_PERMISSIONS, type Role } from "@/lib/rbac";
 
 const LIFECYCLES: AccountLifecycle[] = ["trial", "active", "suspended", "canceled"];
 const SUB_STATUSES = ["trialing", "active", "past_due", "canceled", "unpaid"] as const;
+const ALL_ROLES: Role[] = ["SuperAdmin", "Vet", "Nurse", "Receptionist", "Pharmacist"];
 
 export default function AccountDetails() {
   const navigate = useNavigate();
@@ -31,10 +35,21 @@ export default function AccountDetails() {
   const [retention, setRetention] = useState(String(account?.settings.dataRetentionDays ?? 365));
   const [demoEmail, setDemoEmail] = useState(() => getDemoCredentials().email);
   const [demoPassword, setDemoPassword] = useState(() => getDemoCredentials().password);
+  const [dashOverrides, setDashOverrides] = useState(() => (account ? getDashboardAccessOverrides(account.id) : {}));
 
   const audit = useMemo(() => {
     if (!account) return [];
     return getAccountAudit(account.id);
+  }, [account]);
+
+  useEffect(() => {
+    if (!account) return;
+    setDashOverrides(getDashboardAccessOverrides(account.id));
+    const unsub = subscribeToDashboardAccessOverrides(
+      () => setDashOverrides(getDashboardAccessOverrides(account.id)),
+      account.id
+    );
+    return () => unsub();
   }, [account]);
 
   useEffect(() => {
@@ -174,6 +189,12 @@ export default function AccountDetails() {
       detail: "Reset demo login credentials to defaults",
     });
     toast({ title: "Reset", description: "Demo login credentials reset to defaults" });
+  };
+
+  const effectiveDashPerm = (role: Role, perm: "can_view_weekly_revenue" | "can_view_active_staff") => {
+    const override = (dashOverrides as any)?.[role]?.[perm];
+    if (typeof override === "boolean") return override;
+    return ROLE_PERMISSIONS[role].includes(perm as any);
   };
 
   return (
@@ -329,6 +350,65 @@ export default function AccountDetails() {
           </div>
           <div className="flex items-end">
             <Button onClick={saveSettings} className="w-full">Save Settings</Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Dashboard Access</CardTitle>
+          <CardDescription>Control who can view revenue and staffing widgets.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="rounded-md border overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Role</TableHead>
+                  <TableHead>Weekly Revenue</TableHead>
+                  <TableHead>Active Staff</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {ALL_ROLES.map((r) => (
+                  <TableRow key={r}>
+                    <TableCell className="font-medium">{r}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-3">
+                        <Switch
+                          checked={effectiveDashPerm(r, "can_view_weekly_revenue")}
+                          onCheckedChange={(v) => {
+                            setDashboardAccessOverride(r, "can_view_weekly_revenue", !!v, account.id);
+                            appendAccountAudit({
+                              accountId: account.id,
+                              action: "SETTINGS_UPDATED",
+                              actor: "System Admin",
+                              detail: `Dashboard permission can_view_weekly_revenue for ${r}: ${v ? "enabled" : "disabled"}`,
+                            });
+                          }}
+                        />
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-3">
+                        <Switch
+                          checked={effectiveDashPerm(r, "can_view_active_staff")}
+                          onCheckedChange={(v) => {
+                            setDashboardAccessOverride(r, "can_view_active_staff", !!v, account.id);
+                            appendAccountAudit({
+                              accountId: account.id,
+                              action: "SETTINGS_UPDATED",
+                              actor: "System Admin",
+                              detail: `Dashboard permission can_view_active_staff for ${r}: ${v ? "enabled" : "disabled"}`,
+                            });
+                          }}
+                        />
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           </div>
         </CardContent>
       </Card>
