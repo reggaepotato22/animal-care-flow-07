@@ -3,7 +3,6 @@ import { Plus, Search, Filter, Calendar, Users, UserCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Badge } from "@/components/ui/badge";
 import { StaffCard } from "@/components/StaffCard";
 import { AddStaffDialog } from "@/components/AddStaffDialog";
 import { ScheduleManagement } from "@/components/ScheduleManagement";
@@ -133,7 +132,7 @@ export default function Staff() {
         </TabsContent>
 
         <TabsContent value="schedule">
-          <ScheduleManagement staff={mockStaff} />
+          <ScheduleManagement staff={staffMembers} />
         </TabsContent>
       </Tabs>
 

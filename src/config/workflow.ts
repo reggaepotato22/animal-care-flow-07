@@ -36,7 +36,7 @@ export function getStepRoute(step: WorkflowStepId) {
     case "TRIAGE":
       return "/triage";
     case "CONSULTATION":
-      return "/admin/records/new";
+      return "/records/new";
     case "PHARMACY":
       return "/inventory";
     case "COMPLETED":

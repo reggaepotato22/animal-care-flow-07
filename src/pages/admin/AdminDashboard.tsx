@@ -8,7 +8,6 @@ const adminLinks = [
   { name: "Users", href: "/admin/users", icon: UserCheck, description: "User management and permissions" },
   { name: "Reports", href: "/admin/reports", icon: BarChart, description: "View and generate reports" },
   { name: "Notifications", href: "/admin/notifications", icon: Bell, description: "Notifications and alerts" },
-  { name: "Clinical Records", href: "/admin/records", icon: FileText, description: "Clinical records and documents" },
 ];
 
 export default function AdminDashboard() {
@@ -19,7 +18,7 @@ export default function AdminDashboard() {
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Admin Dashboard</h1>
         <p className="text-muted-foreground">
-          Manage staff, users, reports, notifications, and clinical records.
+          Manage staff, users, reports, and notifications.
         </p>
       </div>
 
@@ -53,7 +52,7 @@ export default function AdminDashboard() {
             Admin Portal
           </CardTitle>
           <CardDescription>
-            This area is restricted to administrators. Use the navigation or cards above to manage staff, users, reports, notifications, and clinical records.
+            This area is restricted to administrators. Use the navigation or cards above to manage staff, users, reports, and notifications.
           </CardDescription>
         </CardHeader>
       </Card>

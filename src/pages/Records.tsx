@@ -104,6 +104,7 @@ function loadSavedRecords(): ClinicalRecord[] {
       patientName: r.ownerName ?? "Owner",
       petName:     r.petName   ?? r.patientId,
       species:     "—",
+      breed:       "—",
       date:        r.savedAt ? r.savedAt.split("T")[0] : new Date().toISOString().split("T")[0],
       veterinarian: "—",
       complaint:   "Consultation record",
@@ -119,7 +120,7 @@ export default function Records() {
   const navigate = useNavigate();
   const location = useLocation();
   const { encounters } = useEncounter();
-  const recordsBase = location.pathname.startsWith("/admin") ? "/admin/records" : "/records";
+  const recordsBase = "/records";
   
   // Merge localStorage-saved records (from NewRecord save) with real encounter records
   // Filter out records with "Unknown Owner"
