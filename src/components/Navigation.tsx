@@ -19,6 +19,7 @@ import {
   Settings2,
   Palette,
   Mail,
+  BarChart,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -37,7 +38,8 @@ const navigationItems = [
   { name: "Pharmacy", href: "/inventory", icon: Beaker }, // Added Pharmacy (reusing inventory/beaker for now)
   { name: "Billing", href: "/billing", icon: CreditCard },
   { name: "Postmortem", href: "/postmortem", icon: FileText },
-  { name: "Team Management", href: "/admin/staff", icon: UsersIcon },
+  { name: "Staff Management", href: "/staff", icon: UsersIcon },
+  { name: "Reports", href: "/reports", icon: BarChart },
   { name: "Audit Trails", href: "/audit", icon: ScrollText },
   { name: "Workflow Settings", href: "/workflow-settings", icon: Settings2 },
   { name: "Communications", href: "/settings/communications", icon: Mail },
@@ -86,7 +88,8 @@ export function Navigation() {
             if (item.name === "Clinical Records") return has("can_view_records");
             if (item.name === "Audit Trails") return has("can_view_audit");
             if (item.name === "Clinic Settings") return has("can_manage_users");
-            if (item.name === "Team Management") return has("can_manage_users");
+            if (item.name === "Staff Management") return has("can_manage_users");
+            if (item.name === "Reports") return has("can_view_audit");
             if (item.name === "Workflow Settings") return true; // All roles can access workflow settings
             if (item.name === "Communications") return has("can_manage_users");
             if (item.name === "Appearance") return true;

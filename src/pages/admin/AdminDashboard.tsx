@@ -1,12 +1,10 @@
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { UserCog, UserCheck, BarChart, Bell, FileText, Shield } from "lucide-react";
+import { UserCheck, Bell, Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 const adminLinks = [
-  { name: "Staff", href: "/admin/staff", icon: UserCog, description: "Manage staff and schedules" },
   { name: "Users", href: "/admin/users", icon: UserCheck, description: "User management and permissions" },
-  { name: "Reports", href: "/admin/reports", icon: BarChart, description: "View and generate reports" },
   { name: "Notifications", href: "/admin/notifications", icon: Bell, description: "Notifications and alerts" },
 ];
 
@@ -18,7 +16,7 @@ export default function AdminDashboard() {
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Admin Dashboard</h1>
         <p className="text-muted-foreground">
-          Manage staff, users, reports, and notifications.
+          Manage system users and notifications.
         </p>
       </div>
 
@@ -52,7 +50,7 @@ export default function AdminDashboard() {
             Admin Portal
           </CardTitle>
           <CardDescription>
-            This area is restricted to administrators. Use the navigation or cards above to manage staff, users, reports, and notifications.
+            This area is restricted to administrators. Use the navigation or cards above to manage system users and notifications.
           </CardDescription>
         </CardHeader>
       </Card>
