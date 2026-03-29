@@ -24,6 +24,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useRole } from "@/contexts/RoleContext";
+import { useAccount } from "@/contexts/AccountContext";
+import { hasFeature } from "@/lib/accountStore";
 
 const navigationItems = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard },
@@ -50,6 +52,7 @@ const navigationItems = [
 export function Navigation() {
   const [collapsed, setCollapsed] = useState(false);
   const { has } = useRole();
+  const { activeAccount } = useAccount();
 
   return (
     <nav className={cn(
@@ -85,24 +88,24 @@ export function Navigation() {
       <div className="flex-1 py-4 overflow-y-auto">
         {navigationItems
           .filter((item) => {
-            if (item.name === "Clinical Records") return has("can_view_records");
-            if (item.name === "Audit Trails") return has("can_view_audit");
+            if (item.name === "Clinical Records") return has("can_view_records") && hasFeature("clinical_records", activeAccount);
+            if (item.name === "Audit Trails") return has("can_view_audit") && hasFeature("audit_logs", activeAccount);
             if (item.name === "Clinic Settings") return has("can_manage_users");
             if (item.name === "Staff Management") return has("can_manage_users");
-            if (item.name === "Reports") return has("can_view_audit");
+            if (item.name === "Reports") return has("can_view_audit") && hasFeature("audit_logs", activeAccount);
             if (item.name === "Workflow Settings") return true; // All roles can access workflow settings
             if (item.name === "Communications") return has("can_manage_users");
             if (item.name === "Appearance") return true;
-            if (item.name === "Inventory") return has("can_manage_inventory");
-            if (item.name === "Pharmacy") return has("can_dispense");
+            if (item.name === "Inventory") return has("can_manage_inventory") && hasFeature("inventory", activeAccount);
+            if (item.name === "Pharmacy") return has("can_dispense") && hasFeature("inventory", activeAccount);
             if (item.name === "Billing") return has("can_access_billing");
             if (item.name === "Triage") return has("can_triage");
-            if (item.name === "Labs") return has("can_view_records");
-            if (item.name === "Hospitalization") return has("can_view_records");
-            if (item.name === "Treatments") return has("can_view_records");
+            if (item.name === "Labs") return has("can_view_records") && hasFeature("labs", activeAccount);
+            if (item.name === "Hospitalization") return has("can_view_records") && hasFeature("hospitalization", activeAccount);
+            if (item.name === "Treatments") return has("can_view_records") && hasFeature("clinical_records", activeAccount);
             if (item.name === "Postmortem") return has("can_view_records");
             if (item.name === "Patient Oversight") return has("can_view_patients");
-            if (item.name === "Appointments") return has("can_view_patients");
+            if (item.name === "Appointments") return has("can_view_patients") && hasFeature("appointments", activeAccount);
             return true;
           })
           .map((item) => (

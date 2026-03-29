@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { useWorkflowContext } from "@/contexts/WorkflowContext";
 import { useEncounter } from "@/contexts/EncounterContext";
-import { saveHospRecord, HOSP_CHANNEL, type HospRecord } from "@/lib/hospitalizationStore";
+import { saveHospRecord, getHospChannelName, type HospRecord } from "@/lib/hospitalizationStore";
 
 interface AdmissionRequestDialogProps {
   children: React.ReactNode;
@@ -92,7 +92,7 @@ export function AdmissionRequestDialog({ children, patientData }: AdmissionReque
 
     // ── 2. Broadcast to all tabs ──────────────────────────────────────────────
     try {
-      new BroadcastChannel(HOSP_CHANNEL).postMessage({ type: "hosp_admitted", recordId: record.id, patientId: pid });
+      new BroadcastChannel(getHospChannelName()).postMessage({ type: "hosp_admitted", recordId: record.id, patientId: pid });
     } catch {}
 
     // ── 3. Update encounter status + workflow ─────────────────────────────────
