@@ -20,23 +20,23 @@ export default function DemoLogin() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const from = (location.state as { from?: { pathname: string } })?.from?.pathname ?? "/";
+  const from = (location.state as { from?: { pathname: string } })?.from?.pathname;
+  const redirectTo = (from && from !== "/") ? from : "/patients";
 
   useEffect(() => {
     const unsub = subscribeToDemoCredentials(() => setDemoCreds(getDemoCredentials()));
     return () => unsub();
   }, []);
 
-  if (isAuthenticated) {
-    navigate(from, { replace: true });
-    return null;
-  }
+  useEffect(() => {
+    if (isAuthenticated) navigate(redirectTo, { replace: true });
+  }, [isAuthenticated, navigate, redirectTo]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     if (loginDemo(email, password)) {
-      navigate(from, { replace: true });
+      navigate(redirectTo, { replace: true });
     } else {
       setError("Invalid demo email or password.");
     }
@@ -53,17 +53,22 @@ export default function DemoLogin() {
     <div className="min-h-screen bg-muted/30 flex items-center justify-center p-4">
       <Card className="w-full max-w-md shadow-lg">
         <CardHeader className="space-y-1 text-center">
-          <div className="flex items-center justify-center gap-2 mb-2">
-            <Badge variant="secondary" className="bg-blue-100 text-blue-700 hover:bg-blue-100 border-blue-200">
+          <div className="flex items-center justify-center gap-2 mb-4">
+            <Badge
+              variant="secondary"
+              className="bg-blue-100 text-blue-700 hover:bg-blue-200 border-blue-200 cursor-pointer select-none transition-colors"
+              onClick={fillDemo}
+              title=""
+            >
               <Info className="h-3.5 w-3.5 mr-1" />
               Demo Access
             </Badge>
           </div>
-          <div className="flex items-center justify-center mt-1">
-            <AppLogo imgHeight={44} showText textClassName="text-2xl font-bold" />
+          <div className="flex items-center justify-center mb-2">
+            <AppLogo imgHeight={72} showText={false} />
           </div>
           <CardDescription className="text-base">
-            Sign in to the shared demo clinic.
+            Sign in to the demo clinic
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -106,18 +111,12 @@ export default function DemoLogin() {
             </div>
             <div className="flex flex-col gap-2">
               <Button type="submit" className="w-full">
-                Sign in (Demo)
-              </Button>
-              <Button type="button" variant="outline" className="w-full" onClick={fillDemo}>
-                Fill demo credentials
+                Sign In
               </Button>
             </div>
           </form>
 
-          <div className="mt-6 pt-6 border-t space-y-3">
-            <p className="text-center text-sm text-muted-foreground">
-              Demo: <strong>{demoCreds.email}</strong> / <strong>{demoCreds.password}</strong>
-            </p>
+          <div className="mt-6 pt-6 border-t">
             <div className="text-center">
               <Link to="/login" className="text-sm text-primary hover:underline">
                 Back to normal sign in

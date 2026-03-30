@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { AppLogo } from "@/components/AppLogo";
 import { useNavigate, useLocation, Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -19,18 +19,18 @@ export default function Login() {
   const navigate  = useNavigate();
   const location  = useLocation();
 
-  const from = (location.state as { from?: { pathname: string } })?.from?.pathname ?? "/";
+  const from = (location.state as { from?: { pathname: string } })?.from?.pathname;
+  const redirectTo = (from && from !== "/") ? from : "/patients";
 
-  if (isAuthenticated) {
-    navigate(from, { replace: true });
-    return null;
-  }
+  useEffect(() => {
+    if (isAuthenticated) navigate(redirectTo, { replace: true });
+  }, [isAuthenticated, navigate, redirectTo]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     if (login(email, password)) {
-      navigate(from, { replace: true });
+      navigate(redirectTo, { replace: true });
     } else {
       setError("Invalid email or password. If using the demo clinic, click \"Enter Demo Clinic\" below.");
     }
