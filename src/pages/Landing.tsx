@@ -15,13 +15,14 @@ import {
 // ── Lead capture ─────────────────────────────────────────────────────────────
 const ACCESS_KEY    = "innovetpro_access_requests";
 
-// Formspree  → owner notifications (set VITE_FORMSPREE_ENDPOINT in Vercel env vars)
-const FORMSPREE     = import.meta.env.VITE_FORMSPREE_ENDPOINT   as string | undefined;
+// Formspree  → owner notifications (env var overrides, hardcoded as safe fallback)
+const FORMSPREE     = (import.meta.env.VITE_FORMSPREE_ENDPOINT as string | undefined)
+                    || "https://formspree.io/f/xjgpwzzq";
 
-// EmailJS    → branded confirmation to submitter (set all 4 vars in Vercel)
-const EJS_SERVICE   = import.meta.env.VITE_EMAILJS_SERVICE_ID   as string | undefined;
-const EJS_KEY       = import.meta.env.VITE_EMAILJS_PUBLIC_KEY   as string | undefined;
-const EJS_CONFIRM   = import.meta.env.VITE_EMAILJS_CONFIRM_TPL  as string | undefined;
+// EmailJS    → branded confirmation to submitter
+const EJS_SERVICE   = (import.meta.env.VITE_EMAILJS_SERVICE_ID  as string | undefined) || "service_ghes6jc";
+const EJS_KEY       = (import.meta.env.VITE_EMAILJS_PUBLIC_KEY  as string | undefined) || "SGqjlLe6QR5y6JYHm";
+const EJS_CONFIRM   = (import.meta.env.VITE_EMAILJS_CONFIRM_TPL as string | undefined) || "template_lowkwr4";
 
 function saveLocal(email: string, phone: string) {
   const prev = JSON.parse(localStorage.getItem(ACCESS_KEY) || "[]");
