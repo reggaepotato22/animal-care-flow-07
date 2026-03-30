@@ -2769,6 +2769,12 @@ const applyTemplate = (templateName: string, noteId?: string) => {
                   Diagnostics
                 </TabsTrigger>
                 <TabsTrigger 
+                  value="vaccinations"
+                  className="h-11 px-4 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-foreground hover:bg-muted/50"
+                >
+                  Vaccinations
+                </TabsTrigger>
+                <TabsTrigger 
                   value="treatment"
                   className="h-11 px-4 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-foreground hover:bg-muted/50"
                 >
@@ -2963,7 +2969,7 @@ const applyTemplate = (templateName: string, noteId?: string) => {
           </TabsContent>
 
           {/* Default sidebar for other tabs */}
-          {["overview", "history", "physical-exam", "diagnostics", "treatment", "notes"].map(tab => (
+          {["overview", "history", "physical-exam", "diagnostics", "vaccinations", "treatment", "notes"].map(tab => (
             <TabsContent key={tab} value={tab} className="space-y-6">
               <Card>
                 <CardHeader>
@@ -3434,6 +3440,130 @@ const applyTemplate = (templateName: string, noteId?: string) => {
               </Card>
             </TabsContent>
 
+            {/* Vaccinations Tab */}
+            <TabsContent value="vaccinations" className="space-y-4">
+              <div className="grid grid-cols-1 gap-4">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                      <Syringe className="h-4 w-4" />
+                      Vaccination
+                    </CardTitle>
+                    <CardDescription>Record vaccine administration for this visit.</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <Label className="text-xs">Vaccine</Label>
+                          <Select
+                            value={vaccination.vaccineName}
+                            onValueChange={(value) =>
+                              setVaccination((prev) => ({
+                                ...prev,
+                                vaccineName: value,
+                                nextDueDate: recalcNextDue(value, prev.dateAdministered || new Date()),
+                              }))
+                            }
+                          >
+                            <SelectTrigger className="h-8">
+                              <SelectValue placeholder="Select" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="Rabies">Rabies</SelectItem>
+                              <SelectItem value="DHLPP">DHLPP</SelectItem>
+                              <SelectItem value="Bordetella">Bordetella</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">Batch/Lot</Label>
+                          <Input
+                            className="h-8"
+                            value={vaccination.lotNumber}
+                            onChange={(e) => setVaccination((prev) => ({ ...prev, lotNumber: e.target.value }))}
+                            placeholder="Lot#"
+                          />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <Label className="text-xs">Administered By</Label>
+                          <Input
+                            className="h-8"
+                            value={vaccination.administeredBy}
+                            onChange={(e) => setVaccination((prev) => ({ ...prev, administeredBy: e.target.value }))}
+                            placeholder={selectedVeterinarian || "Staff name"}
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">Next Due</Label>
+                          <Input
+                            className="h-8"
+                            value={format(vaccination.nextDueDate, "yyyy-MM-dd")}
+                            readOnly
+                          />
+                        </div>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full"
+                        onClick={() => {
+                          const item: EncounterItem = {
+                            id: `vax-${Date.now()}`,
+                            title: `Vaccination: ${vaccination.vaccineName}`,
+                            category: "vaccination",
+                            type: "vaccination",
+                            price: 25,
+                            cost: 0,
+                            quantity: 1,
+                            discount: 0,
+                            total: 25,
+                            status: "completed",
+                            timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+                            treatmentCode: "VACC-001",
+                            performedBy: vaccination.administeredBy || selectedVeterinarian,
+                            notes: vaccination.lotNumber ? `Lot: ${vaccination.lotNumber}` : undefined,
+                          };
+                          setEncounterItems([...encounterItems, item]);
+                        }}
+                      >
+                        Record Administration
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-sm font-semibold">Recorded Vaccinations</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2">
+                      {encounterItems.filter(i => i.type === "vaccination").length > 0 ? (
+                        encounterItems
+                          .filter(i => i.type === "vaccination")
+                          .map(i => (
+                            <div key={i.id} className="flex items-center justify-between p-2 border rounded text-sm">
+                              <div className="min-w-0">
+                                <div className="font-medium truncate">{i.title}</div>
+                                <div className="text-xs text-muted-foreground">
+                                  {i.performedBy ? `${i.performedBy} • ` : ""}{i.timestamp}
+                                </div>
+                              </div>
+                              <Badge variant="outline">{i.status}</Badge>
+                            </div>
+                          ))
+                      ) : (
+                        <p className="text-sm text-muted-foreground text-center py-6">No vaccinations recorded for this visit.</p>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            </TabsContent>
+
             {/* Treatment Tab */}
             <TabsContent value="treatment" className="space-y-4">
               {/* ── Confirmed findings that suggest medication/treatment ── */}
@@ -3535,77 +3665,6 @@ const applyTemplate = (templateName: string, noteId?: string) => {
                     </CardContent>
                 </Card>
 
-                <Card>
-                    <CardHeader>
-                      <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                        <Syringe className="h-4 w-4" />
-                        Vaccination
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-4">
-                        <div className="grid grid-cols-2 gap-3">
-                          <div className="space-y-1">
-                            <Label className="text-xs">Vaccine</Label>
-                            <Select
-                              value={vaccination.vaccineName}
-                              onValueChange={(value) =>
-                                setVaccination((prev) => ({
-                                  ...prev,
-                                  vaccineName: value,
-                                  nextDueDate: recalcNextDue(value, prev.dateAdministered || new Date()),
-                                }))
-                              }
-                            >
-                              <SelectTrigger className="h-8">
-                                <SelectValue placeholder="Select" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="Rabies">Rabies</SelectItem>
-                                <SelectItem value="DHLPP">DHLPP</SelectItem>
-                                <SelectItem value="Bordetella">Bordetella</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          <div className="space-y-1">
-                            <Label className="text-xs">Batch/Lot</Label>
-                            <Input
-                              className="h-8"
-                              value={vaccination.lotNumber}
-                              onChange={(e) => setVaccination((prev) => ({ ...prev, lotNumber: e.target.value }))}
-                              placeholder="Lot#"
-                            />
-                          </div>
-                        </div>
-                        <Button 
-                          variant="outline" 
-                          size="sm" 
-                          className="w-full"
-                          onClick={() => {
-                            // Logic to add vaccination to treatments or records
-                            const item: EncounterItem = {
-                              id: Math.random().toString(36).substr(2, 9),
-                              title: `Vaccination: ${vaccination.vaccineName}`,
-                              category: 'treatment',
-                              type: 'treatment',
-                              price: 25,
-                              cost: 0,
-                              quantity: 1,
-                              discount: 0,
-                              total: 25,
-                              status: 'completed',
-                              timestamp: new Date().toISOString(),
-                              treatmentCode: 'VACC-001',
-                              performedBy: selectedVeterinarian
-                            };
-                            setEncounterItems([...encounterItems, item]);
-                          }}
-                        >
-                          Record Administration
-                        </Button>
-                      </div>
-                    </CardContent>
-                </Card>
               </div>
             </TabsContent>
 
