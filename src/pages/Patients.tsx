@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PatientCard } from "@/components/PatientCard";
 import { useToast } from "@/hooks/use-toast";
-import { useWorkflowContext } from "@/contexts/WorkflowContext";
 import { cn } from "@/lib/utils";
 import {
   Table,
@@ -16,6 +15,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { useWorkflowContext } from "@/contexts/WorkflowContext";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { getPatients } from "@/lib/patientStore";
 import { useRole } from "@/contexts/RoleContext";
@@ -23,6 +23,54 @@ import { useEncounter } from "@/contexts/EncounterContext";
 import { loadStoredAppointments } from "@/lib/appointmentStore";
 import { format, isSameDay } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+
+// ── Workflow/visit status tag ──────────────────────────────────────────────
+const VISIT_STATUS_MAP: Record<string, { label: string; cls: string }> = {
+  WAITING:         { label: "Waiting",         cls: "bg-amber-100  text-amber-700  border-amber-300  dark:bg-amber-950/40  dark:text-amber-400" },
+  IN_TRIAGE:       { label: "In Triage",       cls: "bg-orange-100 text-orange-700 border-orange-300 dark:bg-orange-950/40 dark:text-orange-400" },
+  TRIAGED:         { label: "Triaged",          cls: "bg-sky-100    text-sky-700    border-sky-300    dark:bg-sky-950/40    dark:text-sky-400" },
+  IN_CONSULTATION: { label: "In Exam",         cls: "bg-blue-100   text-blue-700   border-blue-300   dark:bg-blue-950/40   dark:text-blue-400" },
+  IN_SURGERY:      { label: "In Surgery",      cls: "bg-purple-100 text-purple-700 border-purple-300 dark:bg-purple-950/40 dark:text-purple-400" },
+  RECOVERY:        { label: "Recovery",         cls: "bg-teal-100  text-teal-700   border-teal-300   dark:bg-teal-950/40   dark:text-teal-400" },
+  PHARMACY:        { label: "Ready for Pickup", cls: "bg-violet-100 text-violet-700 border-violet-300 dark:bg-violet-950/40 dark:text-violet-400" },
+  DISCHARGED:      { label: "Discharged",       cls: "bg-gray-100  text-gray-500   border-gray-200   dark:bg-gray-800      dark:text-gray-400" },
+};
+
+function VisitStatusBadge({ patientId, encounters, getStep }: {
+  patientId: string;
+  encounters: any[];
+  getStep?: (id: string) => string;
+}) {
+  // Primary: encounter status
+  const active = encounters.find(
+    e => e.patientId === patientId && e.status !== "DISCHARGED"
+  );
+  if (active) {
+    const cfg = VISIT_STATUS_MAP[active.status];
+    if (cfg) return (
+      <Badge variant="outline" className={cn("text-[10px] font-semibold px-1.5 py-0 border", cfg.cls)} style={{ height: "1.125rem" }}>
+        {cfg.label}
+      </Badge>
+    );
+  }
+  // Fallback: workflow step
+  const step = getStep?.(patientId);
+  if (step && step !== "REGISTERED") {
+    const stepMap: Record<string, { label: string; cls: string }> = {
+      TRIAGE:       VISIT_STATUS_MAP.IN_TRIAGE,
+      CONSULTATION: VISIT_STATUS_MAP.IN_CONSULTATION,
+      PHARMACY:     VISIT_STATUS_MAP.PHARMACY,
+      COMPLETED:    { label: "Completed", cls: "bg-emerald-100 text-emerald-700 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-400" },
+    };
+    const cfg = stepMap[step];
+    if (cfg) return (
+      <Badge variant="outline" className={cn("text-[10px] font-semibold px-1.5 py-0 border", cfg.cls)} style={{ height: "1.125rem" }}>
+        {cfg.label}
+      </Badge>
+    );
+  }
+  return null;
+}
 
 export default function Patients() {
   const navigate = useNavigate();
@@ -39,7 +87,7 @@ export default function Patients() {
   const patients = getPatients();
   const appointments = loadStoredAppointments();
 
-  // Workflow context for check-in action
+  // Workflow context for check-in + status
   const wf = useWorkflowContext();
 
   const { createEncounter } = useEncounter();
@@ -129,7 +177,7 @@ export default function Patients() {
     <div className="space-y-6 pb-10">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Patient Management</h1>
+          <h1 className="text-3xl font-bold tracking-tight">Registered Patients</h1>
           <p className="text-muted-foreground mt-1">
             Access records, manage daily clinical flow, and track patient statuses.
           </p>
@@ -275,6 +323,7 @@ export default function Patients() {
                 (apt) => apt.patientId === patient.id && isSameDay(new Date(apt.date), new Date())
               );
               
+              const visitBadge = <VisitStatusBadge patientId={patient.id} encounters={encounters} getStep={wf.getStep} />;
               return (
                 <PatientCard
                   key={patient.id}
@@ -284,6 +333,7 @@ export default function Patients() {
                   hasAppointmentToday={!!todayAppointment}
                   appointmentDetails={todayAppointment ? { time: todayAppointment.time, vet: todayAppointment.vet } : undefined}
                   isCheckedIn={hasActiveVisit}
+                  visitStatusBadge={visitBadge}
                 />
               );
             })}
@@ -392,9 +442,12 @@ export default function Patients() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <Badge variant="outline" className={cn(getStatusColor(patient.status), "capitalize text-[11px] font-semibold px-2 py-0")}>
-                          {patient.status}
-                        </Badge>
+                        <div className="flex flex-col gap-1">
+                          <Badge variant="outline" className={cn(getStatusColor(patient.status), "capitalize text-[11px] font-semibold px-2 py-0 w-fit")}>
+                            {patient.status}
+                          </Badge>
+                          <VisitStatusBadge patientId={patient.id} encounters={encounters} getStep={wf.getStep} />
+                        </div>
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">

@@ -1,15 +1,23 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Palette, Circle } from "lucide-react";
+import { Palette, Sun, Moon, SunMoon } from "lucide-react";
 import { useAppearance } from "@/contexts/AppearanceContext";
+import { useTheme } from "next-themes";
 import { cn } from "@/lib/utils";
 
 const ACCENTS = [
+  { id: "green",  label: "InnoVet", bg: "bg-[#56B246]" },
   { id: "teal",   label: "Teal",   bg: "bg-teal-500"   },
   { id: "blue",   label: "Blue",   bg: "bg-blue-500"   },
   { id: "purple", label: "Purple", bg: "bg-purple-500" },
   { id: "orange", label: "Orange", bg: "bg-orange-500" },
   { id: "rose",   label: "Rose",   bg: "bg-rose-500"   },
+] as const;
+
+const THEMES = [
+  { id: "light",         label: "Light",         icon: Sun,      cls: "bg-white text-gray-800 border-gray-300" },
+  { id: "dark",          label: "Dark",          icon: Moon,     cls: "bg-gray-900 text-gray-100 border-gray-700" },
+  { id: "high-contrast", label: "High Contrast", icon: SunMoon,  cls: "bg-black text-yellow-300 border-yellow-400" },
 ] as const;
 
 const RADII = [
@@ -22,6 +30,7 @@ const RADII = [
 
 export default function AppearanceSettings() {
   const { accentColor, setAccentColor, borderRadius, setBorderRadius } = useAppearance();
+  const { theme, setTheme } = useTheme();
 
   return (
     <div className="space-y-6 max-w-2xl mx-auto">
@@ -31,9 +40,38 @@ export default function AppearanceSettings() {
           Appearance
         </h1>
         <p className="text-muted-foreground text-sm mt-1">
-          Customise the look and feel of BoraVet.
+          Customise the look and feel of InnoVetPro.
         </p>
       </div>
+
+      {/* Theme Mode */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm font-semibold">Theme Mode</CardTitle>
+          <CardDescription className="text-xs">Choose between light, dark, or high-contrast display.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-wrap gap-3">
+            {THEMES.map(t => {
+              const Icon = t.icon;
+              return (
+                <button
+                  key={t.id}
+                  onClick={() => setTheme(t.id)}
+                  className={cn(
+                    "flex flex-col items-center gap-1.5 px-4 py-3 rounded-xl border-2 transition-all min-w-[100px]",
+                    t.cls,
+                    theme === t.id ? "border-primary shadow-md ring-1 ring-primary/30" : "hover:border-muted-foreground"
+                  )}
+                >
+                  <Icon className="h-5 w-5" />
+                  <span className="text-xs font-semibold">{t.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader className="pb-3">

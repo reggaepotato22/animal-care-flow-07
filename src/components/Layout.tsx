@@ -1,7 +1,7 @@
-import { Sidebar } from "@/components/ui/sidebar";
 import { Navigation } from "@/components/Navigation";
 import { Header } from "@/components/Header";
 import { useAppointmentReminders } from "@/hooks/useAppointmentReminders";
+import { TutorialOverlay, TutorialRelaunchButton } from "@/components/TutorialOverlay";
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -20,6 +20,9 @@ export function Layout({ children, footer }: LayoutProps) {
         </main>
         {footer}
       </div>
+      {/* InnoVetPro Tutorial — auto-triggers on every page load, resets on refresh */}
+      <TutorialOverlay />
+      <TutorialRelaunchButton />
     </div>
   );
 }

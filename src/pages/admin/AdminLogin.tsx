@@ -49,7 +49,7 @@ export default function AdminLogin() {
             </div>
           </div>
           <CardTitle className="text-2xl font-bold text-primary">Admin Portal</CardTitle>
-          <CardDescription>VetCare Pro – sign in with admin account</CardDescription>
+          <CardDescription>InnoVetPro – sign in with admin account</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">

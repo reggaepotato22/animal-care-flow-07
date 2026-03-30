@@ -1778,7 +1778,7 @@ const applyTemplate = (templateName: string, noteId?: string) => {
     
     // Clinic info
     doc.setFontSize(12);
-    doc.text('VetCare Clinic', 20, 40);
+    doc.text('InnoVetPro Clinic', 20, 40);
     doc.text('123 Animal Street, Pet City, PC 12345', 20, 50);
     doc.text('Phone: (555) 123-4567', 20, 60);
     
