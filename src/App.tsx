@@ -60,6 +60,7 @@ import { PermissionRoute } from "@/components/PermissionRoute";
 import { AppearanceProvider } from "@/contexts/AppearanceContext";
 import { AccountProvider } from "@/contexts/AccountContext";
 import { TutorialProvider } from "@/contexts/TutorialContext";
+import Landing from "./pages/Landing";
 
 const queryClient = new QueryClient();
 
@@ -140,6 +141,7 @@ const App = () => (
                   <EncounterProvider>
                     <NotificationProvider>
                     <Routes>
+                      <Route path="/" element={<Landing />} />
                       <Route path="/signup" element={<Signup />} />
                       <Route path="/login" element={<Login />} />
                       <Route path="/login/demo" element={<DemoLogin />} />
