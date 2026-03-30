@@ -1,9 +1,12 @@
 import { useState, useMemo } from "react";
-import { format, startOfWeek, addDays, addWeeks, subWeeks, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isSameMonth, addMonths, subMonths, parse, setHours, setMinutes, getHours, getMinutes } from "date-fns";
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Clock, User, MapPin } from "lucide-react";
+import {
+  format, startOfWeek, addDays, addWeeks, subWeeks,
+  startOfMonth, endOfMonth, eachDayOfInterval, isSameDay,
+  isSameMonth, addMonths, subMonths, setHours, setMinutes, isToday,
+} from "date-fns";
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Clock, User, Stethoscope, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
@@ -19,17 +22,17 @@ export interface Appointment {
   petName: string;
   ownerName: string;
   date: Date;
-  time: string; // HH:mm format
-  duration: number; // minutes
+  time: string;       // HH:mm
+  duration?: number;  // kept for compatibility but not displayed
   type: string;
   vet: string;
   status: "SCHEDULED" | "CONFIRMED" | "CHECKED_IN" | "NO_SHOW" | "CANCELLED";
-  examRoom?: string;
-  location?: string;
-  color?: string; // Optional custom color
+  examRoom?: string;  // kept for compatibility but not displayed
+  location?: string;  // kept for compatibility but not displayed
+  color?: string;
   patientId?: string;
   notes?: string;
-  reason?: string;
+  reason?: string;    // kept for compatibility but not displayed
 }
 
 interface MultiColumnCalendarProps {
@@ -40,14 +43,351 @@ interface MultiColumnCalendarProps {
     type: "doctor" | "exam-room" | "resource";
     color?: string;
   }>;
-  timeSlotInterval?: 15 | 30; // minutes
-  startHour?: number; // 0-23
-  endHour?: number; // 0-23
+  timeSlotInterval?: 15 | 30;
+  startHour?: number;
+  endHour?: number;
   onAppointmentClick?: (appointment: Appointment) => void;
   onTimeSlotClick?: (date: Date, resourceId: string, time: string) => void;
 }
 
 type ViewMode = "day" | "week" | "month";
+
+// ── Helpers ────────────────────────────────────────────────────────────────────
+
+function toTitle(str: string): string {
+  return str
+    .toLowerCase()
+    .split(" ")
+    .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+}
+
+function normalizeVetName(vet: string): string {
+  // Handles both "dr-johnson" ID format and "Dr. Johnson" name format
+  const s = vet.replace(/-/g, " ").replace(/\./g, "").toLowerCase();
+  return s;
+}
+
+function vetMatches(aptVet: string, resourceId: string, resourceName: string): boolean {
+  const nv = normalizeVetName(aptVet);
+  const ni = normalizeVetName(resourceId);
+  const nn = normalizeVetName(resourceName);
+  return nv === ni || nv === nn || aptVet === resourceId || aptVet === resourceName;
+}
+
+const STATUS_COLORS: Record<string, string> = {
+  CONFIRMED:  "bg-blue-500 hover:bg-blue-600",
+  SCHEDULED:  "bg-amber-500 hover:bg-amber-600",
+  CANCELLED:  "bg-gray-400 hover:bg-gray-500",
+  CHECKED_IN: "bg-emerald-500 hover:bg-emerald-600",
+  NO_SHOW:    "bg-orange-500 hover:bg-orange-600",
+};
+
+const TYPE_COLORS: Record<string, string> = {
+  Checkup:      "bg-blue-500 hover:bg-blue-600",
+  Vaccination:  "bg-green-500 hover:bg-green-600",
+  Surgery:      "bg-red-500 hover:bg-red-600",
+  Emergency:    "bg-orange-500 hover:bg-orange-600",
+  "Follow-up":  "bg-purple-500 hover:bg-purple-600",
+  Consultation: "bg-teal-500 hover:bg-teal-600",
+  Dental:       "bg-pink-500 hover:bg-pink-600",
+};
+
+function getApptColor(apt: Appointment): string {
+  return TYPE_COLORS[apt.type] || STATUS_COLORS[apt.status] || "bg-slate-500 hover:bg-slate-600";
+}
+
+function formatTime12h(time: string): string {
+  const [hStr, mStr] = time.split(":");
+  const h = parseInt(hStr, 10);
+  const m = mStr ?? "00";
+  const suffix = h >= 12 ? "PM" : "AM";
+  const h12 = h % 12 || 12;
+  return `${h12}:${m} ${suffix}`;
+}
+
+// ── Appointment Detail Popover ────────────────────────────────────────────────
+
+function ApptPopover({
+  apt,
+  onClose,
+  onNavigate,
+}: {
+  apt: Appointment;
+  onClose: () => void;
+  onNavigate?: (apt: Appointment) => void;
+}) {
+  const statusLabel: Record<string, string> = {
+    SCHEDULED: "Scheduled", CONFIRMED: "Confirmed",
+    CHECKED_IN: "Checked In", NO_SHOW: "No Show", CANCELLED: "Cancelled",
+  };
+  const statusCls: Record<string, string> = {
+    CONFIRMED: "bg-blue-100 text-blue-700",
+    SCHEDULED: "bg-amber-100 text-amber-700",
+    CHECKED_IN: "bg-emerald-100 text-emerald-700",
+    NO_SHOW: "bg-orange-100 text-orange-700",
+    CANCELLED: "bg-gray-100 text-gray-500",
+  };
+
+  return (
+    <div className="w-64 p-3 space-y-3">
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <p className="font-semibold text-sm">{apt.petName}</p>
+          <p className="text-xs text-muted-foreground">{apt.ownerName}</p>
+        </div>
+        <button onClick={onClose} className="text-muted-foreground hover:text-foreground shrink-0">
+          <X className="h-3.5 w-3.5" />
+        </button>
+      </div>
+
+      <div className="space-y-1.5 text-xs">
+        <div className="flex items-center gap-2">
+          <Clock className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+          <span>{format(apt.date, "EEE, MMM d, yyyy")} · {formatTime12h(apt.time)}</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <Stethoscope className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+          <span>{toTitle(apt.vet.replace(/-/g, " "))}</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <User className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+          <span>{apt.type}</span>
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between">
+        <span className={cn("text-[10px] font-medium px-2 py-0.5 rounded-full", statusCls[apt.status] ?? "bg-gray-100 text-gray-500")}>
+          {statusLabel[apt.status] ?? apt.status}
+        </span>
+        {onNavigate && (
+          <button
+            onClick={() => { onNavigate(apt); onClose(); }}
+            className="text-[11px] text-primary underline underline-offset-2 hover:opacity-70"
+          >
+            View details →
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Time-Grid (Day & Week) ────────────────────────────────────────────────────
+
+function TimeGrid({
+  dates,
+  appointments,
+  timeSlots,
+  startHour,
+  timeSlotInterval,
+  onAppointmentClick,
+  onTimeSlotClick,
+}: {
+  dates: Date[];
+  appointments: Appointment[];
+  timeSlots: string[];
+  startHour: number;
+  timeSlotInterval: number;
+  onAppointmentClick?: (apt: Appointment) => void;
+  onTimeSlotClick?: (date: Date, resourceId: string, time: string) => void;
+}) {
+  const [openAptId, setOpenAptId] = useState<string | null>(null);
+  const SLOT_H = 56; // px per slot
+
+  const getStyle = (apt: Appointment) => {
+    const [h, m] = apt.time.split(":").map(Number);
+    const startMin = h * 60 + m;
+    const top = ((startMin - startHour * 60) / timeSlotInterval) * SLOT_H;
+    const height = Math.max(((apt.duration ?? 30) / timeSlotInterval) * SLOT_H, SLOT_H * 0.8);
+    return { top, height };
+  };
+
+  const colCount = dates.length;
+
+  return (
+    <div className="overflow-auto max-h-[70vh]">
+      {/* Day headers */}
+      <div className="sticky top-0 z-10 bg-background border-b grid" style={{ gridTemplateColumns: `64px repeat(${colCount}, 1fr)` }}>
+        <div className="border-r" />
+        {dates.map((d) => (
+          <div
+            key={d.toISOString()}
+            className={cn(
+              "py-2 text-center text-xs font-semibold border-r last:border-r-0",
+              isToday(d) && "bg-primary/5 text-primary"
+            )}
+          >
+            <div className="uppercase tracking-wide text-[10px] text-muted-foreground">{format(d, "EEE")}</div>
+            <div className={cn(
+              "mx-auto mt-0.5 h-6 w-6 rounded-full flex items-center justify-center text-sm font-bold",
+              isToday(d) && "bg-primary text-primary-foreground"
+            )}>
+              {format(d, "d")}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Time grid body */}
+      <div className="relative grid" style={{ gridTemplateColumns: `64px repeat(${colCount}, 1fr)` }}>
+        {/* Time labels column */}
+        <div className="border-r">
+          {timeSlots.map((slot, i) => (
+            <div key={slot} className="border-b border-border/40 flex items-start justify-end pr-2 text-[10px] text-muted-foreground" style={{ height: SLOT_H }}>
+              {i % (60 / timeSlotInterval) === 0 && <span className="-mt-2">{formatTime12h(slot)}</span>}
+            </div>
+          ))}
+        </div>
+
+        {/* Day columns */}
+        {dates.map((day) => {
+          const dayApts = appointments.filter(a => isSameDay(a.date, day));
+          return (
+            <div key={day.toISOString()} className="relative border-r last:border-r-0" style={{ height: timeSlots.length * SLOT_H }}>
+              {/* Slot backgrounds */}
+              {timeSlots.map((slot) => (
+                <div
+                  key={slot}
+                  className="absolute w-full border-b border-border/40 hover:bg-muted/30 cursor-pointer transition-colors"
+                  style={{ height: SLOT_H, top: timeSlots.indexOf(slot) * SLOT_H }}
+                  onClick={() => {
+                    const [h, m] = slot.split(":").map(Number);
+                    onTimeSlotClick?.(setMinutes(setHours(day, h), m), "any", slot);
+                  }}
+                />
+              ))}
+
+              {/* Appointments */}
+              {dayApts.map((apt) => {
+                const { top, height } = getStyle(apt);
+                const color = getApptColor(apt);
+                const isOpen = openAptId === apt.id;
+                return (
+                  <Popover key={apt.id} open={isOpen} onOpenChange={(o) => setOpenAptId(o ? apt.id : null)}>
+                    <PopoverTrigger asChild>
+                      <div
+                        className={cn(
+                          "absolute left-0.5 right-0.5 rounded-md px-1.5 py-1 text-white text-[11px] cursor-pointer shadow-sm transition-all z-10 overflow-hidden",
+                          color,
+                          isOpen && "ring-2 ring-white/60"
+                        )}
+                        style={{ top: top + 1, height: height - 2 }}
+                        onClick={(e) => { e.stopPropagation(); setOpenAptId(isOpen ? null : apt.id); }}
+                      >
+                        <div className="font-semibold leading-tight truncate">{apt.petName}</div>
+                        <div className="opacity-90 truncate">{formatTime12h(apt.time)}</div>
+                        <div className="opacity-80 truncate text-[10px]">{toTitle(apt.vet.replace(/-/g, " "))}</div>
+                      </div>
+                    </PopoverTrigger>
+                    <PopoverContent side="right" align="start" className="p-0 w-64" sideOffset={4}>
+                      <ApptPopover apt={apt} onClose={() => setOpenAptId(null)} onNavigate={onAppointmentClick} />
+                    </PopoverContent>
+                  </Popover>
+                );
+              })}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ── Month Grid ────────────────────────────────────────────────────────────────
+
+function MonthGrid({
+  currentDate,
+  appointments,
+  onAppointmentClick,
+  onDayClick,
+}: {
+  currentDate: Date;
+  appointments: Appointment[];
+  onAppointmentClick?: (apt: Appointment) => void;
+  onDayClick?: (date: Date) => void;
+}) {
+  const [openAptId, setOpenAptId] = useState<string | null>(null);
+
+  const monthStart = startOfMonth(currentDate);
+  const monthEnd = endOfMonth(currentDate);
+  const gridStart = startOfWeek(monthStart, { weekStartsOn: 1 });
+  const gridEnd = addDays(startOfWeek(addDays(monthEnd, 6), { weekStartsOn: 1 }), 6);
+  const days = eachDayOfInterval({ start: gridStart, end: gridEnd });
+  const DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+  return (
+    <div>
+      {/* Day name headers */}
+      <div className="grid grid-cols-7 border-b">
+        {DAY_NAMES.map(d => (
+          <div key={d} className="py-2 text-center text-xs font-semibold text-muted-foreground uppercase tracking-wide border-r last:border-r-0">
+            {d}
+          </div>
+        ))}
+      </div>
+
+      {/* Day cells */}
+      <div className="grid grid-cols-7">
+        {days.map((day) => {
+          const dayApts = appointments.filter(a => isSameDay(a.date, day));
+          const inMonth = isSameMonth(day, currentDate);
+          return (
+            <div
+              key={day.toISOString()}
+              className={cn(
+                "min-h-[100px] border-b border-r last:border-r-0 p-1.5 cursor-pointer hover:bg-muted/20 transition-colors",
+                !inMonth && "bg-muted/30 opacity-50"
+              )}
+              onClick={() => onDayClick?.(day)}
+            >
+              <div className={cn(
+                "h-6 w-6 flex items-center justify-center rounded-full text-xs font-semibold mb-1",
+                isToday(day) && "bg-primary text-primary-foreground",
+                !isToday(day) && "text-foreground"
+              )}>
+                {format(day, "d")}
+              </div>
+
+              <div className="space-y-0.5">
+                {dayApts.slice(0, 3).map((apt) => {
+                  const color = getApptColor(apt);
+                  const isOpen = openAptId === apt.id;
+                  return (
+                    <Popover key={apt.id} open={isOpen} onOpenChange={(o) => setOpenAptId(o ? apt.id : null)}>
+                      <PopoverTrigger asChild>
+                        <div
+                          className={cn(
+                            "rounded px-1.5 py-0.5 text-[10px] text-white font-medium truncate cursor-pointer",
+                            color,
+                            isOpen && "ring-1 ring-white/60"
+                          )}
+                          onClick={(e) => { e.stopPropagation(); setOpenAptId(isOpen ? null : apt.id); }}
+                        >
+                          {formatTime12h(apt.time)} {apt.petName}
+                        </div>
+                      </PopoverTrigger>
+                      <PopoverContent side="right" align="start" className="p-0 w-64" sideOffset={4}>
+                        <ApptPopover apt={apt} onClose={() => setOpenAptId(null)} onNavigate={onAppointmentClick} />
+                      </PopoverContent>
+                    </Popover>
+                  );
+                })}
+                {dayApts.length > 3 && (
+                  <div className="text-[10px] text-muted-foreground px-1">+{dayApts.length - 3} more</div>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ── Main Component ─────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
 
 export function MultiColumnCalendar({
   appointments,
@@ -61,141 +401,70 @@ export function MultiColumnCalendar({
   const [currentDate, setCurrentDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<ViewMode>("week");
   const [selectedProvider, setSelectedProvider] = useState<string>("all");
-  const [selectedLocation, setSelectedLocation] = useState<string>("all");
+
+  // Only show doctors in the filter
+  const doctorResources = useMemo(
+    () => resources.filter(r => r.type === "doctor"),
+    [resources]
+  );
 
   // Generate time slots
   const timeSlots = useMemo(() => {
     const slots: string[] = [];
     for (let hour = startHour; hour < endHour; hour++) {
       for (let minute = 0; minute < 60; minute += timeSlotInterval) {
-        const timeStr = `${hour.toString().padStart(2, "0")}:${minute.toString().padStart(2, "0")}`;
-        slots.push(timeStr);
+        slots.push(`${hour.toString().padStart(2, "0")}:${minute.toString().padStart(2, "0")}`);
       }
     }
     return slots;
   }, [startHour, endHour, timeSlotInterval]);
 
-  // Get dates to display based on view mode
+  // Dates shown in current view
   const displayDates = useMemo(() => {
-    if (viewMode === "day") {
-      return [currentDate];
-    } else if (viewMode === "week") {
-      const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 }); // Monday
-      return Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
-    } else {
-      // Month view - show weeks
-      const monthStart = startOfMonth(currentDate);
-      const monthEnd = endOfMonth(currentDate);
-      const weekStart = startOfWeek(monthStart, { weekStartsOn: 1 });
-      return eachDayOfInterval({ start: weekStart, end: monthEnd });
+    if (viewMode === "day") return [currentDate];
+    if (viewMode === "week") {
+      const ws = startOfWeek(currentDate, { weekStartsOn: 1 });
+      return Array.from({ length: 7 }, (_, i) => addDays(ws, i));
     }
+    // Month: all days in grid (handled inside MonthGrid)
+    return [];
   }, [currentDate, viewMode]);
 
-  // Filter appointments
+  // Filter appointments by provider
   const filteredAppointments = useMemo(() => {
     return appointments.filter((apt) => {
-      const matchesProvider = selectedProvider === "all" || apt.vet === selectedProvider;
-      const matchesLocation = selectedLocation === "all" || apt.location === selectedLocation;
-      const isInDateRange = displayDates.some((date) => isSameDay(apt.date, date));
-      return matchesProvider && matchesLocation && isInDateRange;
+      if (selectedProvider === "all") return true;
+      const res = doctorResources.find(r => r.id === selectedProvider || r.name === selectedProvider);
+      return res ? vetMatches(apt.vet, res.id, res.name) : apt.vet === selectedProvider;
     });
-  }, [appointments, selectedProvider, selectedLocation, displayDates]);
-
-
-  // Calculate appointment position and height
-  const getAppointmentStyle = (appointment: Appointment) => {
-    const [hours, minutes] = appointment.time.split(":").map(Number);
-    const startMinutes = hours * 60 + minutes;
-    const slotHeight = 60; // Height of each 30-minute slot in pixels
-    const slotDuration = timeSlotInterval;
-    const top = (startMinutes - startHour * 60) / slotDuration * slotHeight;
-    const height = (appointment.duration / slotDuration) * slotHeight;
-
-    return {
-      top: `${top}px`,
-      height: `${height}px`,
-    };
-  };
-
-  // Get appointment color
-  const getAppointmentColor = (appointment: Appointment) => {
-    if (appointment.color) return appointment.color;
-
-    // Color by status
-    const statusColors: Record<string, string> = {
-      CONFIRMED: "bg-blue-500",
-      SCHEDULED: "bg-yellow-500",
-      CANCELLED: "bg-gray-400",
-      CHECKED_IN: "bg-green-500",
-      NO_SHOW: "bg-orange-500",
-    };
-
-    // Color by type
-    const typeColors: Record<string, string> = {
-      Checkup: "bg-blue-500",
-      Vaccination: "bg-green-500",
-      Surgery: "bg-red-500",
-      Emergency: "bg-orange-500",
-      Followup: "bg-purple-500",
-    };
-
-    return typeColors[appointment.type] || statusColors[appointment.status] || "bg-gray-500";
-  };
+  }, [appointments, selectedProvider, doctorResources]);
 
   // Navigation
   const goToPrevious = () => {
-    if (viewMode === "day") {
-      setCurrentDate(addDays(currentDate, -1));
-    } else if (viewMode === "week") {
-      setCurrentDate(subWeeks(currentDate, 1));
-    } else {
-      setCurrentDate(subMonths(currentDate, 1));
-    }
+    if (viewMode === "day") setCurrentDate(d => addDays(d, -1));
+    else if (viewMode === "week") setCurrentDate(d => subWeeks(d, 1));
+    else setCurrentDate(d => subMonths(d, 1));
   };
-
   const goToNext = () => {
-    if (viewMode === "day") {
-      setCurrentDate(addDays(currentDate, 1));
-    } else if (viewMode === "week") {
-      setCurrentDate(addWeeks(currentDate, 1));
-    } else {
-      setCurrentDate(addMonths(currentDate, 1));
+    if (viewMode === "day") setCurrentDate(d => addDays(d, 1));
+    else if (viewMode === "week") setCurrentDate(d => addWeeks(d, 1));
+    else setCurrentDate(d => addMonths(d, 1));
+  };
+
+  // Date label in nav bar
+  const dateLabel = () => {
+    if (viewMode === "day") return format(currentDate, "EEEE, MMMM d, yyyy");
+    if (viewMode === "week") {
+      const ws = startOfWeek(currentDate, { weekStartsOn: 1 });
+      return `${format(ws, "MMM d")} – ${format(addDays(ws, 6), "MMM d, yyyy")}`;
     }
-  };
-
-  const goToToday = () => {
-    setCurrentDate(new Date());
-  };
-
-  // Get unique providers and locations
-  const providers = useMemo(() => {
-    const unique = Array.from(new Set(appointments.map((apt) => apt.vet)));
-    return unique;
-  }, [appointments]);
-
-  const locations = useMemo(() => {
-    const unique = Array.from(new Set(appointments.map((apt) => apt.location).filter(Boolean)));
-    return unique;
-  }, [appointments]);
-
-  // Parse time string to minutes
-  const timeToMinutes = (timeStr: string) => {
-    const [hours, minutes] = timeStr.split(":").map(Number);
-    return hours * 60 + minutes;
-  };
-
-  // Check if appointment overlaps with time slot
-  const isAppointmentInSlot = (appointment: Appointment, slotTime: string) => {
-    const slotMinutes = timeToMinutes(slotTime);
-    const aptStartMinutes = timeToMinutes(appointment.time);
-    const aptEndMinutes = aptStartMinutes + appointment.duration;
-    return slotMinutes >= aptStartMinutes && slotMinutes < aptEndMinutes;
+    return format(currentDate, "MMMM yyyy");
   };
 
   return (
     <div className="space-y-4">
-      {/* Controls */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+      {/* ── Controls ──────────────────────────────────────────────────────── */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-2">
           <Button variant="outline" size="icon" onClick={goToPrevious}>
             <ChevronLeft className="h-4 w-4" />
@@ -203,30 +472,45 @@ export function MultiColumnCalendar({
           <Button variant="outline" size="icon" onClick={goToNext}>
             <ChevronRight className="h-4 w-4" />
           </Button>
+
           <Popover>
             <PopoverTrigger asChild>
-              <Button variant="outline" className="min-w-[200px] justify-start text-left font-normal">
-                <CalendarIcon className="mr-2 h-4 w-4" />
-                {viewMode === "day" && format(currentDate, "EEEE, MMMM d, yyyy")}
-                {viewMode === "week" && `${format(startOfWeek(currentDate, { weekStartsOn: 1 }), "MMM d")} - ${format(addDays(startOfWeek(currentDate, { weekStartsOn: 1 }), 6), "MMM d, yyyy")}`}
-                {viewMode === "month" && format(currentDate, "MMMM yyyy")}
+              <Button variant="outline" className="min-w-[220px] justify-start font-normal">
+                <CalendarIcon className="mr-2 h-4 w-4 shrink-0" />
+                {dateLabel()}
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0" align="start">
               <Calendar
                 mode="single"
                 selected={currentDate}
-                onSelect={(date) => date && setCurrentDate(date)}
+                onSelect={(d) => d && setCurrentDate(d)}
                 initialFocus
               />
             </PopoverContent>
           </Popover>
-          <Button variant="outline" onClick={goToToday}>
+
+          <Button variant="outline" size="sm" onClick={() => setCurrentDate(new Date())}>
             Today
           </Button>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Doctor filter */}
+          <Select value={selectedProvider} onValueChange={setSelectedProvider}>
+            <SelectTrigger className="w-[180px] h-9">
+              <Stethoscope className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
+              <SelectValue placeholder="All Doctors" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Doctors</SelectItem>
+              {doctorResources.map(r => (
+                <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          {/* View mode tabs */}
           <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as ViewMode)}>
             <TabsList>
               <TabsTrigger value="day">Day</TabsTrigger>
@@ -237,152 +521,30 @@ export function MultiColumnCalendar({
         </div>
       </div>
 
-      {/* Filters */}
-      <div className="flex flex-wrap gap-2">
-        <Select value={selectedProvider} onValueChange={setSelectedProvider}>
-          <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="All Providers" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Providers</SelectItem>
-            {providers.map((provider) => (
-              <SelectItem key={provider} value={provider}>
-                {provider}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        {locations.length > 0 && (
-          <Select value={selectedLocation} onValueChange={setSelectedLocation}>
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="All Locations" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Locations</SelectItem>
-              {locations.map((location) => (
-                <SelectItem key={location} value={location}>
-                  {location}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
-      </div>
-
-      {/* Calendar Grid */}
-      <Card>
+      {/* ── Calendar Body ─────────────────────────────────────────────────── */}
+      <Card className="overflow-hidden">
         <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <div className="min-w-full">
-              {/* Header with dates/resources */}
-              <div className="border-b sticky top-0 bg-background z-10">
-                <div className="grid" style={{ gridTemplateColumns: `120px repeat(${resources.length}, minmax(200px, 1fr))` }}>
-                  {/* Time column header */}
-                  <div className="border-r p-2 font-medium text-sm bg-muted/50"></div>
-                  {/* Resource headers */}
-                  {resources.map((resource) => (
-                    <div key={resource.id} className="border-r p-2 text-center font-medium text-sm bg-muted/50 last:border-r-0">
-                      <div className="flex flex-col items-center gap-1">
-                        <span>{resource.name}</span>
-                        <span className="text-xs text-muted-foreground capitalize">{resource.type.replace("-", " ")}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Time slots and appointments */}
-              <div className="relative" style={{ minHeight: `${timeSlots.length * 60}px` }}>
-                {/* Render time slot grid */}
-                {timeSlots.map((slotTime, slotIndex) => (
-                  <div
-                    key={slotTime}
-                    className="grid border-b border-border/50"
-                    style={{ gridTemplateColumns: `120px repeat(${resources.length}, minmax(200px, 1fr))`, height: "60px" }}
-                  >
-                    {/* Time label */}
-                    <div className="border-r p-1 text-xs text-muted-foreground bg-muted/30">
-                      {slotIndex % (60 / timeSlotInterval) === 0 && (
-                        <div className="font-medium">{slotTime}</div>
-                      )}
-                    </div>
-
-                    {/* Resource columns - empty cells for grid structure */}
-                    {resources.map((resource) => (
-                      <div
-                        key={`${resource.id}-${slotTime}`}
-                        className="border-r last:border-r-0 hover:bg-muted/20 cursor-pointer transition-colors"
-                        onClick={() => {
-                          const [hours, minutes] = slotTime.split(":").map(Number);
-                          const slotDate = setMinutes(setHours(currentDate, hours), minutes);
-                          onTimeSlotClick?.(slotDate, resource.id, slotTime);
-                        }}
-                      />
-                    ))}
-                  </div>
-                ))}
-
-                {/* Render appointments absolutely positioned */}
-                {resources.map((resource, resourceIndex) => {
-                  // Get appointments for this resource and date
-                  const resourceAppointments = filteredAppointments.filter((apt) => {
-                    const matchesResource = apt.vet === resource.id || apt.examRoom === resource.id;
-                    const matchesDate = displayDates.some((date) => isSameDay(apt.date, date));
-                    return matchesResource && matchesDate;
-                  });
-
-                  return resourceAppointments.map((appointment) => {
-                    const style = getAppointmentStyle(appointment);
-                    const color = getAppointmentColor(appointment);
-                    const columnWidth = `calc((100% - 120px) / ${resources.length})`;
-                    const leftOffset = `calc(120px + ${resourceIndex} * ${columnWidth})`;
-
-                    return (
-                      <div
-                        key={appointment.id}
-                        className={cn(
-                          "absolute rounded-md p-1.5 text-white text-xs shadow-sm cursor-pointer hover:shadow-md transition-shadow z-20",
-                          color
-                        )}
-                        style={{
-                          ...style,
-                          left: leftOffset,
-                          width: `calc(${columnWidth} - 8px)`,
-                          marginLeft: "4px",
-                        }}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onAppointmentClick?.(appointment);
-                        }}
-                      >
-                        <div className="font-medium truncate">{appointment.petName}</div>
-                        <div className="text-xs opacity-90 truncate">{appointment.ownerName}</div>
-                        <div className="flex items-center gap-1 mt-0.5">
-                          <Clock className="h-3 w-3" />
-                          <span>{appointment.time} ({appointment.duration}m)</span>
-                        </div>
-                        <div className="flex items-center gap-1 flex-wrap">
-                          <Badge variant="secondary" className="text-xs h-4 px-1">
-                            {appointment.type}
-                          </Badge>
-                          <Badge
-                            variant={appointment.status === "confirmed" ? "default" : "secondary"}
-                            className="text-xs h-4 px-1"
-                          >
-                            {appointment.status}
-                          </Badge>
-                        </div>
-                      </div>
-                    );
-                  });
-                })}
-              </div>
-            </div>
-          </div>
+          {(viewMode === "day" || viewMode === "week") && (
+            <TimeGrid
+              dates={displayDates}
+              appointments={filteredAppointments}
+              timeSlots={timeSlots}
+              startHour={startHour}
+              timeSlotInterval={timeSlotInterval}
+              onAppointmentClick={onAppointmentClick}
+              onTimeSlotClick={onTimeSlotClick}
+            />
+          )}
+          {viewMode === "month" && (
+            <MonthGrid
+              currentDate={currentDate}
+              appointments={filteredAppointments}
+              onAppointmentClick={onAppointmentClick}
+              onDayClick={(d) => { setCurrentDate(d); setViewMode("day"); }}
+            />
+          )}
         </CardContent>
       </Card>
     </div>
   );
 }
-

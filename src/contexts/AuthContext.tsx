@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from "react";
 import { DEMO_USER, getDemoCredentials } from "@/lib/authStore";
-import { DEMO_ACCOUNT_ID, setActiveAccountId } from "@/lib/accountStore";
+import { DEMO_ACCOUNT_ID, setActiveAccountId, getAccountScopedKey } from "@/lib/accountStore";
+import type { Role } from "@/lib/rbac";
 
 const AUTH_STORAGE_KEY = "vetcare-demo-auth";
 
@@ -45,6 +46,7 @@ const REGISTERED_USERS_KEY = "vetcare_registered_users";
 export interface RegisteredUser extends User {
   password: string;
   accountId: string;
+  role?: Role;
 }
 
 function getRegisteredUsers(): RegisteredUser[] {
@@ -78,7 +80,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const { password: _, ...userWithoutPassword } = found;
       setUser(userWithoutPassword);
       saveUser(userWithoutPassword);
-      if (found.accountId) setActiveAccountId(found.accountId);
+      if (found.accountId) {
+        setActiveAccountId(found.accountId);
+        // Restore this account's role so RoleContext picks it up
+        const roleKey = getAccountScopedKey("acf_role", found.accountId);
+        if (!localStorage.getItem(roleKey)) {
+          const roleToSet: Role = found.role ?? "SuperAdmin";
+          try { localStorage.setItem(roleKey, JSON.stringify(roleToSet)); } catch {}
+        }
+      }
       return true;
     }
 
@@ -92,6 +102,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(DEMO_USER);
       saveUser(DEMO_USER);
       setActiveAccountId(DEMO_ACCOUNT_ID);
+      // Ensure demo account always has a role set
+      const demoRoleKey = getAccountScopedKey("acf_role", DEMO_ACCOUNT_ID);
+      if (!localStorage.getItem(demoRoleKey)) {
+        try { localStorage.setItem(demoRoleKey, JSON.stringify("SuperAdmin")); } catch {}
+      }
       return true;
     }
     return false;

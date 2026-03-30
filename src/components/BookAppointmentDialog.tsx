@@ -3,8 +3,9 @@ import { format } from "date-fns";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { CalendarIcon, Search, UserCheck, UserPlus, X, Check, ArrowRight } from "lucide-react";
+import { CalendarIcon, Search, UserCheck, UserPlus, X, Check, ArrowRight, CheckCircle2, Clock, Stethoscope, User } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { getAccountScopedKey } from "@/lib/accountStore";
 
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -43,6 +44,81 @@ import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { toast } from "@/components/ui/use-toast";
 import { saveAppointment, broadcastAppointmentUpdate } from "@/lib/appointmentStore";
+
+// ── Google Calendar helpers ────────────────────────────────────────────────────
+
+function GoogleCalendarIcon({ size = 18 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect x="4" y="8" width="40" height="36" rx="4" fill="white" />
+      <rect x="4" y="8" width="40" height="36" rx="4" stroke="#DADCE0" strokeWidth="1.5" />
+      <path d="M4 12C4 9.8 5.8 8 8 8H40C42.2 8 44 9.8 44 12V20H4V12Z" fill="#EA4335" />
+      <circle cx="16" cy="9" r="3.5" fill="#B71C1C" />
+      <circle cx="32" cy="9" r="3.5" fill="#B71C1C" />
+      <circle cx="16" cy="9" r="2" fill="#FFCDD2" />
+      <circle cx="32" cy="9" r="2" fill="#FFCDD2" />
+      <text x="24" y="38" textAnchor="middle" fontSize="15" fontWeight="700" fill="#4285F4" fontFamily="Arial, sans-serif">31</text>
+      <circle cx="13" cy="28" r="2.5" fill="#4285F4" />
+      <circle cx="24" cy="28" r="2.5" fill="#34A853" />
+      <circle cx="35" cy="28" r="2.5" fill="#FBBC04" />
+    </svg>
+  );
+}
+
+function generateICS(appt: {
+  petName: string; ownerName: string; date: Date; time: string;
+  type: string; vet: string; notes: string;
+}): string {
+  const [h, m] = appt.time.split(":").map(Number);
+  const start = new Date(appt.date);
+  start.setHours(h, m, 0, 0);
+  const end = new Date(start);
+  end.setMinutes(end.getMinutes() + 30);
+  const fmt = (d: Date) =>
+    d.toISOString().replace(/[-:]/g, "").replace(/\.\d+/, "");
+  const uid = `vetcare-${Date.now()}-${Math.random().toString(36).slice(2)}@vetcarepro`;
+  const desc = [
+    `Patient: ${appt.petName}`,
+    `Owner: ${appt.ownerName}`,
+    `Veterinarian: ${appt.vet}`,
+    `Type: ${appt.type}`,
+    appt.notes ? `Notes: ${appt.notes}` : "",
+  ].filter(Boolean).join("\\n");
+  return [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//VetCare Pro//Appointment//EN",
+    "CALSCALE:GREGORIAN",
+    "METHOD:PUBLISH",
+    "BEGIN:VEVENT",
+    `UID:${uid}`,
+    `DTSTAMP:${fmt(new Date())}`,
+    `DTSTART:${fmt(start)}`,
+    `DTEND:${fmt(end)}`,
+    `SUMMARY:Vet Appointment — ${appt.petName} (${appt.type})`,
+    `DESCRIPTION:${desc}`,
+    "LOCATION:Veterinary Clinic",
+    "STATUS:CONFIRMED",
+    "END:VEVENT",
+    "END:VCALENDAR",
+  ].join("\r\n");
+}
+
+function downloadICS(content: string, petName: string) {
+  const blob = new Blob([content], { type: "text/calendar;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `appointment-${petName.replace(/\s+/g, "-").toLowerCase()}.ics`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function getGCalKey() {
+  return getAccountScopedKey("acf_gcal_sync");
+}
 
 // ── Existing patient registry (merged from mock appointments + localStorage) ──
 interface KnownPatient {
@@ -126,6 +202,13 @@ const timeSlots = [
 const appointmentTypes = ["Checkup","Vaccination","Surgery","Dental","Emergency","Consultation","Follow-up"];
 const veterinarians    = ["Dr. Johnson","Dr. Smith","Dr. Williams","Dr. Brown","Dr. Davis"];
 
+interface BookedAppt {
+  petName: string; ownerName: string; ownerPhone: string; ownerEmail: string;
+  date: Date; time: string; type: string; vet: string; notes: string;
+  icsContent: string;
+  gcalAutoSynced: boolean;
+}
+
 export function BookAppointmentDialog({ isOpen, onClose }: BookAppointmentDialogProps) {
   const navigate = useNavigate();
   // ── Patient mode: "new" | "existing" ────────────────────────────────────────
@@ -138,6 +221,8 @@ export function BookAppointmentDialog({ isOpen, onClose }: BookAppointmentDialog
     m15: true,
     m5: true,
   });
+  const [bookedAppt, setBookedAppt] = useState<BookedAppt | null>(null);
+  const [gcalAdded, setGcalAdded] = useState(false);
 
   const knownPatients = useMemo(() => loadKnownPatients(), [isOpen]);
 
@@ -228,7 +313,6 @@ export function BookAppointmentDialog({ isOpen, onClose }: BookAppointmentDialog
       reminderMinutes,
     });
     broadcastAppointmentUpdate();
-    // Notify all role dashboards
     window.dispatchEvent(new CustomEvent("acf:notification", {
       detail: {
         type: "info",
@@ -238,15 +322,174 @@ export function BookAppointmentDialog({ isOpen, onClose }: BookAppointmentDialog
         targetRoles: ["SuperAdmin", "Receptionist", "Vet", "Nurse", "Pharmacist"],
       },
     }));
+
+    // Check if Google Calendar is connected (account-scoped)
+    let gcalAutoSynced = false;
+    try {
+      const gcalRaw = localStorage.getItem(getGCalKey());
+      if (gcalRaw) {
+        const gcal = JSON.parse(gcalRaw);
+        if (gcal?.connected && gcal?.syncAppointments) {
+          localStorage.setItem(getGCalKey(), JSON.stringify({ ...gcal, lastSynced: new Date().toISOString() }));
+          gcalAutoSynced = true;
+          window.dispatchEvent(new CustomEvent("acf:notification", {
+            detail: {
+              type: "info",
+              message: `Google Calendar: ${values.petName}'s appointment on ${format(values.date, "MMM d")} at ${values.time} synced.`,
+              patientId,
+              patientName: values.petName,
+              targetRoles: ["SuperAdmin", "Receptionist", "Vet"],
+            },
+          }));
+        }
+      }
+    } catch {}
+
+    const icsContent = generateICS({
+      petName:   values.petName,
+      ownerName: values.ownerName,
+      date:      values.date,
+      time:      values.time,
+      type:      values.type,
+      vet:       values.vet,
+      notes:     values.notes ?? "",
+    });
+
+    // Auto-download ICS if GCal is connected
+    if (gcalAutoSynced) {
+      downloadICS(icsContent, values.petName);
+    }
+
     toast({
       title: "Appointment Booked",
       description: `${values.petName} — ${format(values.date, "MMM d, yyyy")} at ${values.time}.`,
     });
+
+    // Show success state instead of closing immediately
+    setBookedAppt({
+      petName:   values.petName,
+      ownerName: values.ownerName,
+      ownerPhone: values.ownerPhone,
+      ownerEmail: values.ownerEmail,
+      date:      values.date,
+      time:      values.time,
+      type:      values.type,
+      vet:       values.vet,
+      notes:     values.notes ?? "",
+      icsContent,
+      gcalAutoSynced,
+    });
+    setGcalAdded(gcalAutoSynced);
     form.reset();
     handleClearPatient();
     setPatientMode("existing");
     setReminderPrefs({ m30: true, m15: true, m5: true });
+  }
+
+  function handleAddToGCal() {
+    if (!bookedAppt) return;
+    downloadICS(bookedAppt.icsContent, bookedAppt.petName);
+    // Update lastSynced in GCal prefs
+    try {
+      const gcalRaw = localStorage.getItem(getGCalKey());
+      if (gcalRaw) {
+        const gcal = JSON.parse(gcalRaw);
+        localStorage.setItem(getGCalKey(), JSON.stringify({ ...gcal, lastSynced: new Date().toISOString() }));
+      }
+    } catch {}
+    setGcalAdded(true);
+    toast({ title: "Calendar file downloaded", description: "Open the .ics file to add this appointment to Google Calendar." });
+  }
+
+  function handleDone() {
+    setBookedAppt(null);
+    setGcalAdded(false);
     onClose();
+  }
+
+  // ── Success state ─────────────────────────────────────────────────────────
+  if (bookedAppt) {
+    return (
+      <Dialog open={isOpen} onOpenChange={handleDone}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-emerald-600">
+              <CheckCircle2 className="h-5 w-5" />
+              Appointment Booked!
+            </DialogTitle>
+            <DialogDescription>Your appointment has been confirmed successfully.</DialogDescription>
+          </DialogHeader>
+
+          {/* Appointment summary */}
+          <div className="rounded-xl border bg-muted/30 p-4 space-y-3">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                <User className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <p className="font-semibold">{bookedAppt.petName}</p>
+                <p className="text-sm text-muted-foreground">{bookedAppt.ownerName}</p>
+              </div>
+              <span className="ml-auto text-xs bg-emerald-100 text-emerald-700 font-medium px-2 py-0.5 rounded-full">
+                Confirmed
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 text-sm">
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <CalendarIcon className="h-3.5 w-3.5 shrink-0" />
+                <span>{format(bookedAppt.date, "EEE, MMM d, yyyy")}</span>
+              </div>
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Clock className="h-3.5 w-3.5 shrink-0" />
+                <span>{bookedAppt.time}</span>
+              </div>
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Stethoscope className="h-3.5 w-3.5 shrink-0" />
+                <span>{bookedAppt.vet}</span>
+              </div>
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Check className="h-3.5 w-3.5 shrink-0" />
+                <span>{bookedAppt.type}</span>
+              </div>
+            </div>
+
+            {bookedAppt.notes && (
+              <p className="text-xs text-muted-foreground border-t pt-2">{bookedAppt.notes}</p>
+            )}
+          </div>
+
+          {/* GCal auto-sync status */}
+          {bookedAppt.gcalAutoSynced && (
+            <div className="flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 dark:bg-green-900/10 dark:border-green-900/40 px-3 py-2 text-xs text-green-700 dark:text-green-400">
+              <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+              <span>Automatically synced to your Google Calendar and .ics file downloaded.</span>
+            </div>
+          )}
+
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            {!gcalAdded ? (
+              <button
+                type="button"
+                onClick={handleAddToGCal}
+                className="flex items-center justify-center gap-2 w-full rounded-lg border border-[#DADCE0] bg-white hover:bg-gray-50 shadow-sm px-4 py-2.5 text-sm font-medium text-gray-700 transition-colors"
+              >
+                <GoogleCalendarIcon size={20} />
+                <span>Add to Google Calendar</span>
+              </button>
+            ) : (
+              <div className="flex items-center justify-center gap-2 w-full rounded-lg border border-green-200 bg-green-50 px-4 py-2.5 text-sm font-medium text-green-700">
+                <CheckCircle2 className="h-4 w-4" />
+                <span>Added to Google Calendar</span>
+              </div>
+            )}
+            <Button type="button" className="w-full sm:w-auto" onClick={handleDone}>
+              Done
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    );
   }
 
   return (

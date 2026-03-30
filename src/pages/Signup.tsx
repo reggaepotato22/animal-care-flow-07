@@ -8,9 +8,18 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { AlertCircle, Info, Building2, UserCircle } from "lucide-react";
+import { AlertCircle, Building2, UserCircle, Eye, EyeOff } from "lucide-react";
 import { createAccount, getAccountScopedKey, setActiveAccountId } from "@/lib/accountStore";
 import { saveStaff } from "@/lib/staffStore";
+import type { Role } from "@/lib/rbac";
+
+const ROLE_OPTIONS: { value: Role; label: string; desc: string }[] = [
+  { value: "SuperAdmin",   label: "Super Admin",   desc: "Full system access — manage all users, settings and data" },
+  { value: "Vet",          label: "Veterinarian",  desc: "Clinical staff — create records, prescribe, manage consultations" },
+  { value: "Nurse",        label: "Nurse / Attendant", desc: "Triage, clinical support and patient assessment" },
+  { value: "Receptionist", label: "Receptionist",  desc: "Front-desk — register patients, book appointments, billing" },
+  { value: "Pharmacist",   label: "Pharmacist",    desc: "Dispense medication and manage inventory" },
+];
 
 interface StaffMember {
   name: string;
@@ -22,6 +31,9 @@ export default function Signup() {
   const [clinicName, setClinicName] = useState("");
   const [adminEmail, setAdminEmail] = useState("");
   const [adminPassword, setAdminPassword] = useState("");
+  const [adminName, setAdminName] = useState("");
+  const [adminRole, setAdminRole] = useState<Role>("SuperAdmin");
+  const [showPassword, setShowPassword] = useState(false);
   const [staff, setStaff] = useState<StaffMember[]>([]);
   const [newStaffName, setNewStaffName] = useState("");
   const [newStaffRole, setNewStaffRole] = useState<"doctor" | "receptionist" | "admin">("doctor");
@@ -47,8 +59,12 @@ export default function Signup() {
     setError("");
 
     if (step === 1) {
-      if (!clinicName.trim() || !adminEmail.trim() || !adminPassword.trim()) {
+      if (!clinicName.trim() || !adminName.trim() || !adminEmail.trim() || !adminPassword.trim()) {
         setError("Please fill in all required fields");
+        return;
+      }
+      if (adminPassword.length < 6) {
+        setError("Password must be at least 6 characters");
         return;
       }
       setStep(2);
@@ -62,19 +78,28 @@ export default function Signup() {
     });
     setActiveAccountId(account.id);
 
-    const clinicData = {
-      accountId: account.id,
-      name: clinicName,
-      adminEmail,
-      createdAt: new Date().toISOString(),
-    };
+    // Store clinic data scoped to this account
+    localStorage.setItem(
+      getAccountScopedKey("vetcare_clinic_data", account.id),
+      JSON.stringify({ accountId: account.id, name: clinicName, adminEmail, createdAt: new Date().toISOString() })
+    );
 
-    localStorage.setItem(getAccountScopedKey("vetcare_clinic_data", account.id), JSON.stringify(clinicData));
+    // Store the admin's role for this account
+    localStorage.setItem(
+      getAccountScopedKey("acf_role", account.id),
+      JSON.stringify(adminRole)
+    );
+
+    // Store the profile display name
+    localStorage.setItem(
+      getAccountScopedKey("acf_profile_name", account.id),
+      adminName.trim() || clinicName
+    );
 
     const staffRecords = staff.map((s, i) => ({
       id: `staff-${Date.now()}-${i}`,
       name: s.name,
-      email: "",
+      email: s.email || "",
       phone: "",
       role: s.role,
       department: s.role === "doctor" ? "Clinical" : "Front Office",
@@ -85,13 +110,14 @@ export default function Signup() {
     }));
     saveStaff(staffRecords);
 
-    // Register the admin user so they can log in
+    // Register the admin user with their chosen role
     registerUser({
       id: `user-${Date.now()}`,
-      email: adminEmail,
-      name: clinicName, // Use clinic name as user name for now
+      email: adminEmail.trim().toLowerCase(),
+      name: adminName.trim() || clinicName,
       password: adminPassword,
       accountId: account.id,
+      role: adminRole,
     });
 
     // Auto login with the created account
@@ -108,18 +134,24 @@ export default function Signup() {
       <Card className="w-full max-w-lg shadow-lg">
         <CardHeader className="space-y-1 text-center">
           <div className="flex items-center justify-center gap-2 mb-2">
-            <Badge variant="secondary" className="bg-amber-100 text-amber-700 hover:bg-amber-100">
-              <Info className="h-3 w-3 mr-1" />
-              Demo Application
-            </Badge>
+            <div className="flex gap-1.5">
+              {[1, 2].map(n => (
+                <div
+                  key={n}
+                  className={`h-1.5 w-8 rounded-full transition-colors ${
+                    n <= step ? "bg-primary" : "bg-muted"
+                  }`}
+                />
+              ))}
+            </div>
           </div>
           <CardTitle className="text-2xl font-bold text-primary">
-            {step === 1 ? "Create Demo Account" : "Add Staff Members"}
+            {step === 1 ? "Create Your Clinic Account" : "Add Staff Members"}
           </CardTitle>
           <CardDescription>
-            {step === 1 
-              ? "Set up your demo clinic account" 
-              : "Add doctors and receptionists to your clinic"}
+            {step === 1
+              ? "Set up your clinic with a separate, isolated account"
+              : `Step 2 of 2 — ${clinicName} · ${adminName}`}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -134,7 +166,7 @@ export default function Signup() {
             {step === 1 ? (
               <>
                 <div className="space-y-2">
-                  <Label htmlFor="clinicName">Clinic Name</Label>
+                  <Label htmlFor="clinicName">Clinic Name <span className="text-destructive">*</span></Label>
                   <div className="relative">
                     <Building2 className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                     <Input
@@ -149,11 +181,45 @@ export default function Signup() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="adminEmail">Admin Email</Label>
+                  <Label htmlFor="adminName">Your Full Name <span className="text-destructive">*</span></Label>
+                  <div className="relative">
+                    <UserCircle className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      id="adminName"
+                      placeholder="Dr. Jane Smith"
+                      value={adminName}
+                      onChange={(e) => setAdminName(e.target.value)}
+                      className="pl-9"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="adminRole">Your Role <span className="text-destructive">*</span></Label>
+                  <Select value={adminRole} onValueChange={(v) => setAdminRole(v as Role)}>
+                    <SelectTrigger id="adminRole">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {ROLE_OPTIONS.map(r => (
+                        <SelectItem key={r.value} value={r.value}>
+                          <div>
+                            <span className="font-medium">{r.label}</span>
+                            <p className="text-xs text-muted-foreground">{r.desc}</p>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="adminEmail">Email Address <span className="text-destructive">*</span></Label>
                   <Input
                     id="adminEmail"
                     type="email"
-                    placeholder="admin@yourclinic.com"
+                    placeholder="you@yourclinic.com"
                     value={adminEmail}
                     onChange={(e) => setAdminEmail(e.target.value)}
                     required
@@ -161,15 +227,24 @@ export default function Signup() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="adminPassword">Password</Label>
-                  <Input
-                    id="adminPassword"
-                    type="password"
-                    placeholder="Create a password"
-                    value={adminPassword}
-                    onChange={(e) => setAdminPassword(e.target.value)}
-                    required
-                  />
+                  <Label htmlFor="adminPassword">Password <span className="text-destructive">*</span></Label>
+                  <div className="relative">
+                    <Input
+                      id="adminPassword"
+                      type={showPassword ? "text" : "password"}
+                      placeholder="At least 6 characters"
+                      value={adminPassword}
+                      onChange={(e) => setAdminPassword(e.target.value)}
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(s => !s)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    >
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
                 </div>
 
                 <Button type="submit" className="w-full">

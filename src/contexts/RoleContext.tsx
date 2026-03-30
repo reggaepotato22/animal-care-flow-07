@@ -3,8 +3,26 @@ import { ROLE_PERMISSIONS, type Permission, type Role } from "@/lib/rbac";
 import { logChange } from "@/lib/audit";
 import { useAccount } from "@/contexts/AccountContext";
 import { getDashboardAccessOverrides, subscribeToDashboardAccessOverrides, type DashboardControlledPermission } from "@/lib/dashboardAccessStore";
+import { getAccountScopedKey, getActiveAccountId } from "@/lib/accountStore";
 
-const STORAGE_KEY = "acf_role";
+const ROLE_BASE_KEY = "acf_role";
+
+function readRole(accountId: string): Role {
+  try {
+    const scoped = localStorage.getItem(getAccountScopedKey(ROLE_BASE_KEY, accountId));
+    if (scoped) return JSON.parse(scoped) as Role;
+    // backward-compat: check legacy flat key
+    const legacy = localStorage.getItem(ROLE_BASE_KEY);
+    if (legacy) return JSON.parse(legacy) as Role;
+  } catch {}
+  return "SuperAdmin";
+}
+
+function writeRole(accountId: string, role: Role) {
+  try {
+    localStorage.setItem(getAccountScopedKey(ROLE_BASE_KEY, accountId), JSON.stringify(role));
+  } catch {}
+}
 
 interface RoleContextValue {
   role: Role;
@@ -17,13 +35,7 @@ const RoleContext = createContext<RoleContextValue | null>(null);
 
 export function RoleProvider({ children }: { children: React.ReactNode }) {
   const { activeAccountId } = useAccount();
-  const [role, setRoleState] = useState<Role>(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) return JSON.parse(raw) as Role;
-    } catch {}
-    return "SuperAdmin";
-  });
+  const [role, setRoleState] = useState<Role>(() => readRole(getActiveAccountId()));
   const [dashboardOverrides, setDashboardOverrides] = useState(() => getDashboardAccessOverrides(activeAccountId));
   const permissions = useMemo(() => ROLE_PERMISSIONS[role], [role]);
 
@@ -36,12 +48,15 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
     return () => unsub();
   }, [activeAccountId]);
 
+  // Re-read role whenever the active account changes (login / account switch)
+  useEffect(() => {
+    setRoleState(readRole(activeAccountId));
+  }, [activeAccountId]);
+
   const setRole = (r: Role, changedBy = "admin") => {
     const prev = role;
     setRoleState(r);
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(r));
-    } catch {}
+    writeRole(activeAccountId, r);
     logChange({
       entityType: "System",
       entityId: "role",

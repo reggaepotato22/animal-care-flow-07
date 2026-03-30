@@ -2,8 +2,8 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRole } from "@/contexts/RoleContext";
-import { useWorkflowContext } from "@/contexts/WorkflowContext";
 import { ROLE_PERMISSIONS, type Role } from "@/lib/rbac";
+import { getAccountScopedKey } from "@/lib/accountStore";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,6 +16,7 @@ import {
   User, Mail, Shield, Bell, Palette, Settings, LogOut,
   CheckCircle, Lock, Stethoscope, ClipboardList, UserCheck,
   Package, Save, ChevronRight, Link, Printer, Workflow,
+  CalendarDays, RefreshCw, Unlink, Wifi, WifiOff,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
@@ -46,11 +47,37 @@ const PERM_LABELS: Record<string, string> = {
   can_view_active_staff:     "View Active Staff",
 };
 
-const NOTIF_KEY = "acf_profile_notifications";
+const NOTIF_BASE  = "acf_profile_notifications";
+const GCAL_BASE   = "acf_gcal_sync";
+const PNAME_BASE  = "acf_profile_name";
+
+function notifKey()  { return getAccountScopedKey(NOTIF_BASE); }
+function gcalKey()   { return getAccountScopedKey(GCAL_BASE); }
+function pnameKey()  { return getAccountScopedKey(PNAME_BASE); }
+
+interface GCalPrefs {
+  connected: boolean;
+  email: string;
+  syncAppointments: boolean;
+  syncReminders: boolean;
+  lastSynced: string | null;
+}
+
+function loadGCalPrefs(): GCalPrefs {
+  try {
+    const raw = localStorage.getItem(gcalKey());
+    if (raw) return JSON.parse(raw) as GCalPrefs;
+  } catch {}
+  return { connected: false, email: "", syncAppointments: true, syncReminders: true, lastSynced: null };
+}
+
+function saveGCalPrefs(prefs: GCalPrefs) {
+  localStorage.setItem(gcalKey(), JSON.stringify(prefs));
+}
 
 function loadNotifPrefs() {
   try {
-    const raw = localStorage.getItem(NOTIF_KEY);
+    const raw = localStorage.getItem(notifKey());
     if (raw) return JSON.parse(raw) as Record<string, boolean>;
   } catch {}
   return { checkin: true, triage: true, consultation: true, discharge: true, emergency: true };
@@ -62,21 +89,55 @@ export default function UserProfile() {
   const { role, setRole } = useRole();
   const { toast } = useToast();
 
-  // Editable display name (persisted in localStorage)
+  // Editable display name — per-account
   const [displayName, setDisplayName] = useState<string>(() => {
-    return localStorage.getItem("acf_profile_name") || user?.name || "Demo User";
+    return localStorage.getItem(pnameKey()) || user?.name || "Demo User";
   });
   const [editingName, setEditingName] = useState(false);
 
   // Notification preferences
   const [notifPrefs, setNotifPrefs] = useState(loadNotifPrefs);
+  const [gCal, setGCal] = useState<GCalPrefs>(loadGCalPrefs);
+  const [syncing, setSyncing] = useState(false);
+
+  const handleGCalConnect = () => {
+    const demoEmail = user?.email ?? "demo@vetcare.demo";
+    const updated: GCalPrefs = { ...gCal, connected: true, email: demoEmail, lastSynced: new Date().toISOString() };
+    setGCal(updated);
+    saveGCalPrefs(updated);
+    toast({ title: "Google Calendar Connected", description: `Syncing appointments to ${demoEmail}` });
+  };
+
+  const handleGCalDisconnect = () => {
+    const updated: GCalPrefs = { ...gCal, connected: false, email: "", lastSynced: null };
+    setGCal(updated);
+    saveGCalPrefs(updated);
+    toast({ title: "Google Calendar Disconnected", description: "Calendar sync has been disabled.", variant: "destructive" });
+  };
+
+  const handleGCalSync = () => {
+    setSyncing(true);
+    setTimeout(() => {
+      const updated: GCalPrefs = { ...gCal, lastSynced: new Date().toISOString() };
+      setGCal(updated);
+      saveGCalPrefs(updated);
+      setSyncing(false);
+      toast({ title: "Calendar Synced", description: "All appointments have been synced to Google Calendar." });
+    }, 1800);
+  };
+
+  const handleGCalToggle = (key: keyof GCalPrefs, val: boolean) => {
+    const updated = { ...gCal, [key]: val };
+    setGCal(updated);
+    saveGCalPrefs(updated);
+  };
 
   const permissions = ROLE_PERMISSIONS[role];
   const roleMeta    = ROLE_META[role];
   const RoleIcon    = roleMeta.icon;
 
   const handleSaveName = () => {
-    localStorage.setItem("acf_profile_name", displayName);
+    localStorage.setItem(pnameKey(), displayName);
     setEditingName(false);
     toast({ title: "Name updated", description: `Display name set to "${displayName}".` });
   };
@@ -84,7 +145,7 @@ export default function UserProfile() {
   const handleNotifToggle = (key: string, val: boolean) => {
     const updated = { ...notifPrefs, [key]: val };
     setNotifPrefs(updated);
-    localStorage.setItem(NOTIF_KEY, JSON.stringify(updated));
+    localStorage.setItem(notifKey(), JSON.stringify(updated));
   };
 
   const handleLogout = () => {
@@ -225,6 +286,109 @@ export default function UserProfile() {
               />
             </div>
           ))}
+        </CardContent>
+      </Card>
+
+      {/* Google Calendar Sync */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <CalendarDays className="h-4 w-4" />
+            Google Calendar Sync
+          </CardTitle>
+          <CardDescription className="text-xs">
+            Sync your clinic appointments with Google Calendar for reminders and scheduling.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Connection status */}
+          <div className={cn(
+            "flex items-center justify-between p-3 rounded-lg border",
+            gCal.connected ? "border-green-200 bg-green-50 dark:border-green-900/40 dark:bg-green-900/10" : "border-border bg-muted/20"
+          )}>
+            <div className="flex items-center gap-3">
+              <div className={cn("p-1.5 rounded-full", gCal.connected ? "bg-green-100 dark:bg-green-900/30" : "bg-muted")}>
+                {gCal.connected
+                  ? <Wifi className="h-4 w-4 text-green-600 dark:text-green-400" />
+                  : <WifiOff className="h-4 w-4 text-muted-foreground" />}
+              </div>
+              <div>
+                <p className="text-sm font-medium">
+                  {gCal.connected ? "Connected" : "Not connected"}
+                </p>
+                {gCal.connected && (
+                  <p className="text-xs text-muted-foreground">{gCal.email}</p>
+                )}
+                {gCal.connected && gCal.lastSynced && (
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    Last synced: {new Date(gCal.lastSynced).toLocaleString()}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              {gCal.connected && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8 gap-1.5 text-xs"
+                  onClick={handleGCalSync}
+                  disabled={syncing}
+                >
+                  <RefreshCw className={cn("h-3.5 w-3.5", syncing && "animate-spin")} />
+                  {syncing ? "Syncing…" : "Sync Now"}
+                </Button>
+              )}
+              {gCal.connected ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8 gap-1.5 text-xs text-destructive border-destructive/30 hover:bg-destructive/10"
+                  onClick={handleGCalDisconnect}
+                >
+                  <Unlink className="h-3.5 w-3.5" />
+                  Disconnect
+                </Button>
+              ) : (
+                <Button
+                  size="sm"
+                  className="h-8 gap-1.5 text-xs"
+                  onClick={handleGCalConnect}
+                >
+                  <CalendarDays className="h-3.5 w-3.5" />
+                  Connect Google Calendar
+                </Button>
+              )}
+            </div>
+          </div>
+
+          {/* Sync options (only when connected) */}
+          {gCal.connected && (
+            <div className="space-y-3">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Sync Options</p>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium">Sync Appointments</p>
+                  <p className="text-xs text-muted-foreground">Add booked appointments as Google Calendar events</p>
+                </div>
+                <Switch
+                  checked={gCal.syncAppointments}
+                  onCheckedChange={v => handleGCalToggle("syncAppointments", v)}
+                />
+              </div>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium">Appointment Reminders</p>
+                  <p className="text-xs text-muted-foreground">Receive Google Calendar reminders before appointments</p>
+                </div>
+                <Switch
+                  checked={gCal.syncReminders}
+                  onCheckedChange={v => handleGCalToggle("syncReminders", v)}
+                />
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 

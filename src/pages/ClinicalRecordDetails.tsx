@@ -389,7 +389,19 @@ export default function ClinicalRecordDetails() {
   const params = useParams();
   const { encounters, getEncountersByPatient } = useEncounter();
   const recordsBase = "/records";
-  
+
+  // All state declarations must come before any useMemo/useEffect that references them
+  const [activeTab, setActiveTab] = useState("soap");
+  const [refresh, setRefresh] = useState(0);
+  const [collapsedNotes, setCollapsedNotes] = useState<Set<string>>(new Set());
+  const [noteSearch, setNoteSearch] = useState("");
+  const [noteSort, setNoteSort] = useState<"newest" | "oldest" | "type" | "author">("newest");
+  const [noteTypeFilters, setNoteTypeFilters] = useState<Set<NoteType>>(new Set());
+  const [treatmentStatusFilter, setTreatmentStatusFilter] = useState<"all" | "pending" | "completed" | "cancelled">("all");
+  const [treatmentCategoryFilter, setTreatmentCategoryFilter] = useState<string>("all");
+  const [treatmentSort, setTreatmentSort] = useState<"recent" | "category" | "status">("recent");
+  const [collapsedVaccinations, setCollapsedVaccinations] = useState<Set<string>>(new Set());
+
   // Get record ID from URL params
   const recordId = params.id;
   
@@ -407,17 +419,6 @@ export default function ClinicalRecordDetails() {
     const unsub = subscribeToClinicalRecords(() => setRefresh(r => r + 1));
     return () => unsub();
   }, []);
-  
-  const [activeTab, setActiveTab] = useState("soap");
-  const [refresh, setRefresh] = useState(0);
-  const [collapsedNotes, setCollapsedNotes] = useState<Set<string>>(new Set());
-  const [noteSearch, setNoteSearch] = useState("");
-  const [noteSort, setNoteSort] = useState<"newest" | "oldest" | "type" | "author">("newest");
-  const [noteTypeFilters, setNoteTypeFilters] = useState<Set<NoteType>>(new Set());
-  const [treatmentStatusFilter, setTreatmentStatusFilter] = useState<"all" | "pending" | "completed" | "cancelled">("all");
-  const [treatmentCategoryFilter, setTreatmentCategoryFilter] = useState<string>("all");
-  const [treatmentSort, setTreatmentSort] = useState<"recent" | "category" | "status">("recent");
-  const [collapsedVaccinations, setCollapsedVaccinations] = useState<Set<string>>(new Set());
 
   const toggleNoteCollapse = (noteId: string) => {
     setCollapsedNotes(prev => {
