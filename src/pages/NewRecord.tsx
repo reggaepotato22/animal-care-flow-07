@@ -16,7 +16,7 @@ import { AdmissionRequestDialog } from "@/components/AdmissionRequestDialog";
 import { FindingsBoard } from "@/components/clinical/FindingsBoard";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { EncounterSidebar } from "@/components/EncounterSidebar";
-import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
+
 import { TreatmentSelector, EncounterItem } from "@/components/TreatmentSelector";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -35,6 +35,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useEncounter } from "@/contexts/EncounterContext";
 import { broadcastClinicalRecordUpdate, upsertClinicalRecord } from "@/lib/clinicalRecordStore";
+import { deductInventoryByName } from "@/lib/inventoryStore";
 import { getHospChannelName } from "@/lib/hospitalizationStore";
 import { EncounterHeader } from "@/components/EncounterHeader";
 import { Separator } from "@/components/ui/separator";
@@ -779,6 +780,7 @@ function loadPatientData(patientId: string | undefined, encounter?: any) {
     email: "",
     address: "",
     allergies: [] as string[],
+    behavioralWarnings: [] as Array<{ text: string; level: "low" | "medium" | "high" }>,
     emergencyContact: {
       name: "",
       phone: "",
@@ -788,7 +790,7 @@ function loadPatientData(patientId: string | undefined, encounter?: any) {
   if (!patientId) return fallback;
   try {
     const patients = getPatients();
-    const p = patients.find(pt => pt.patientId === patientId);
+    const p = patients.find(pt => pt.patientId === patientId || pt.id === patientId);
     if (!p) {
       const raw = localStorage.getItem("acf_known_patients");
       if (!raw) return fallback;
@@ -816,6 +818,7 @@ function loadPatientData(patientId: string | undefined, encounter?: any) {
         email: legacy.ownerEmail || "",
         address: legacy.ownerAddress || "",
         allergies: legacy.allergies || [],
+        behavioralWarnings: (legacy.behavioralWarnings as Array<{ text: string; level: "low" | "medium" | "high" }>) || [],
         emergencyContact: {
           name: legacy.emergencyContact || "",
           phone: legacy.emergencyPhone || "",
@@ -851,6 +854,7 @@ function loadPatientData(patientId: string | undefined, encounter?: any) {
       email: (p as any).email || "",
       address: (p as any).address || "",
       allergies: ((p as any).allergies as string[]) || [],
+      behavioralWarnings: ((p as any).behavioralWarnings as Array<{ text: string; level: "low" | "medium" | "high" }>) || [],
       emergencyContact: {
         name: "",
         phone: "",
@@ -885,7 +889,13 @@ export default function NewRecord() {
   useEffect(() => {
     if (stateEncounterId) {
       const enc = encounters.find(e => e.id === stateEncounterId);
-      if (enc) setActiveEncounter(enc);
+      if (enc) {
+        setActiveEncounter(enc);
+        // Auto-start consultation when arriving from Triage "Start Record"
+        if (["TRIAGED", "WAITING", "IN_TRIAGE"].includes(enc.status)) {
+          updateEncounterStatus(enc.id, "IN_CONSULTATION");
+        }
+      }
       return;
     }
     if (urlPatientId) {
@@ -926,10 +936,28 @@ export default function NewRecord() {
   // Allow editing during consultation, waiting, in-triage, or triaged; read-only only when discharged
   const canEdit = !isDischarged;
 
+  // Manual patient picker state — must be declared BEFORE mockPatientData
+  const [manualPatientId, setManualPatientId] = useState<string>("");
+  const [patientPickerSearch, setPatientPickerSearch] = useState("");
+  const filteredPickerPatients = React.useMemo(() => {
+    if (!patientPickerSearch.trim()) return [];
+    const q = patientPickerSearch.toLowerCase();
+    return getPatients().filter(p =>
+      p.name.toLowerCase().includes(q) ||
+      (p.patientId || "").toLowerCase().includes(q) ||
+      (p.owner || "").toLowerCase().includes(q)
+    ).slice(0, 8);
+  }, [patientPickerSearch]);
+  const selectedPatientFull = React.useMemo(() => {
+    const pid = activeEncounter?.patientId || urlPatientId || manualPatientId;
+    if (!pid) return null;
+    return getPatients().find(pt => pt.patientId === pid || pt.id === pid) ?? null;
+  }, [activeEncounter?.patientId, urlPatientId, manualPatientId]);
+
   // Dynamic patient data from real patients (replaces hardcoded mock)
   const mockPatientData = React.useMemo(
-    () => loadPatientData(activeEncounter?.patientId || urlPatientId, activeEncounter),
-    [activeEncounter, urlPatientId]
+    () => loadPatientData(activeEncounter?.patientId || urlPatientId || manualPatientId, activeEncounter),
+    [activeEncounter, urlPatientId, manualPatientId]
   );
 
   // Bottom panel state
@@ -1823,13 +1851,52 @@ const applyTemplate = (templateName: string, noteId?: string) => {
           petName:   displayPetName || pid,
           ownerName: displayOwner,
           notes:     clinicalNotes,
-          status:    "ongoing",
+          status:    "completed",
           savedAt:   new Date().toISOString(),
           encounterId: activeEncounter?.id,
+          veterinarian: selectedVeterinarian || "",
+          encounterItems,
         };
         localStorage.setItem(savedKey, JSON.stringify([record, ...existing]));
-        // Clear draft after saving
         localStorage.removeItem(DRAFT_RECORD_KEY(pid));
+      } catch {}
+    }
+
+    // End consultation — set encounter to DISCHARGED
+    if (activeEncounter) {
+      updateEncounterStatus(activeEncounter.id, "DISCHARGED");
+    }
+
+    // Auto-deduct used inventory items
+    encounterItems.forEach((item: any) => {
+      const deductible = ["medication", "drug", "treatment", "vaccination", "lab", "procedure"];
+      if (deductible.some(t => (item.type || "").toLowerCase().includes(t))) {
+        deductInventoryByName(item.title || item.name || "", item.quantity || 1);
+      }
+    });
+
+    // Save billing record
+    if (pid) {
+      try {
+        const BILLING_KEY = "acf_billing_records";
+        const existing: unknown[] = JSON.parse(localStorage.getItem(BILLING_KEY) ?? "[]");
+        const consultationFee = 1500;
+        const itemTotal = encounterItems.reduce((sum: number, i: any) => sum + (i.unitPrice || 0) * (i.quantity || 1), 0);
+        const billing = {
+          id: `bill-${Date.now()}`,
+          patientId: pid,
+          petName: displayPetName || pid,
+          ownerName: displayOwner,
+          encounterId: activeEncounter?.id,
+          veterinarian: selectedVeterinarian || "",
+          consultationFee,
+          itemTotal,
+          total: consultationFee + itemTotal,
+          status: "pending",
+          items: encounterItems,
+          createdAt: new Date().toISOString(),
+        };
+        localStorage.setItem(BILLING_KEY, JSON.stringify([billing, ...existing]));
       } catch {}
     }
 
@@ -1842,10 +1909,10 @@ const applyTemplate = (templateName: string, noteId?: string) => {
     window.dispatchEvent(new CustomEvent("acf:notification", {
       detail: {
         type: "success",
-        message: `Clinical record saved for ${displayPetName || pid} — moved to Pharmacy`,
+        message: `Consultation complete for ${displayPetName || pid} — billing created, moved to Pharmacy`,
         patientId: pid,
         patientName: displayPetName || pid,
-        targetRoles: ["SuperAdmin", "Vet", "Nurse", "Pharmacist"],
+        targetRoles: ["SuperAdmin", "Vet", "Nurse", "Pharmacist", "Receptionist"],
       },
     }));
 
@@ -2597,73 +2664,237 @@ const applyTemplate = (templateName: string, noteId?: string) => {
             </DropdownMenu>
           </div>
 
-          <div>
-            <Card className="mt-4">
-              <CardContent className="py-3">
-                <div className="flex items-center justify-between gap-4">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <div className="font-semibold truncate">{mockPatientData?.name || "Patient"}</div>
-                      {activeEncounter && (
-                        <Badge
-                          className={
-                            activeEncounter.status === "WAITING" ? "bg-yellow-100 text-yellow-800" :
-                            activeEncounter.status === "IN_TRIAGE" ? "bg-orange-100 text-orange-800" :
-                            activeEncounter.status === "TRIAGED" ? "bg-green-100 text-green-800" :
-                            activeEncounter.status === "IN_CONSULTATION" ? "bg-blue-100 text-blue-800" :
-                            activeEncounter.status === "IN_SURGERY" ? "bg-red-100 text-red-800" :
-                            activeEncounter.status === "RECOVERY" ? "bg-purple-100 text-purple-800" :
-                            activeEncounter.status === "DISCHARGED" ? "bg-green-100 text-green-800" :
-                            "bg-gray-100 text-gray-800"
-                          }
-                        >
-                          {activeEncounter.status.replace("_"," ").toLowerCase()}
-                        </Badge>
-                      )}
-                    </div>
-                    <div className="text-xs text-muted-foreground truncate">
-                      {mockPatientData?.species ? `${mockPatientData.species}` : "—"}
-                      {mockPatientData?.breed ? ` • ${mockPatientData.breed}` : ""}
-                    </div>
-                    <div className="mt-2 grid grid-cols-2 md:grid-cols-4 gap-2">
-                      <div className="text-xs">
-                        <span className="text-muted-foreground">Age:</span>{" "}
-                        <span className="font-medium">{mockPatientData?.age || "—"}</span>
-                      </div>
-                      <div className="text-xs">
-                        <span className="text-muted-foreground">Weight:</span>{" "}
-                        <span className="font-medium">{mockPatientData?.weight ? `${mockPatientData.weight}` : "—"}</span>
-                      </div>
-                      <div className="text-xs">
-                        <span className="text-muted-foreground">Owner:</span>{" "}
-                        <span className="font-medium">{mockPatientData?.owner?.name || "—"}</span>
-                      </div>
-                      <div className="text-xs">
-                        <span className="text-muted-foreground">Visit:</span>{" "}
-                        <span className="font-medium">
-                          {activeEncounter?.appointmentTime || activeEncounter?.appointmentType ? "appointment" : "walk-in"}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="shrink-0 text-xs text-muted-foreground">
-                    {saveState === "saving" ? (
-                      <span className="inline-flex items-center gap-1">
-                        <span className="h-2 w-2 rounded-full bg-primary animate-pulse" /> Saving…
-                      </span>
-                    ) : saveState === "saved" ? (
-                      <span className="inline-flex items-center gap-1">
-                        <span className="h-2 w-2 rounded-full bg-emerald-500" /> {lastSavedAt ? `Saved ${formatDistanceToNow(lastSavedAt, { addSuffix: true })}` : "Saved"}
-                      </span>
-                    ) : (
-                      <span>—</span>
-                    )}
-                  </div>
+          {/* ── Patient Selector — shown when no patient has been set ── */}
+          {!activeEncounter && !urlPatientId && !manualPatientId && (
+            <Card className="border-2 border-dashed border-primary/40 bg-primary/5">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <User className="h-4 w-4 text-primary" />
+                  Select Patient for this Record
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                  <Input
+                    placeholder="Search patient by name, ID, or owner…"
+                    value={patientPickerSearch}
+                    onChange={(e) => setPatientPickerSearch(e.target.value)}
+                    className="pl-9"
+                    autoFocus
+                  />
                 </div>
+                {filteredPickerPatients.length > 0 && (
+                  <div className="mt-2 border rounded-md overflow-hidden divide-y bg-popover shadow-md">
+                    {filteredPickerPatients.map((p) => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        className="w-full px-4 py-2.5 text-left hover:bg-accent transition-colors flex items-center gap-3"
+                        onClick={() => {
+                          const newEnc = createEncounter(p.id, {
+                            reason: "Walk-in Consultation",
+                            petName: p.name,
+                            ownerName: p.owner || "",
+                            status: "IN_CONSULTATION",
+                          });
+                          if (newEnc) setActiveEncounter(newEnc);
+                          setManualPatientId(p.patientId || p.id);
+                          setSelectedPatient(p.patientId || p.id);
+                          setPatientPickerSearch("");
+                        }}
+                      >
+                        <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                          <Heart className="h-4 w-4 text-primary" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="font-semibold text-sm flex items-center gap-2 flex-wrap">
+                            {p.name}
+                            <span className="font-mono text-xs text-primary bg-primary/10 px-1.5 py-0.5 rounded">{p.patientId}</span>
+                            {(p as any).behavioralWarnings?.some((w: any) => w.text) && (
+                              <span className="text-[10px] bg-orange-100 text-orange-700 border border-orange-200 px-1.5 py-0 rounded inline-flex items-center gap-0.5">
+                                <AlertTriangle className="h-2.5 w-2.5" /> Handling Warning
+                              </span>
+                            )}
+                            {p.allergies && p.allergies.length > 0 && p.allergies[0] !== "None known" && (
+                              <span className="text-[10px] bg-red-100 text-red-700 border border-red-200 px-1.5 py-0 rounded">
+                                Allergies
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-xs text-muted-foreground truncate">{p.species} • {p.breed} • Owner: {p.owner}</div>
+                        </div>
+                        <Badge variant="outline" className={p.status === "healthy" ? "bg-green-50 text-green-700 border-green-200" : p.status === "critical" ? "bg-red-50 text-red-700 border-red-200" : "bg-yellow-50 text-yellow-700 border-yellow-200"}>
+                          {p.status}
+                        </Badge>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {patientPickerSearch.trim() && filteredPickerPatients.length === 0 && (
+                  <p className="mt-3 text-sm text-muted-foreground text-center py-4">No patients found for &quot;{patientPickerSearch}&quot;</p>
+                )}
               </CardContent>
             </Card>
-          </div>
+          )}
+
+          {/* ── Patient Info Summary — shown when a patient is selected ── */}
+          {selectedPatientFull && (
+            <Card className="border border-border/70 shadow-sm">
+              <CardContent className="py-3 px-4">
+                <div className="flex items-start justify-between gap-3 flex-wrap mb-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                      <Heart className="h-6 w-6 text-primary" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-xl font-bold">{selectedPatientFull.name}</span>
+                        <span className="font-mono text-xs text-primary bg-primary/10 px-1.5 py-0.5 rounded">{selectedPatientFull.patientId}</span>
+                        <Badge variant="outline" className={selectedPatientFull.status === "healthy" ? "bg-green-50 text-green-700 border-green-200" : selectedPatientFull.status === "critical" ? "bg-red-50 text-red-700 border-red-200" : "bg-yellow-50 text-yellow-700 border-yellow-200"}>
+                          {selectedPatientFull.status}
+                        </Badge>
+                      </div>
+                      <p className="text-sm text-muted-foreground">{selectedPatientFull.species}{selectedPatientFull.breed ? ` • ${selectedPatientFull.breed}` : ""}</p>
+                    </div>
+                  </div>
+                  {manualPatientId && !activeEncounter && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="text-muted-foreground shrink-0"
+                      onClick={() => { setManualPatientId(""); setSelectedPatient(""); }}
+                    >
+                      <X className="h-3.5 w-3.5 mr-1" /> Change Patient
+                    </Button>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
+                  <div><span className="text-[11px] text-muted-foreground block">Age</span><span className="font-medium">{selectedPatientFull.age || "—"}</span></div>
+                  <div><span className="text-[11px] text-muted-foreground block">Weight</span><span className="font-medium">{selectedPatientFull.weight || "—"}</span></div>
+                  <div><span className="text-[11px] text-muted-foreground block">Sex</span><span className="font-medium">{selectedPatientFull.sex || "—"}</span></div>
+                  <div><span className="text-[11px] text-muted-foreground block">Microchip</span><span className="font-medium font-mono text-xs">{selectedPatientFull.microchip || "—"}</span></div>
+                </div>
+
+                <Separator className="my-2.5" />
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
+                  <div><span className="text-[11px] text-muted-foreground block">Owner</span><span className="font-medium">{selectedPatientFull.owner || "—"}</span></div>
+                  <div><span className="text-[11px] text-muted-foreground block">Phone</span><span className="font-medium">{selectedPatientFull.phone || "—"}</span></div>
+                  <div><span className="text-[11px] text-muted-foreground block">Email</span><span className="font-medium truncate">{selectedPatientFull.email || "—"}</span></div>
+                  {selectedPatientFull.address && (
+                    <div className="col-span-1 sm:col-span-3"><span className="text-[11px] text-muted-foreground block">Address</span><span className="font-medium">{selectedPatientFull.address}</span></div>
+                  )}
+                </div>
+
+                {((selectedPatientFull as any).vaccinations?.length > 0 || (selectedPatientFull as any).medications?.length > 0) && (
+                  <>
+                    <Separator className="my-2.5" />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                      {(selectedPatientFull as any).vaccinations?.length > 0 && (
+                        <div>
+                          <span className="text-[11px] text-muted-foreground block mb-1.5">Vaccinations</span>
+                          <div className="flex flex-wrap gap-1">
+                            {(selectedPatientFull as any).vaccinations.map((v: any, i: number) => (
+                              <Badge key={i} variant="outline" className="text-[10px] bg-green-50 text-green-700 border-green-200">
+                                {v.name}{v.date ? ` (${v.date})` : ""}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {(selectedPatientFull as any).medications?.length > 0 && (
+                        <div>
+                          <span className="text-[11px] text-muted-foreground block mb-1.5">Current Medications</span>
+                          <div className="flex flex-wrap gap-1">
+                            {(selectedPatientFull as any).medications.map((m: any, i: number) => (
+                              <Badge key={i} variant="outline" className="text-[10px] bg-blue-50 text-blue-700 border-blue-200">
+                                {m.name}{m.dosage ? ` — ${m.dosage}` : ""}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          <Card className="mt-4 border-amber-200 bg-amber-50/60 dark:border-amber-800 dark:bg-amber-950/20">
+            <CardContent className="py-2 px-4">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2 flex-1 min-w-0 flex-wrap">
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <AlertTriangle className="h-3.5 w-3.5 text-amber-600" />
+                    <span className="text-xs font-semibold text-amber-700 dark:text-amber-400 uppercase tracking-wide">Alerts &amp; Critical Info</span>
+                  </div>
+                  <span className="text-amber-300 dark:text-amber-700 text-xs shrink-0">|</span>
+                  {(mockPatientData?.allergies ?? []).length > 0 ? (
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-xs text-amber-700 dark:text-amber-400 font-medium shrink-0">Allergies:</span>
+                      {(mockPatientData?.allergies ?? []).map((a, i) => (
+                        <Badge key={i} variant="destructive" className="text-xs py-0 h-5">{a}</Badge>
+                      ))}
+                    </div>
+                  ) : (
+                    <span className="text-xs text-amber-600/70 dark:text-amber-500/70 italic">No known allergies</span>
+                  )}
+                  {(mockPatientData as any)?.medications?.length > 0 && (
+                    <>
+                      <span className="text-amber-300 dark:text-amber-700 text-xs shrink-0">|</span>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-xs text-amber-700 dark:text-amber-400 font-medium shrink-0">Current Meds:</span>
+                        {((mockPatientData as any).medications as Array<{name:string;dosage:string}>).map((m, i) => (
+                          <span key={i} className="text-xs bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200 rounded px-1.5 py-0.5 border border-amber-200 dark:border-amber-700">{m.name}{m.dosage ? ` ${m.dosage}` : ""}</span>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
+                <div className="shrink-0 text-xs text-muted-foreground">
+                  {saveState === "saving" ? (
+                    <span className="inline-flex items-center gap-1">
+                      <span className="h-2 w-2 rounded-full bg-primary animate-pulse" /> Saving…
+                    </span>
+                  ) : saveState === "saved" ? (
+                    <span className="inline-flex items-center gap-1">
+                      <span className="h-2 w-2 rounded-full bg-emerald-500" /> {lastSavedAt ? `Saved ${formatDistanceToNow(lastSavedAt, { addSuffix: true })}` : "Saved"}
+                    </span>
+                  ) : null}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Behavioral / Special Handling Warnings */}
+          {((mockPatientData as any)?.behavioralWarnings as Array<{text:string;level:"low"|"medium"|"high"}>|undefined)?.filter(w => w.text).map((w, i) => (
+            <div
+              key={i}
+              className={`mt-2 flex items-center gap-2 rounded-md px-3 py-2 text-xs font-medium border ${
+                w.level === "high"
+                  ? "bg-red-50 border-red-300 text-red-800 dark:bg-red-950/30 dark:border-red-700 dark:text-red-300"
+                  : w.level === "medium"
+                  ? "bg-orange-50 border-orange-300 text-orange-800 dark:bg-orange-950/30 dark:border-orange-700 dark:text-orange-300"
+                  : "bg-blue-50 border-blue-300 text-blue-800 dark:bg-blue-950/30 dark:border-blue-700 dark:text-blue-300"
+              }`}
+            >
+              <AlertTriangle className={`h-3.5 w-3.5 shrink-0 ${
+                w.level === "high" ? "text-red-500" : w.level === "medium" ? "text-orange-500" : "text-blue-500"
+              }`} />
+              <span>{w.text}</span>
+              <span className={`ml-auto shrink-0 uppercase text-[10px] font-bold tracking-wide px-1.5 py-0.5 rounded ${
+                w.level === "high"
+                  ? "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300"
+                  : w.level === "medium"
+                  ? "bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300"
+                  : "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300"
+              }`}>{w.level} risk</span>
+            </div>
+          ))}
 
       {/* Persistent Encounter Header */}
       {activeEncounter && (
@@ -2772,12 +3003,12 @@ const applyTemplate = (templateName: string, noteId?: string) => {
         </div>
       )}
 
-      {!activeEncounter ? (
+      {!activeEncounter && !manualPatientId ? (
         <Card className="p-12 text-center">
           <div className="flex flex-col items-center gap-4">
             <AlertTriangle className="h-12 w-12 text-yellow-500" />
             <h2 className="text-xl font-bold">No Active Visit</h2>
-            <p className="text-muted-foreground">Please select an existing visit or create a new one to start clinical work.</p>
+            <p className="text-muted-foreground">Search for a patient above or navigate from a patient record to begin.</p>
             <Button onClick={() => navigate("/patients")}>Go to Patients</Button>
           </div>
         </Card>
@@ -2808,24 +3039,6 @@ const applyTemplate = (templateName: string, noteId?: string) => {
               <ChevronRight className="h-4 w-4" />
             </Button>
           )}
-          {/* Clean Alerts Line - Below Header, Above Tabs - RED HIGHLIGHTED */}
-          <div className="px-6 py-2 border-b bg-red-50 dark:bg-red-950/20">
-            <div className="flex items-center gap-2 text-sm">
-              <AlertTriangle className="h-4 w-4 text-red-600" />
-              <span className="font-semibold text-red-700 dark:text-red-400">Patient Alerts:</span>
-              <span className="text-red-600 dark:text-red-300">
-                {mockMedicalHistory.allergies.map((a, index) => (
-                  <span key={a.id}>
-                    <span className="font-medium">{a.allergen}</span>
-                    <span className="text-red-500"> ({a.severity})</span>
-                    {index < mockMedicalHistory.allergies.length - 1 && (
-                      <span className="text-red-400 mx-2">|</span>
-                    )}
-                  </span>
-                ))}
-              </span>
-            </div>
-          </div>
 
           {/* Navigation Tabs */}
           <div className="relative">
@@ -2914,9 +3127,9 @@ const applyTemplate = (templateName: string, noteId?: string) => {
         </div>
 
       <div ref={groupRef}>
-      <ResizablePanelGroup direction="horizontal" className="min-h-[600px] rounded-lg border mt-4">
+      <div className="flex min-h-[600px] rounded-lg border mt-4">
         {/* Left Panel - Quick Templates and Medical History */}
-        <ResizablePanel defaultSize={35} minSize={25}>
+        <div className={["treatment","notes"].includes(activeTab) ? "w-[44%] border-r shrink-0" : "hidden"}>
           <div className="h-full p-6 space-y-6 overflow-y-auto">
             {/* Quick Templates Section - visible on Notes tab where clinical notes are managed */}
             <TabsContent value="notes" className="space-y-6">
@@ -3089,64 +3302,11 @@ const applyTemplate = (templateName: string, noteId?: string) => {
             </Card>
           </TabsContent>
 
-          {/* Default sidebar for other tabs */}
-          {["overview", "history", "physical-exam", "diagnostics", "vaccinations", "medications", "treatment", "notes"].map(tab => (
-            <TabsContent key={tab} value={tab} className="space-y-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                    <AlertTriangle className="h-4 w-4 text-red-500" />
-                    Alerts & Critical Info
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    <Label className="text-xs text-muted-foreground">Allergies</Label>
-                    <div className="flex flex-wrap gap-2">
-                      {mockMedicalHistory.allergies.map(a => (
-                        <Badge key={a.id} variant="destructive" className="text-xs">{a.allergen} ({a.severity})</Badge>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-xs text-muted-foreground">Current Medications</Label>
-                    <div className="space-y-1">
-                      {mockMedicalHistory.currentMedications.map(m => (
-                        <p key={m.id} className="text-xs">• {m.name} {m.dosage} ({m.frequency})</p>
-                      ))}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-sm font-semibold">Visit Details</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-2">
-                  <div className="flex justify-between text-xs">
-                    <span className="text-muted-foreground">Patient:</span>
-                    <span className="font-medium">{mockPatientData.name}</span>
-                  </div>
-                  <div className="flex justify-between text-xs">
-                    <span className="text-muted-foreground">Reason:</span>
-                    <span className="font-medium">{activeEncounter?.reason}</span>
-                  </div>
-                  <div className="flex justify-between text-xs">
-                    <span className="text-muted-foreground">Vet:</span>
-                    <span className="font-medium">{activeEncounter?.veterinarian}</span>
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-          ))}
           </div>
-        </ResizablePanel>
+        </div>
 
-        <ResizableHandle withHandle />
-
-        {/* Right Panel - Notes */}
-        <ResizablePanel defaultSize={65} minSize={40}>
+        {/* Right Panel */}
+        <div className="flex-1 overflow-hidden">
           <div ref={rightPanelRef} className="h-full p-6 overflow-y-auto">
             {/* Overview Tab */}
             {/* Triage Tab */}
@@ -7342,14 +7502,7 @@ const applyTemplate = (templateName: string, noteId?: string) => {
                   <Button variant="outline">
                     Save as Draft
                   </Button>
-                  <Button onClick={() => {
-                    // Update workflow status to PHARMACY
-                    if (selectedPatient) {
-                      wf.goTo("PHARMACY");
-                    }
-                    console.log("Saving clinical record...");
-                    navigate(recordsBase);
-                  }}>
+                  <Button onClick={handleSaveRecord}>
                     Save Record
                   </Button>
                 </div>
@@ -7357,8 +7510,8 @@ const applyTemplate = (templateName: string, noteId?: string) => {
             </CardContent>
           </Card>
           </div>
-        </ResizablePanel>
-      </ResizablePanelGroup>
+        </div>
+      </div>
       </div>
       </Tabs>
       </div>

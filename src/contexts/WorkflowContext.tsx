@@ -156,8 +156,8 @@ export function WorkflowProvider({
       const { type, payload } = event.data as { type: string; payload: Record<string, unknown> };
 
       if (type === "STEP_UPDATE") {
-        const { patientId, step, petName, ownerName } = payload as {
-          patientId: string; step: WorkflowStepId; petName?: string; ownerName?: string;
+        const { patientId, step } = payload as {
+          patientId: string; step: WorkflowStepId;
         };
         setMap(prev => { const n = { ...prev, [patientId]: step }; persist(STORAGE_MAP_KEY, n); return n; });
         if (step === "COMPLETED") {
@@ -168,7 +168,7 @@ export function WorkflowProvider({
             const n = { ...prev, [patientId]: "Active" as PatientLifecycleStatus }; persist(STORAGE_STATUS_KEY, n); return n;
           });
         }
-        dispatchNotification({ type: "info", patientId, step, patientName: petName || ownerName });
+        // NotificationContext.handleWf already handles cross-tab notifications
 
       } else if (type === "STATUS_UPDATE") {
         const { patientId, status } = payload as { patientId: string; status: PatientLifecycleStatus };
@@ -182,8 +182,7 @@ export function WorkflowProvider({
           const n = [...prev, patientId]; persist(STORAGE_CHECKIN_KEY, n); return n;
         });
         setMap(prev => { const n = { ...prev, [patientId]: step }; persist(STORAGE_MAP_KEY, n); return n; });
-        dispatchNotification({ type: "success", patientId, step: "TRIAGE", patientName: meta.name,
-          message: `${meta.name} (${meta.owner}) has been checked in → Triage queue` });
+        // NotificationContext.handleWf already handles cross-tab notifications
       }
     };
 
@@ -284,19 +283,20 @@ export function WorkflowProvider({
     if (prev) setStep(patientId, prev);
   };
 
-  const checkIn = (patientId: string, meta: PatientMeta) => {
+  const checkIn = (patientId: string, meta: PatientMeta, silent = false) => {
     setMetaMap(prev => { const n = { ...prev, [patientId]: meta }; persist(STORAGE_META_KEY, n); return n; });
     setCheckedInIds(prev => {
       if (prev.includes(patientId)) return prev;
       const n = [...prev, patientId]; persist(STORAGE_CHECKIN_KEY, n); return n;
     });
     setMap(prev => { const n = { ...prev, [patientId]: "TRIAGE" as WorkflowStepId }; persist(STORAGE_MAP_KEY, n); return n; });
-    // Broadcast to other tabs
+    // Broadcast to other tabs (PATIENT_CHECKIN only — no duplicate STEP_UPDATE)
     workflowChannel.postMessage({ type: "PATIENT_CHECKIN", payload: { patientId, meta, step: "TRIAGE" } });
-    workflowChannel.postMessage({ type: "STEP_UPDATE", payload: { patientId, step: "TRIAGE", petName: meta.name, ownerName: meta.owner } });
-    // Notify same tab
-    dispatchNotification({ type: "success", patientId, step: "TRIAGE", patientName: meta.name,
-      message: `${meta.name} (${meta.owner}) checked in — sent to Triage queue` });
+    // Notify same tab (unless silenced for custom override)
+    if (!silent) {
+      dispatchNotification({ type: "success", patientId, step: "TRIAGE", patientName: meta.name,
+        message: `${meta.name} (${meta.owner}) checked in — sent to Triage queue` });
+    }
   };
 
   const isCheckedIn = (patientId: string) => checkedInIds.includes(patientId);

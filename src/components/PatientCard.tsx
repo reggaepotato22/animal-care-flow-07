@@ -1,14 +1,14 @@
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { MapPin, Phone, Heart, Stethoscope, CheckCircle, Plus } from "lucide-react";
+import { MapPin, Phone, Heart, Stethoscope, CheckCircle, Plus, AlertTriangle } from "lucide-react";
 import { useWorkflow } from "@/hooks/useWorkflow";
 import { useRole } from "@/contexts/RoleContext";
 import { useNavigate } from "react-router-dom";
-import { getStepRoute } from "@/config/workflow";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { useEncounter } from "@/contexts/EncounterContext";
+import { NewVisitDialog } from "@/components/NewVisitDialog";
 
 interface Patient {
   id: string;
@@ -26,6 +26,7 @@ interface Patient {
   image?: string;
   allergies?: string[];
   microchip?: string;
+  behavioralWarnings?: Array<{ text: string; level: "low" | "medium" | "high" }>;
 }
 
 interface PatientCardProps {
@@ -34,9 +35,10 @@ interface PatientCardProps {
   onTriage?: (patient: Patient) => void;
   hasAppointmentToday?: boolean;
   appointmentDetails?: { time: string; vet: string };
+  isCheckedIn?: boolean;
 }
 
-export function PatientCard({ patient, onViewDetails, onTriage, hasAppointmentToday, appointmentDetails }: PatientCardProps) {
+export function PatientCard({ patient, onViewDetails, onTriage, hasAppointmentToday, appointmentDetails, isCheckedIn }: PatientCardProps) {
   const getStatusColor = (status: string) => {
     switch (status) {
       case "healthy":
@@ -71,19 +73,6 @@ export function PatientCard({ patient, onViewDetails, onTriage, hasAppointmentTo
     });
   };
 
-  const handleNext = () => {
-    if (!wf.hasNext) return;
-    const nextStep = wf.steps[wf.currentIndex + 1];
-    wf.next();
-    if (nextStep) navigate(getStepRoute(nextStep.id));
-  };
-  const handlePrev = () => {
-    if (!wf.hasPrev) return;
-    const prevStep = wf.steps[wf.currentIndex - 1];
-    wf.prev();
-    if (prevStep) navigate(getStepRoute(prevStep.id));
-  };
-
   return (
     <Card 
       className="hover:shadow-md transition-shadow cursor-pointer"
@@ -116,11 +105,32 @@ export function PatientCard({ patient, onViewDetails, onTriage, hasAppointmentTo
                 Allergies
               </Badge>
             )}
+            {isCheckedIn && (
+              <Badge variant="outline" className="text-[10px] bg-teal-50 text-teal-700 border-teal-200 animate-pulse">
+                In Clinic
+              </Badge>
+            )}
           </div>
         </div>
       </CardHeader>
       
       <CardContent className="space-y-4">
+        {/* Behavioral warning pills */}
+        {patient.behavioralWarnings && patient.behavioralWarnings.filter(w => w.text).length > 0 && (
+          <div className="flex flex-wrap gap-1">
+            {patient.behavioralWarnings.filter(w => w.text).map((w, i) => (
+              <div key={i} className={`flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded border ${
+                w.level === "high" ? "bg-red-50 text-red-700 border-red-200"
+                : w.level === "medium" ? "bg-orange-50 text-orange-700 border-orange-200"
+                : "bg-blue-50 text-blue-700 border-blue-200"
+              }`}>
+                <AlertTriangle className="h-2.5 w-2.5" />
+                {w.text}
+              </div>
+            ))}
+          </div>
+        )}
+
         {hasAppointmentToday && appointmentDetails && (
           <div className="bg-blue-50/50 border border-blue-100 rounded-md p-2.5 flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -180,66 +190,31 @@ export function PatientCard({ patient, onViewDetails, onTriage, hasAppointmentTo
             )
           ) : (
             has("can_register_patients") && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={(e) => {
-                  handleCheckIn(e);
-                }}
-                className={cn(
-                  "w-full transition-colors",
-                  hasAppointmentToday 
-                    ? "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 hover:text-blue-800"
-                    : "border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 hover:text-indigo-800"
-                )}
-              >
-                {hasAppointmentToday ? (
-                  <>
-                    <CheckCircle className="h-4 w-4 mr-1.5" />
-                    Check-in
-                  </>
-                ) : (
-                  <>
+              hasAppointmentToday ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={(e) => { handleCheckIn(e); }}
+                  className="w-full border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 hover:text-blue-800"
+                >
+                  <CheckCircle className="h-4 w-4 mr-1.5" />
+                  Check-in
+                </Button>
+              ) : (
+                <NewVisitDialog patientId={patient.id} patientName={patient.name}>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={(e) => e.stopPropagation()}
+                    className="w-full border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 hover:text-indigo-800"
+                  >
                     <Plus className="h-4 w-4 mr-1.5" />
                     New Visit
-                  </>
-                )}
-              </Button>
+                  </Button>
+                </NewVisitDialog>
+              )
             )
           )}
-          
-          <div className="flex items-center gap-2 mt-4">
-            <Button 
-              variant="ghost" 
-              size="sm"
-              disabled={!wf.hasPrev}
-              onClick={(e) => {
-                e.stopPropagation();
-                handlePrev();
-              }}
-              className="flex-1 h-8 text-xs"
-            >
-              Previous
-            </Button>
-            <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
-              <div 
-                className="h-full bg-primary transition-all duration-300" 
-                style={{ width: `${wf.progress}%` }}
-              />
-            </div>
-            <Button 
-              variant="ghost" 
-              size="sm"
-              disabled={!wf.hasNext}
-              onClick={(e) => {
-                e.stopPropagation();
-                handleNext();
-              }}
-              className="flex-1 h-8 text-xs font-medium text-primary"
-            >
-              Next Step
-            </Button>
-          </div>
         </div>
       </CardContent>
     </Card>

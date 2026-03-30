@@ -2,12 +2,11 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useState, useMemo } from "react";
 import { differenceInDays, format, isSameDay } from "date-fns";
 import { PatientHeader } from "@/components/PatientHeader";
-import { WorkflowProgress } from "@/components/WorkflowProgress";
 import { AdmissionRequestDialog } from "@/components/AdmissionRequestDialog";
 import { useEncounter } from "@/contexts/EncounterContext";
 import { useWorkflowContext } from "@/contexts/WorkflowContext";
-import { getPatients } from "@/lib/patientStore";
-import { loadStoredAppointments } from "@/lib/appointmentStore";
+import { getPatients, updatePatient } from "@/lib/patientStore";
+import { loadStoredAppointments, saveAppointment, broadcastAppointmentUpdate } from "@/lib/appointmentStore";
 import { useRole } from "@/contexts/RoleContext";
 import { useWorkflow } from "@/hooks/useWorkflow";
 import { useToast } from "@/hooks/use-toast";
@@ -31,13 +30,34 @@ export default function PatientDetails() {
   const { has } = useRole();
   const { toast } = useToast();
   const { encounters, getActiveEncounterForPatient, updateEncounterStatus } = useEncounter();
-  const { setPatientStatus, setStep } = useWorkflowContext();
+  const { setPatientStatus, setStep, checkIn } = useWorkflowContext();
+  const [updateCount, setUpdateCount] = useState(0);
 
   const patient = useMemo(() => {
     return getPatients().find(p => p.id === id || p.patientId === id);
-  }, [id]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, updateCount]);
+
+  const handlePatientUpdate = (updatedPatient: any) => {
+    updatePatient(updatedPatient.id, updatedPatient);
+    setUpdateCount(c => c + 1);
+  };
 
   const wf = useWorkflow({ patientId: patient?.id });
+
+  const handleEncounterCheckIn = (encId: string) => {
+    if (!patient) return;
+    updateEncounterStatus(encId, "IN_TRIAGE");
+    checkIn(patient.id, {
+      name: patient.name,
+      owner: (patient as any).owner || "",
+      time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      type: "Walk-in",
+      checkedInAt: new Date().toISOString(),
+    });
+    toast({ title: "✓ Checked In", description: `${patient.name} is now in the Triage queue.` });
+    setUpdateCount(c => c + 1);
+  };
 
   const handleStatusChange = (newStatus: string) => {
     if (id) {
@@ -47,20 +67,30 @@ export default function PatientDetails() {
 
   const handleRefer = () => {
     if (!id) return;
-    const enc = getActiveEncounterForPatient(id);
-    if (enc) updateEncounterStatus(enc.id, "DISCHARGED");
-    setPatientStatus(id, "Referred");
-    setStep(id, "COMPLETED");
-    try {
-      const stored: any[] = JSON.parse(localStorage.getItem("acf_clinical_records") ?? "[]");
-      stored.unshift({ type: "referral", patientId: id, petName: patient?.name, createdAt: new Date().toISOString(), status: "Referred" });
-      localStorage.setItem("acf_clinical_records", JSON.stringify(stored));
-      new BroadcastChannel(getHospChannelName()).postMessage({ type: "patient_referred", patientId: id });
-    } catch {}
-    window.dispatchEvent(new CustomEvent("acf:notification", {
-      detail: { type: "info", message: `${patient?.name ?? "Patient"} referred to external specialist`, patientId: id },
-    }));
-    toast({ title: "Patient Referred", description: `${patient?.name ?? "Patient"} has been referred.` });
+    navigate(`/patients/${id}/refer`);
+  };
+
+  const handleNewVisit = () => {
+    if (!patient) return;
+    const now = new Date();
+    const appt = {
+      id: `walkin-${Date.now()}`,
+      petName: patient.name,
+      ownerName: (patient as any).owner || "",
+      ownerPhone: (patient as any).phone || "",
+      ownerEmail: (patient as any).email || "",
+      date: now.toISOString(),
+      time: `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`,
+      type: "Walk-in",
+      vet: "",
+      status: "SCHEDULED" as const,
+      patientId: patient.id,
+      duration: 30,
+      createdAt: now.toISOString(),
+    };
+    saveAppointment(appt);
+    broadcastAppointmentUpdate();
+    navigate(`/?walkin=${patient.id}`);
   };
 
   const handleDeceased = () => {
@@ -303,7 +333,7 @@ export default function PatientDetails() {
                   className="cursor-pointer"
                   onSelect={(e) => e.preventDefault()}
                 >
-                  <EditPatientDialog patient={patient}>
+                  <EditPatientDialog patient={patient} onPatientUpdate={handlePatientUpdate}>
                     <div className="flex items-center w-full">
                       <Edit className="mr-2 h-4 w-4" />
                       Edit Patient
@@ -313,16 +343,12 @@ export default function PatientDetails() {
               )}
               {has("can_edit_medical_records") && (
                 <>
-                  <DropdownMenuItem 
+                  <DropdownMenuItem
                     className="cursor-pointer"
-                    onSelect={(e) => e.preventDefault()}
+                    onSelect={handleNewVisit}
                   >
-                    <NewVisitDialog>
-                      <div className="flex items-center w-full">
-                        <FileText className="mr-2 h-4 w-4" />
-                        New Visit
-                      </div>
-                    </NewVisitDialog>
+                    <FileText className="mr-2 h-4 w-4" />
+                    New Visit
                   </DropdownMenuItem>
                   <DropdownMenuItem 
                     className="cursor-pointer"
@@ -387,20 +413,30 @@ export default function PatientDetails() {
         </div>
       </div>
 
-      {/* Workflow Progress Bar */}
-      {patient.id && (
-        <Card className="p-6">
-          <WorkflowProgress patientId={patient.id} />
-        </Card>
-      )}
-
       <PatientHeader
         patient={patient}
         onStatusChipClass={getStatusColor}
         encounters={encounters.filter(enc => enc.patientId === patient.id)}
         onUpdateStatus={handleStatusChange}
         encounter={activeEncounter}
+        onPatientUpdate={handlePatientUpdate}
       />
+
+      {/* Behavioral / Special Handling Warnings */}
+      {((patient as any).behavioralWarnings as Array<{text:string;level:"low"|"medium"|"high"}>|undefined)?.filter(w => w.text).map((w, i) => (
+        <div key={i} className={`flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium border ${
+          w.level === "high" ? "bg-red-50 border-red-300 text-red-800 dark:bg-red-950/30 dark:border-red-700 dark:text-red-300"
+          : w.level === "medium" ? "bg-orange-50 border-orange-300 text-orange-800 dark:bg-orange-950/30 dark:border-orange-700 dark:text-orange-300"
+          : "bg-blue-50 border-blue-300 text-blue-800 dark:bg-blue-950/30 dark:border-blue-700 dark:text-blue-300"
+        }`}>
+          <AlertTriangle className={`h-4 w-4 shrink-0 ${w.level==="high"?"text-red-500":w.level==="medium"?"text-orange-500":"text-blue-500"}`} />
+          <span className="font-semibold">Special Handling:</span>
+          <span>{w.text}</span>
+          <span className={`ml-auto shrink-0 uppercase text-[10px] font-bold tracking-wide px-1.5 py-0.5 rounded ${
+            w.level==="high"?"bg-red-100 text-red-700":w.level==="medium"?"bg-orange-100 text-orange-700":"bg-blue-100 text-blue-700"
+          }`}>{w.level} risk</span>
+        </div>
+      ))}
 
       {/* Encounters List */}
       <Card className="overflow-hidden">
@@ -457,6 +493,16 @@ export default function PatientDetails() {
                       <span className="text-xs text-muted-foreground">
                         {enc.isLive ? `Vet: ${enc.personnel}` : `${enc.personnel} (${(enc as any).role || 'Staff'})`}
                       </span>
+                      {enc.isLive && enc.status === "WAITING" && has("can_register_patients") && (
+                        <Button
+                          size="sm"
+                          className="h-7 text-xs gap-1 bg-primary hover:bg-primary/90"
+                          onClick={(e) => { e.stopPropagation(); handleEncounterCheckIn(enc.id); }}
+                        >
+                          <CheckCircle className="h-3 w-3" />
+                          Check In
+                        </Button>
+                      )}
                     </div>
                   </div>
                   {enc.notes && (
@@ -645,21 +691,21 @@ export default function PatientDetails() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {patient.recentVisits && patient.recentVisits.length > 0 ? (
-              patient.recentVisits.map((visit, index) => (
-                <Card key={index} className="border-l-4 border-l-veterinary-teal">
+            {allEncounters.length > 0 ? (
+              allEncounters.slice(0, 5).map((enc, index) => (
+                <Card key={index} className={`border-l-4 ${enc.isActive ? 'border-l-primary' : 'border-l-veterinary-teal'}`}>
                   <CardContent className="p-4">
                     <div className="flex items-start justify-between">
                       <div className="space-y-1">
                         <div className="flex items-center space-x-2">
-                          <span className="font-semibold">{visit.reason}</span>
-                          <Badge variant="outline">{visit.date}</Badge>
+                          <span className="font-semibold">{enc.reason}</span>
+                          {enc.isActive && <Badge variant="default" className="text-[10px] h-4 px-1 bg-primary animate-pulse">ACTIVE</Badge>}
+                          <Badge variant="outline">{enc.date}</Badge>
                         </div>
-                        <p className="text-sm text-muted-foreground">
-                          Attended by: {visit.vet}
-                        </p>
-                        <p className="text-sm">{visit.notes}</p>
+                        <p className="text-sm text-muted-foreground">By: {enc.personnel}</p>
+                        {enc.notes && <p className="text-sm">{enc.notes}</p>}
                       </div>
+                      <Badge variant="outline" className="text-[10px] shrink-0">{enc.status}</Badge>
                     </div>
                   </CardContent>
                 </Card>

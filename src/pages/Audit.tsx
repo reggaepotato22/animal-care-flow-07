@@ -3,6 +3,7 @@ import { getLogs, subscribe, type AuditRecord } from "@/lib/audit";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { UnderDevelopment } from "@/components/UnderDevelopment";
 
 export default function Audit() {
   const [rows, setRows] = useState<AuditRecord[]>([]);
@@ -14,6 +15,7 @@ export default function Audit() {
   }, []);
 
   return (
+    <UnderDevelopment pageName="Audit Trails">
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold">Audit Trails</h1>
@@ -80,6 +82,7 @@ export default function Audit() {
         </CardContent>
       </Card>
     </div>
+    </UnderDevelopment>
   );
 }
 

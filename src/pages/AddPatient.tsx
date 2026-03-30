@@ -6,7 +6,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { generatePatientId } from "@/lib/utils";
-import { ArrowLeft, Save } from "lucide-react";
+import { ArrowLeft, Save, Plus, X, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -25,6 +25,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { commonBreedsKE } from "@/lib/kenya";
+import { addPatient } from "@/lib/patientStore";
 
 const patientSchema = z.object({
   name: z.string().min(1, "Pet name is required"),
@@ -46,6 +47,7 @@ const patientSchema = z.object({
   allergies: z.array(z.string()).default([]),
   medications: z.array(z.string()).default([]),
   vaccinations: z.array(z.string()).default([]),
+  behavioralWarnings: z.array(z.object({ text: z.string(), level: z.enum(["low", "medium", "high"]) })).default([]),
 });
 
 type PatientFormData = z.infer<typeof patientSchema>;
@@ -93,9 +95,11 @@ export default function AddPatient() {
       allergies: [],
       medications: [],
       vaccinations: [],
+      behavioralWarnings: [],
     },
   });
   const species = form.watch("species");
+  const behavioralWarnings = form.watch("behavioralWarnings");
 
   const onSubmit = async (data: PatientFormData) => {
     setIsSubmitting(true);
@@ -119,6 +123,30 @@ export default function AddPatient() {
         existing.push(newEntry);
       }
       localStorage.setItem("acf_known_patients", JSON.stringify(existing));
+    } catch {}
+
+    // Persist full patient record to patientStore so clinical records can read all fields
+    try {
+      addPatient({
+        name: data.name,
+        species: data.species,
+        breed: data.breed,
+        age: data.age,
+        weight: data.weight,
+        sex: data.gender,
+        color: data.color,
+        microchip: "",
+        owner: data.ownerName,
+        phone: data.ownerPhone,
+        email: data.ownerEmail,
+        address: data.ownerAddress,
+        location: "",
+        lastVisit: new Date().toISOString().split("T")[0],
+        status: "healthy",
+        allergies: data.allergies,
+        behavioralWarnings: data.behavioralWarnings,
+        medications: data.medications.map(m => ({ name: m, dosage: "", prescribed: new Date().toISOString().split("T")[0] })),
+      });
     } catch {}
 
     try {
@@ -435,10 +463,13 @@ export default function AddPatient() {
             </Card>
           </div>
 
-          {/* Medical Information */}
+          {/* Alerts & Critical Info */}
           <Card>
             <CardHeader>
-              <CardTitle>Medical Information</CardTitle>
+              <CardTitle className="flex items-center gap-2">
+                <AlertTriangle className="h-5 w-5 text-amber-500" />
+                Alerts &amp; Critical Info
+              </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <FormField
@@ -543,6 +574,76 @@ export default function AddPatient() {
                     </FormItem>
                   )}
                 />
+              </div>
+
+              {/* Behavioral / Special Handling Warnings */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label className="text-sm font-semibold">Special Handling Warnings</Label>
+                    <p className="text-xs text-muted-foreground mt-0.5">Biting, epilepsy, aggression, anxiety — these will appear as highlighted alerts in clinical records.</p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      const current = form.getValues("behavioralWarnings");
+                      form.setValue("behavioralWarnings", [...current, { text: "", level: "medium" }]);
+                    }}
+                    className="shrink-0"
+                  >
+                    <Plus className="h-3.5 w-3.5 mr-1" /> Add Warning
+                  </Button>
+                </div>
+                {behavioralWarnings.length > 0 && (
+                  <div className="space-y-2">
+                    {behavioralWarnings.map((w, i) => (
+                      <div key={i} className="flex items-center gap-2">
+                        <div className={`w-1.5 h-8 rounded-full shrink-0 ${w.level === "high" ? "bg-red-500" : w.level === "medium" ? "bg-orange-400" : "bg-blue-400"}`} />
+                        <Input
+                          value={w.text}
+                          onChange={e => {
+                            const updated = [...behavioralWarnings];
+                            updated[i] = { ...updated[i], text: e.target.value };
+                            form.setValue("behavioralWarnings", updated);
+                          }}
+                          placeholder="Describe the warning (e.g., bites when in pain)"
+                          className="flex-1"
+                        />
+                        <Select
+                          value={w.level}
+                          onValueChange={val => {
+                            const updated = [...behavioralWarnings];
+                            updated[i] = { ...updated[i], level: val as "low" | "medium" | "high" };
+                            form.setValue("behavioralWarnings", updated);
+                          }}
+                        >
+                          <SelectTrigger className="w-32">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="low">🔵 Low</SelectItem>
+                            <SelectItem value="medium">🟠 Medium</SelectItem>
+                            <SelectItem value="high">🔴 High</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
+                          onClick={() => {
+                            const updated = behavioralWarnings.filter((_, idx) => idx !== i);
+                            form.setValue("behavioralWarnings", updated);
+                          }}
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>

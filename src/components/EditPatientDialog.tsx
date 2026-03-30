@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
+import { Plus, X, AlertTriangle } from "lucide-react";
 
 interface Patient {
   id: string;
@@ -23,6 +24,7 @@ interface Patient {
   email: string;
   address: string;
   allergies: string[];
+  behavioralWarnings?: Array<{ text: string; level: "low" | "medium" | "high" }>;
 }
 
 interface EditPatientDialogProps {
@@ -46,7 +48,8 @@ export function EditPatientDialog({ patient, children, onPatientUpdate }: EditPa
     phone: patient.phone,
     email: patient.email,
     address: patient.address,
-    allergies: patient.allergies?.join(", ") || ""
+    allergies: patient.allergies?.join(", ") || "",
+    behavioralWarnings: patient.behavioralWarnings || []
   });
 
   const { toast } = useToast();
@@ -57,7 +60,8 @@ export function EditPatientDialog({ patient, children, onPatientUpdate }: EditPa
     const updatedPatient: Patient = {
       ...patient,
       ...formData,
-      allergies: formData.allergies.split(",").map(a => a.trim()).filter(a => a)
+      allergies: formData.allergies.split(",").map(a => a.trim()).filter(a => a),
+      behavioralWarnings: formData.behavioralWarnings
     };
 
     // In a real app, this would make an API call
@@ -231,9 +235,12 @@ export function EditPatientDialog({ patient, children, onPatientUpdate }: EditPa
             </div>
           </div>
 
-          {/* Medical Information */}
+          {/* Alerts & Critical Info */}
           <div className="space-y-4">
-            <h3 className="text-lg font-semibold">Medical Information</h3>
+            <h3 className="text-lg font-semibold flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-amber-500" />
+              Alerts &amp; Critical Info
+            </h3>
             <div className="space-y-2">
               <Label htmlFor="allergies">Known Allergies</Label>
               <Textarea
@@ -245,6 +252,70 @@ export function EditPatientDialog({ patient, children, onPatientUpdate }: EditPa
               <p className="text-sm text-muted-foreground">
                 Separate multiple allergies with commas. Leave empty if none known.
               </p>
+            </div>
+
+            {/* Special Handling Warnings */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label className="text-sm font-semibold">Special Handling Warnings</Label>
+                  <p className="text-xs text-muted-foreground mt-0.5">Biting, epilepsy, aggression — highlighted in clinical records.</p>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setFormData(prev => ({ ...prev, behavioralWarnings: [...prev.behavioralWarnings, { text: "", level: "medium" as const }] }))}
+                  className="shrink-0"
+                >
+                  <Plus className="h-3.5 w-3.5 mr-1" /> Add Warning
+                </Button>
+              </div>
+              {formData.behavioralWarnings.length > 0 && (
+                <div className="space-y-2">
+                  {formData.behavioralWarnings.map((w, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                      <div className={`w-1.5 h-8 rounded-full shrink-0 ${w.level === "high" ? "bg-red-500" : w.level === "medium" ? "bg-orange-400" : "bg-blue-400"}`} />
+                      <Input
+                        value={w.text}
+                        onChange={e => {
+                          const updated = [...formData.behavioralWarnings];
+                          updated[i] = { ...updated[i], text: e.target.value };
+                          setFormData(prev => ({ ...prev, behavioralWarnings: updated }));
+                        }}
+                        placeholder="e.g., bites when in pain"
+                        className="flex-1"
+                      />
+                      <Select
+                        value={w.level}
+                        onValueChange={val => {
+                          const updated = [...formData.behavioralWarnings];
+                          updated[i] = { ...updated[i], level: val as "low" | "medium" | "high" };
+                          setFormData(prev => ({ ...prev, behavioralWarnings: updated }));
+                        }}
+                      >
+                        <SelectTrigger className="w-32">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="low">🔵 Low</SelectItem>
+                          <SelectItem value="medium">🟠 Medium</SelectItem>
+                          <SelectItem value="high">🔴 High</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
+                        onClick={() => setFormData(prev => ({ ...prev, behavioralWarnings: prev.behavioralWarnings.filter((_, idx) => idx !== i) }))}
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 
