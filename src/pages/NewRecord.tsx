@@ -2775,6 +2775,12 @@ const applyTemplate = (templateName: string, noteId?: string) => {
                   Vaccinations
                 </TabsTrigger>
                 <TabsTrigger 
+                  value="medications"
+                  className="h-11 px-4 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-foreground hover:bg-muted/50"
+                >
+                  Medications
+                </TabsTrigger>
+                <TabsTrigger 
                   value="treatment"
                   className="h-11 px-4 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-foreground hover:bg-muted/50"
                 >
@@ -2969,7 +2975,7 @@ const applyTemplate = (templateName: string, noteId?: string) => {
           </TabsContent>
 
           {/* Default sidebar for other tabs */}
-          {["overview", "history", "physical-exam", "diagnostics", "vaccinations", "treatment", "notes"].map(tab => (
+          {["overview", "history", "physical-exam", "diagnostics", "vaccinations", "medications", "treatment", "notes"].map(tab => (
             <TabsContent key={tab} value={tab} className="space-y-6">
               <Card>
                 <CardHeader>
@@ -3564,6 +3570,33 @@ const applyTemplate = (templateName: string, noteId?: string) => {
               </div>
             </TabsContent>
 
+            {/* Medications Tab */}
+            <TabsContent value="medications" className="space-y-4">
+              <div className="grid grid-cols-1 gap-4">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-sm font-semibold">Prescribed Medications</CardTitle>
+                    <CardDescription>Medications prescribed during this visit.</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2">
+                      {medications.map(m => (
+                        <div key={m.id} className="p-3 border rounded-lg text-sm flex justify-between">
+                          <div className="min-w-0">
+                            <div className="font-medium truncate">{m.name} {m.dosage}</div>
+                            <div className="text-xs text-muted-foreground">{m.frequency} • {m.duration}</div>
+                          </div>
+                        </div>
+                      ))}
+                      {medications.length === 0 && (
+                        <p className="text-sm text-muted-foreground text-center py-8">No medications prescribed.</p>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            </TabsContent>
+
             {/* Treatment Tab */}
             <TabsContent value="treatment" className="space-y-4">
               {/* ── Confirmed findings that suggest medication/treatment ── */}
@@ -3639,27 +3672,6 @@ const applyTemplate = (templateName: string, noteId?: string) => {
                         ))}
                         {encounterItems.filter(item => item.type === 'treatment').length === 0 && (
                           <p className="text-sm text-muted-foreground text-center py-6">No treatments added. Use the catalog in the left panel or add from confirmed findings above.</p>
-                        )}
-                      </div>
-                    </CardContent>
-                </Card>
-
-                <Card>
-                    <CardHeader>
-                      <CardTitle className="text-sm font-semibold">Prescribed Medications</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-2">
-                        {medications.map(m => (
-                          <div key={m.id} className="p-2 border rounded text-sm flex justify-between">
-                            <div>
-                              <span className="font-medium">{m.name}</span> {m.dosage}
-                              <p className="text-xs text-muted-foreground">{m.frequency} • {m.duration}</p>
-                            </div>
-                          </div>
-                        ))}
-                        {medications.length === 0 && (
-                          <p className="text-sm text-muted-foreground text-center py-8">No medications prescribed.</p>
                         )}
                       </div>
                     </CardContent>
