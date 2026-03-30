@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useNavigate, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import * as z from "zod";
 import {
   Dialog,
@@ -77,7 +77,6 @@ const vetOptions = [
 
 export function NewVisitDialog({ children, defaultType = "New Visit" }: NewVisitDialogProps) {
   const [open, setOpen] = useState(false);
-  const navigate = useNavigate();
   const { id: patientId } = useParams();
   const { setStep, setPatientStatus } = useWorkflowContext();
   const { createEncounter, setActiveEncounter } = useEncounter();
@@ -155,8 +154,6 @@ export function NewVisitDialog({ children, defaultType = "New Visit" }: NewVisit
 
     setOpen(false);
     form.reset();
-
-    navigate(`/records`);
   };
 
   return (
