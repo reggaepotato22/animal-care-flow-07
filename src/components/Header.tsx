@@ -1,4 +1,5 @@
 import { Bell, Search as SearchIcon, User, LogOut, Sun, Moon, Leaf, SunMoon, Shield, CheckCheck, Trash2, Settings } from "lucide-react";
+import { AppLogo } from "@/components/AppLogo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -70,27 +71,7 @@ export function Header() {
       <div className="flex flex-col gap-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-4">
-            <h1 className="text-xl font-bold flex items-center gap-1.5" style={{ color: "hsl(190,19%,13%)" }}>
-              {/* Animal silhouettes */}
-              <span className="flex items-end gap-0.5">
-                <svg width="10" height="13" viewBox="0 0 10 14" fill="none" className="text-primary">
-                  <path d="M1 5C1 3 2 1 5 1C8 1 9 3 9 5C9 8 7.5 10 5 10C2.5 10 1 8 1 5Z" fill="currentColor" opacity="0.7"/>
-                  <path d="M1 2L2.5 4M9 2L7.5 4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
-                  <path d="M3 11L3 13M7 11L7 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-                </svg>
-                <svg width="8" height="15" viewBox="0 0 9 16" fill="none" className="text-primary">
-                  <path d="M2 5C2 3 3 1.5 4.5 1.5C6 1.5 7 3 7 5C7 7.5 6 9 4.5 9C3 9 2 7.5 2 5Z" fill="currentColor" opacity="0.8"/>
-                  <path d="M2.5 2L2 0.5M6.5 2L7 0.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
-                  <path d="M2.5 10L2 13M6.5 10L7 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-                </svg>
-                <svg width="13" height="13" viewBox="0 0 13 14" fill="none" className="text-primary">
-                  <path d="M2 6C2 3.5 3.5 1.5 6.5 1.5C9.5 1.5 11 3.5 11 6C11 9 9 11 6.5 11C4 11 2 9 2 6Z" fill="currentColor"/>
-                  <path d="M10.5 2L12 1M2.5 3L1 1.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
-                  <path d="M3.5 12L3 13.5M9.5 12L10 13.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-                </svg>
-              </span>
-              Inno<span className="text-primary">vet</span>Pro
-            </h1>
+            <AppLogo imgHeight={32} showText textClassName="text-xl font-bold" />
             <div className="relative w-96 hidden lg:block">
               <SearchIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
               <Input
