@@ -9,6 +9,7 @@ import {
   ArrowRight, CheckCircle2, Users, ClipboardList,
   Pill, ReceiptText, BarChart3, Shield,
   Star, Activity, Stethoscope, Menu, X,
+  Heart, Syringe, Quote, Clock, Lock,
 } from "lucide-react";
 
 // ── Lead capture ─────────────────────────────────────────────────────────────
@@ -53,30 +54,112 @@ async function submitRequest(email: string, phone: string): Promise<void> {
   }
 }
 
-// ── Data ──────────────────────────────────────────────────────────────────────
+// ── Data ─────────────────────────────────────────────────────────────
+const TICKER = [
+  "Patient Intake", "Clinical Workflows", "Pharmacy Management", "Smart Billing",
+  "Lab & Diagnostics", "Multi-Role Access", "Live Queue Board", "Audit Trails",
+  "Hospitalization", "Prescription Management", "PDF Records", "Appointment Scheduling",
+];
+
 const FEATURES = [
   { icon: Users,         title: "Patient Intake",        desc: "Register new patients or check in existing ones with a streamlined receptionist flow." },
   { icon: Stethoscope,   title: "Clinical Workflow",     desc: "Attendant vitals → Vet examination → Pharmacist dispensing, all in one guided flow." },
   { icon: Pill,          title: "Pharmacy & Inventory",  desc: "Real-time medication dispensing with automatic inventory deduction and low-stock alerts." },
   { icon: ReceiptText,   title: "Smart Billing",         desc: "Auto-generate invoices at discharge. Mark visits complete and archive in one click." },
-  { icon: BarChart3,     title: "Reports & Audit",       desc: "Full audit trails, revenue reports, and clinic performance analytics." },
+  { icon: BarChart3,     title: "Reports & Analytics",   desc: "Full audit trails, revenue reports, and clinic performance analytics at a glance." },
   { icon: Shield,        title: "Role-Based Access",     desc: "Fine-grained permissions for Receptionist, Vet, Nurse, Pharmacist, and SuperAdmin." },
   { icon: ClipboardList, title: "Lab & Diagnostics",     desc: "Order tests, track results, and attach lab reports directly to patient records." },
-  { icon: Activity,      title: "Live Patient Progress", desc: "Real-time queue board showing every patient's current stage from intake to discharge." },
+  { icon: Activity,      title: "Live Patient Queue",    desc: "Real-time queue board showing every patient’s current stage from intake to discharge." },
+  { icon: Heart,         title: "Patient Journey",       desc: "Full history of every visit, medication, diagnosis and outcome in one timeline view." },
+  { icon: Syringe,       title: "Treatment Tracking",    desc: "Log treatments, injections, and care plans. Link to prescriptions automatically." },
+  { icon: Clock,         title: "Appointments",          desc: "Schedule, reschedule, and send iCal invites. Integrates directly with the queue." },
+  { icon: Lock,          title: "Secure & Private",      desc: "Data isolated per clinic account. Role-restricted views ensure confidentiality." },
 ];
 
 const WORKFLOW = [
-  { num: "01", role: "Receptionist",         color: "bg-amber-500",  desc: "Register or check in a patient. Assign to today's queue with a single click." },
-  { num: "02", role: "Nurse / Veterinarian", color: "bg-blue-500",   desc: "Record vitals, perform examination, write diagnosis notes, and issue e-prescriptions." },
-  { num: "03", role: "Pharmacist & Billing", color: "bg-[#56B246]",  desc: "Dispense medication, update inventory, generate invoice, and close the visit." },
+  { num: "01", role: "Receptionist",         color: "bg-amber-500",  icon: Users,       desc: "Register or check in a patient. Assign to today's queue with a single click." },
+  { num: "02", role: "Nurse / Veterinarian", color: "bg-blue-500",   icon: Stethoscope, desc: "Record vitals, perform examination, write diagnosis notes, and issue e-prescriptions." },
+  { num: "03", role: "Pharmacist & Billing", color: "bg-[#56B246]",  icon: Pill,        desc: "Dispense medication, update inventory, generate invoice, and close the visit." },
 ];
 
-const STATS = [
-  { num: "10K+",  label: "Patients Managed" },
-  { num: "500+",  label: "Clinics Onboarded" },
-  { num: "5",     label: "Staff Roles" },
-  { num: "99.9%", label: "Uptime SLA" },
+
+const TESTIMONIALS = [
+  { name: "Dr. Sarah Mitchell",  role: "Chief Veterinarian",  clinic: "Greenfield Animal Hospital", quote: "InnoVetPro transformed how we run our clinic. The workflow automation alone saves us 2+ hours every single day.", stars: 5 },
+  { name: "James Okafor",        role: "Practice Manager",    clinic: "CityVet Clinic",             quote: "The role-based access is brilliant. Each staff member sees exactly what they need \u2014 no clutter, no confusion.", stars: 5 },
+  { name: "Dr. Amara Diallo",    role: "Head of Surgery",     clinic: "PetCare Medical Centre",     quote: "From intake to discharge the flow is completely seamless. I can’t imagine going back to our old paper system.", stars: 5 },
 ];
+
+// ── Decorative components ────────────────────────────────────────────────
+function PawPrint({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 100 100" className={className} fill="currentColor" aria-hidden>
+      <ellipse cx="30" cy="22" rx="9" ry="11" />
+      <ellipse cx="70" cy="22" rx="9" ry="11" />
+      <ellipse cx="14" cy="48" rx="7" ry="9" />
+      <ellipse cx="86" cy="48" rx="7" ry="9" />
+      <path d="M50 38 C24 38 18 58 18 70 C18 82 30 88 50 88 C70 88 82 82 82 70 C82 58 76 38 50 38Z" />
+    </svg>
+  );
+}
+
+function MockAppWindow() {
+  const patients = [
+    { name: "Max — Golden Retriever",  status: "In Exam",   color: "bg-blue-500" },
+    { name: "Luna — Persian Cat",      status: "Surgery",   color: "bg-purple-500" },
+    { name: "Rocky — German Shepherd", status: "Ready",     color: "bg-[#56B246]" },
+    { name: "Mia — Ragdoll Cat",       status: "Waiting",   color: "bg-amber-500" },
+    { name: "Bruno — Labrador",        status: "Triage",    color: "bg-red-400" },
+  ];
+  return (
+    <div className="rounded-2xl overflow-hidden border border-white/[0.12] bg-[#0f1e21] shadow-2xl shadow-black/60 w-full">
+      {/* Window chrome */}
+      <div className="flex items-center gap-1.5 px-4 py-2.5 bg-[#0a1517] border-b border-white/[0.06]">
+        <div className="h-2.5 w-2.5 rounded-full bg-red-500/70" />
+        <div className="h-2.5 w-2.5 rounded-full bg-amber-500/70" />
+        <div className="h-2.5 w-2.5 rounded-full bg-[#56B246]/70" />
+        <div className="ml-3 flex-1 bg-white/[0.05] rounded h-4 flex items-center px-2">
+          <span className="text-[9px] text-white/20">innovetpro.com/dashboard</span>
+        </div>
+      </div>
+      {/* App header bar */}
+      <div className="flex items-center justify-between px-4 py-2 bg-[#0d1a1c] border-b border-white/[0.05]">
+        <span className="text-xs font-bold text-white">InnoVetPro</span>
+        <div className="flex items-center gap-2">
+          <div className="h-5 w-20 bg-[#56B246]/20 rounded-full" />
+          <div className="h-6 w-6 bg-white/[0.06] rounded-full" />
+        </div>
+      </div>
+      {/* Stats */}
+      <div className="grid grid-cols-3 gap-2 p-3">
+        {[
+          { label: "Total Patients", value: "1,247", color: "#56B246" },
+          { label: "In Clinic Today", value: "18",   color: "#60a5fa" },
+          { label: "Discharged",     value: "9",    color: "#f59e0b" },
+        ].map(s => (
+          <div key={s.label} className="bg-white/[0.04] rounded-xl p-2.5">
+            <div className="text-[8px] text-white/35 mb-1 uppercase tracking-wider">{s.label}</div>
+            <div className="text-lg font-black" style={{ color: s.color }}>{s.value}</div>
+          </div>
+        ))}
+      </div>
+      {/* Patient list */}
+      <div className="px-3 pb-3 space-y-1">
+        <div className="text-[9px] text-white/25 uppercase tracking-widest px-1 pb-1">Live Queue</div>
+        {patients.map(p => (
+          <div key={p.name} className="flex items-center justify-between bg-white/[0.03] hover:bg-white/[0.05] rounded-lg px-3 py-2 transition-colors">
+            <div className="flex items-center gap-2">
+              <div className="h-6 w-6 rounded-full bg-white/[0.07] flex items-center justify-center">
+                <span className="text-[9px] text-white/40">🐾</span>
+              </div>
+              <span className="text-[11px] text-white/80">{p.name}</span>
+            </div>
+            <span className={cn("text-[9px] font-bold text-white px-2 py-0.5 rounded-full", p.color)}>{p.status}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 // ── Access form ───────────────────────────────────────────────────────────────
 function AccessForm({ center = false }: { center?: boolean }) {
@@ -145,153 +228,166 @@ function AccessForm({ center = false }: { center?: boolean }) {
   );
 }
 
-// ── Page ──────────────────────────────────────────────────────────────────────
+// ── Page ────────────────────────────────────────────────────────────────────────────────
 export default function Landing() {
-  const navigate        = useNavigate();
+  const navigate     = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  const scrollTo = (id: string) => {
+  const goTo = (id: string) => {
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
     setMobileOpen(false);
   };
 
   return (
-    <div className="min-h-screen bg-[#0b1517] text-white font-sans antialiased">
+    <div className="min-h-screen bg-[#0b1517] text-white font-sans antialiased overflow-x-hidden">
 
       {/* ── NAV ── */}
-      <nav className="fixed top-0 inset-x-0 z-50 border-b border-white/[0.06] backdrop-blur-md bg-[#0b1517]/80">
-        <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
-          <AppLogo imgHeight={34} showText textClassName="text-base font-bold text-white" />
-
-          <div className="hidden md:flex items-center gap-8 text-sm text-white/55">
-            {[["features","Features"],["workflow","How It Works"],["access","Request Access"]].map(([id,label]) => (
-              <button key={id} onClick={() => scrollTo(id)} className="hover:text-white transition-colors">
-                {label}
-              </button>
+      <nav className="fixed top-0 inset-x-0 z-50 border-b border-white/[0.06] backdrop-blur-xl bg-[#0b1517]/75">
+        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+          <AppLogo imgHeight={36} showText textClassName="text-base font-bold text-white" />
+          <div className="hidden md:flex items-center gap-8 text-sm text-white/50">
+            {([["features","Features"],["workflow","How It Works"],["testimonials","Reviews"],["access","Get Access"]] as [string,string][]).map(([id,label]) => (
+              <button key={id} onClick={() => goTo(id)} className="hover:text-white transition-colors">{label}</button>
             ))}
           </div>
-
           <div className="hidden md:flex items-center gap-3">
-            <Button variant="ghost" size="sm" className="text-white/60 hover:text-white hover:bg-white/10"
-              onClick={() => navigate("/login")}>Sign In</Button>
-            <Button size="sm"
-              className="bg-[#56B246] hover:bg-[#56B246]/90 text-white font-semibold"
-              onClick={() => scrollTo("access")}>
-              Request Access
+            <Button variant="ghost" size="sm"
+              className="text-white/60 hover:text-white hover:bg-white/10 gap-1.5"
+              onClick={() => navigate("/login/demo")}>
+              <Lock className="h-3.5 w-3.5" /> Sign In
+            </Button>
+            <Button size="sm" className="bg-[#56B246] hover:bg-[#56B246]/90 text-white font-semibold gap-1.5"
+              onClick={() => goTo("access")}>
+              Request Access <ArrowRight className="h-3.5 w-3.5" />
             </Button>
           </div>
-
-          {/* Mobile hamburger */}
           <button className="md:hidden text-white/60 hover:text-white" onClick={() => setMobileOpen(v => !v)}>
             {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </button>
         </div>
-
-        {/* Mobile menu */}
         {mobileOpen && (
-          <div className="md:hidden border-t border-white/[0.06] bg-[#0b1517] px-6 py-4 flex flex-col gap-4 text-sm">
-            {[["features","Features"],["workflow","How It Works"],["access","Request Access"]].map(([id,label]) => (
-              <button key={id} onClick={() => scrollTo(id)} className="text-left text-white/60 hover:text-white">{label}</button>
+          <div className="md:hidden border-t border-white/[0.06] bg-[#0b1517] px-6 py-4 space-y-3 text-sm">
+            {([["features","Features"],["workflow","How It Works"],["access","Get Access"]] as [string,string][]).map(([id,label]) => (
+              <button key={id} onClick={() => goTo(id)} className="block text-left text-white/60 hover:text-white">{label}</button>
             ))}
             <div className="flex gap-2 pt-2 border-t border-white/[0.06]">
-              <Button variant="outline" size="sm" className="flex-1 border-white/20 text-white bg-transparent hover:bg-white/10"
-                onClick={() => navigate("/login")}>Sign In</Button>
-              <Button size="sm" className="flex-1 bg-[#56B246] hover:bg-[#56B246]/90 text-white"
-                onClick={() => scrollTo("access")}>Get Access</Button>
+              <Button variant="outline" size="sm" className="flex-1 border-white/20 text-white bg-transparent"
+                onClick={() => navigate("/login/demo")}>Sign In</Button>
+              <Button size="sm" className="flex-1 bg-[#56B246] text-white" onClick={() => goTo("access")}>Get Access</Button>
             </div>
           </div>
         )}
       </nav>
 
       {/* ── HERO ── */}
-      <section className="pt-36 pb-24 px-6 relative overflow-hidden">
-        {/* Glow blobs */}
-        <div className="pointer-events-none absolute inset-0">
-          <div className="absolute top-[15%] left-1/2 -translate-x-1/2 w-[700px] h-[500px] bg-[#56B246]/[0.07] rounded-full blur-[130px]" />
-          <div className="absolute bottom-0 left-10 w-[300px] h-[300px] bg-blue-500/[0.04] rounded-full blur-[90px]" />
+      <section className="relative min-h-screen flex items-center pt-16 overflow-hidden">
+        {/* Video bg — add /hero-bg.mp4 to public/ for a real vet video */}
+        <video autoPlay muted loop playsInline
+          className="absolute inset-0 w-full h-full object-cover"
+          style={{ opacity: 0.10 }}>
+          <source src="/hero-bg.mp4" type="video/mp4" />
+        </video>
+
+        {/* Gradient overlays */}
+        <div className="absolute inset-0 bg-gradient-to-br from-[#0b1517] via-[#0b1517]/95 to-[#0f1f22]/90 pointer-events-none" />
+        <div className="absolute inset-0 pointer-events-none">
+          <div className="absolute top-1/3 left-1/4 w-[600px] h-[600px] bg-[#56B246]/[0.06] rounded-full blur-[140px]" />
+          <div className="absolute bottom-0 right-1/4 w-[400px] h-[400px] bg-blue-600/[0.04] rounded-full blur-[100px]" />
         </div>
 
-        <div className="max-w-4xl mx-auto relative text-center">
-          <Badge className="mb-7 bg-[#56B246]/15 text-[#56B246] border-[#56B246]/30 text-[11px] uppercase tracking-[0.18em] font-semibold px-4 py-1.5 rounded-full">
-            Veterinary Management Platform
-          </Badge>
+        {/* Decorative paw prints */}
+        <PawPrint className="absolute top-32 left-8 w-20 h-20 text-[#56B246]/[0.06] rotate-12 pointer-events-none" />
+        <PawPrint className="absolute bottom-24 left-20 w-12 h-12 text-[#56B246]/[0.04] -rotate-6 pointer-events-none" />
+        <PawPrint className="absolute top-48 right-12 w-16 h-16 text-[#56B246]/[0.05] rotate-45 pointer-events-none" />
 
-          <h1 className="text-5xl md:text-6xl lg:text-7xl font-black leading-[1.08] tracking-tight mb-6">
-            Streamline Your{" "}
-            <span className="text-[#56B246]">Entire</span>
-            <br />Veterinary Practice
-          </h1>
+        <div className="relative max-w-7xl mx-auto px-6 py-20 grid grid-cols-1 lg:grid-cols-2 gap-16 items-center w-full">
+          {/* Left — text */}
+          <div>
+            <div className="inline-flex items-center gap-2 mb-6 px-4 py-1.5 rounded-full bg-[#56B246]/15 border border-[#56B246]/25">
+              <div className="h-1.5 w-1.5 rounded-full bg-[#56B246] animate-pulse" />
+              <span className="text-[11px] text-[#56B246] font-semibold uppercase tracking-[0.18em]">Veterinary Management Platform</span>
+            </div>
 
-          <p className="text-lg text-white/45 leading-relaxed max-w-2xl mx-auto mb-10">
-            InnoVetPro unifies patient intake, clinical workflows, pharmacy,
-            billing, and reporting into one intelligent platform built for
-            modern veterinary clinics.
-          </p>
+            <h1 className="text-5xl lg:text-6xl xl:text-7xl font-black leading-[1.06] tracking-tight mb-6">
+              The Smarter Way<br />to Run Your{" "}
+              <span className="relative">
+                <span className="text-[#56B246]">Clinic</span>
+                <svg className="absolute -bottom-2 left-0 w-full" viewBox="0 0 200 12" fill="none">
+                  <path d="M2 8 Q50 2 100 8 Q150 14 198 6" stroke="#56B246" strokeWidth="2.5" strokeLinecap="round" fill="none" opacity="0.5"/>
+                </svg>
+              </span>
+            </h1>
 
-          <div className="max-w-lg mx-auto mb-4">
-            <AccessForm />
+            <p className="text-base text-white/45 leading-relaxed mb-8 max-w-xl">
+              InnoVetPro brings together patient intake, clinical workflows, pharmacy,
+              billing, and reporting — built exclusively for modern veterinary practices.
+            </p>
+
+            <div className="mb-5">
+              <AccessForm />
+            </div>
+            <p className="text-xs text-white/25">Credentials sent within 24 hrs · No credit card required</p>
           </div>
-          <p className="text-xs text-white/25">
-            Credentials available upon request · No credit card required
-          </p>
 
-          {/* Floating stat cards */}
-          <div className="flex flex-wrap justify-center gap-4 mt-16">
-            <div className="bg-white/[0.05] backdrop-blur-sm border border-white/[0.08] rounded-2xl px-6 py-4 flex items-center gap-4">
-              <div>
-                <div className="flex items-baseline gap-1.5">
-                  <Star className="h-4 w-4 fill-amber-400 text-amber-400 shrink-0 mt-0.5" />
-                  <span className="text-2xl font-black text-white">4.9</span>
+          {/* Right — mock app window */}
+          <div className="relative lg:block">
+            <div className="absolute -inset-4 bg-[#56B246]/[0.04] rounded-3xl blur-2xl" />
+            <div className="relative">
+              <MockAppWindow />
+              {/* Floating notification card */}
+              <div className="absolute -bottom-6 -left-6 bg-[#111e21] border border-[#56B246]/30 rounded-2xl px-4 py-3 shadow-xl flex items-center gap-3">
+                <div className="h-8 w-8 rounded-full bg-[#56B246]/20 flex items-center justify-center shrink-0">
+                  <CheckCircle2 className="h-4 w-4 text-[#56B246]" />
                 </div>
-                <div className="text-[11px] text-white/35 mt-0.5">2.6K+ Clinics Served</div>
+                <div>
+                  <div className="text-xs font-bold text-white">Patient Checked In</div>
+                  <div className="text-[10px] text-white/35">Rocky — German Shepherd · Just now</div>
+                </div>
               </div>
-            </div>
-
-            <div className="bg-white/[0.05] backdrop-blur-sm border border-white/[0.08] rounded-2xl px-6 py-4">
-              <div className="text-[11px] text-white/35 mb-1 flex items-center gap-1.5">
-                <Activity className="h-3 w-3 text-[#56B246]" /> Live Patients Today
-              </div>
-              <div className="text-2xl font-black text-white">
-                <span className="text-[#56B246]">↑</span> 1,240+
-              </div>
-            </div>
-
-            <div className="bg-white/[0.05] backdrop-blur-sm border border-white/[0.08] rounded-2xl px-6 py-4">
-              <div className="text-[11px] text-white/35 mb-1.5">Roles Supported</div>
-              <div className="text-2xl font-black text-white mb-1.5">5 Roles</div>
-              <div className="flex gap-1">
-                {[["R","Receptionist"],["V","Vet"],["N","Nurse"],["P","Pharmacist"],["A","Admin"]].map(([abbr]) => (
-                  <span key={abbr} className="text-[9px] bg-[#56B246]/20 text-[#56B246] px-1.5 py-0.5 rounded font-bold">
-                    {abbr}
-                  </span>
-                ))}
+              {/* Floating vitals card */}
+              <div className="absolute -top-5 -right-5 bg-[#111e21] border border-blue-500/20 rounded-2xl px-4 py-3 shadow-xl">
+                <div className="text-[10px] text-white/35 mb-1">Vitals Recorded</div>
+                <div className="text-xs font-bold text-white">Temp: 38.5°C · HR: 78 bpm</div>
+                <div className="flex items-center gap-1 mt-1">
+                  <Heart className="h-3 w-3 text-red-400 fill-current" />
+                  <span className="text-[10px] text-red-400">Normal range</span>
+                </div>
               </div>
             </div>
           </div>
         </div>
       </section>
 
+      {/* ── TICKER ── */}
+      <div className="border-y border-white/[0.06] bg-white/[0.02] py-4 overflow-hidden relative">
+        <div className="flex gap-12 whitespace-nowrap animate-[marquee_30s_linear_infinite]">
+          {[...TICKER, ...TICKER].map((item, i) => (
+            <span key={i} className="text-sm font-semibold text-white/30 shrink-0 flex items-center gap-2">
+              <span className="h-1.5 w-1.5 rounded-full bg-[#56B246] shrink-0" />{item}
+            </span>
+          ))}
+        </div>
+      </div>
+
       {/* ── FEATURES ── */}
-      <section id="features" className="py-24 px-6 bg-white/[0.018]">
-        <div className="max-w-6xl mx-auto">
+      <section id="features" className="py-28 px-6">
+        <div className="max-w-7xl mx-auto">
           <div className="text-center mb-16">
-            <p className="text-[#56B246] text-[11px] uppercase tracking-[0.2em] font-semibold mb-3">Platform Features</p>
-            <h2 className="text-3xl md:text-4xl font-black">Everything Your Clinic Needs</h2>
+            <p className="text-[#56B246] text-[11px] uppercase tracking-[0.2em] font-semibold mb-3">Complete Platform</p>
+            <h2 className="text-3xl md:text-4xl lg:text-5xl font-black">Everything Your Clinic Needs</h2>
             <p className="text-white/35 mt-4 max-w-xl mx-auto text-sm leading-relaxed">
-              From the first check-in to the final invoice — every step of the
-              veterinary workflow in one unified system.
+              From the first check-in to the final invoice — every step of the veterinary workflow covered.
             </p>
           </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {FEATURES.map(({ icon: Icon, title, desc }) => (
               <div key={title}
-                className="group bg-white/[0.04] hover:bg-white/[0.07] border border-white/[0.07] hover:border-[#56B246]/25 rounded-2xl p-6 transition-all duration-300 cursor-default">
-                <div className="h-10 w-10 rounded-xl bg-[#56B246]/15 flex items-center justify-center mb-4 group-hover:bg-[#56B246]/25 transition-colors">
+                className="group bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.06] hover:border-[#56B246]/30 rounded-2xl p-6 transition-all duration-300 cursor-default hover:-translate-y-0.5">
+                <div className="h-11 w-11 rounded-xl bg-[#56B246]/12 flex items-center justify-center mb-4 group-hover:bg-[#56B246]/20 transition-colors">
                   <Icon className="h-5 w-5 text-[#56B246]" />
                 </div>
                 <h3 className="font-bold text-white text-sm mb-2">{title}</h3>
-                <p className="text-xs text-white/40 leading-relaxed">{desc}</p>
+                <p className="text-xs text-white/38 leading-relaxed">{desc}</p>
               </div>
             ))}
           </div>
@@ -299,102 +395,134 @@ export default function Landing() {
       </section>
 
       {/* ── WORKFLOW ── */}
-      <section id="workflow" className="py-24 px-6">
-        <div className="max-w-5xl mx-auto">
+      <section id="workflow" className="py-28 px-6 bg-white/[0.015]">
+        <div className="max-w-6xl mx-auto">
           <div className="text-center mb-16">
             <p className="text-[#56B246] text-[11px] uppercase tracking-[0.2em] font-semibold mb-3">How It Works</p>
-            <h2 className="text-3xl md:text-4xl font-black">The Complete Clinic Workflow</h2>
-            <p className="text-white/35 mt-4 text-sm">Role-based guidance from intake to discharge.</p>
+            <h2 className="text-3xl md:text-4xl font-black">From Check-In to Discharge</h2>
+            <p className="text-white/35 mt-4 text-sm max-w-lg mx-auto">Three seamless role-handoffs. Every patient moves through the same intelligent workflow.</p>
           </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 relative">
-            {/* Connector */}
-            <div className="hidden md:block absolute top-8 left-1/3 right-1/3 h-px bg-gradient-to-r from-[#56B246]/40 via-white/5 to-[#56B246]/40" />
-
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {WORKFLOW.map((step, i) => (
-              <div key={step.num} className="relative bg-white/[0.04] border border-white/[0.07] rounded-2xl p-8 text-center overflow-hidden">
-                <div className="text-6xl font-black text-white/[0.04] absolute top-3 right-5 leading-none select-none">
-                  {step.num}
-                </div>
-                <div className={cn("inline-flex items-center px-4 py-1.5 rounded-full text-xs font-bold text-white mb-5", step.color)}>
-                  {step.role}
-                </div>
-                <p className="text-sm text-white/45 leading-relaxed">{step.desc}</p>
+              <div key={step.num} className="relative group">
                 {i < WORKFLOW.length - 1 && (
-                  <ArrowRight className="h-5 w-5 text-white/15 absolute -right-3 top-1/2 -translate-y-1/2 hidden md:block z-10" />
+                  <div className="hidden md:block absolute top-10 -right-3 z-10">
+                    <ArrowRight className="h-5 w-5 text-white/15" />
+                  </div>
                 )}
+                <div className="bg-white/[0.04] border border-white/[0.07] group-hover:border-white/[0.12] rounded-2xl p-8 h-full transition-all duration-300">
+                  <div className="flex items-center gap-3 mb-5">
+                    <div className={cn("h-10 w-10 rounded-xl flex items-center justify-center shrink-0", step.color)}>
+                      <step.icon className="h-5 w-5 text-white" />
+                    </div>
+                    <div>
+                      <div className="text-[10px] text-white/25 font-semibold uppercase tracking-widest">Step {step.num}</div>
+                      <div className="font-bold text-white text-sm">{step.role}</div>
+                    </div>
+                  </div>
+                  <p className="text-sm text-white/45 leading-relaxed">{step.desc}</p>
+                  <div className="text-7xl font-black text-white/[0.03] absolute bottom-4 right-5 leading-none select-none">{step.num}</div>
+                </div>
               </div>
             ))}
           </div>
-
-          {/* CTA under workflow */}
-          <div className="mt-10 text-center">
-            <Button
-              size="lg"
-              className="bg-[#56B246] hover:bg-[#56B246]/90 text-white font-bold px-10 gap-2"
-              onClick={() => scrollTo("access")}
-            >
-              See It Live <ArrowRight className="h-4 w-4" />
+          <div className="mt-12 text-center">
+            <Button size="lg" className="bg-[#56B246] hover:bg-[#56B246]/90 text-white font-bold px-12 gap-2"
+              onClick={() => goTo("access")}>
+              Request Access to Explore <ArrowRight className="h-4 w-4" />
             </Button>
-            <p className="mt-3 text-xs text-white/25">Request access to explore the interactive demo clinic</p>
           </div>
         </div>
       </section>
 
-      {/* ── STATS ── */}
-      <section className="py-16 px-6 border-y border-white/[0.06] bg-white/[0.018]">
-        <div className="max-w-4xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
-          {STATS.map(({ num, label }) => (
-            <div key={label}>
-              <div className="text-4xl md:text-5xl font-black text-white mb-1">{num}</div>
-              <div className="text-[11px] text-white/35 uppercase tracking-wider">{label}</div>
-            </div>
-          ))}
+      {/* ── TESTIMONIALS ── */}
+      <section id="testimonials" className="py-28 px-6">
+        <div className="max-w-6xl mx-auto">
+          <div className="text-center mb-16">
+            <p className="text-[#56B246] text-[11px] uppercase tracking-[0.2em] font-semibold mb-3">Trusted by Clinics</p>
+            <h2 className="text-3xl md:text-4xl font-black">What Clinics Are Saying</h2>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {TESTIMONIALS.map(({ name, role, clinic, quote, stars }) => (
+              <div key={name} className="bg-white/[0.04] border border-white/[0.07] rounded-2xl p-7 flex flex-col gap-5">
+                <Quote className="h-6 w-6 text-[#56B246]/40" />
+                <p className="text-sm text-white/60 leading-relaxed flex-1 italic">“{quote}”</p>
+                <div>
+                  <div className="flex gap-0.5 mb-3">
+                    {Array.from({ length: stars }).map((_,i) => (
+                      <Star key={i} className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
+                    ))}
+                  </div>
+                  <div className="font-bold text-white text-sm">{name}</div>
+                  <div className="text-xs text-white/35 mt-0.5">{role} · {clinic}</div>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 
       {/* ── REQUEST ACCESS ── */}
       <section id="access" className="py-28 px-6 relative overflow-hidden">
         <div className="pointer-events-none absolute inset-0">
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[300px] bg-[#56B246]/[0.06] rounded-full blur-[100px]" />
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[400px] bg-[#56B246]/[0.05] rounded-full blur-[120px]" />
+          <PawPrint className="absolute bottom-10 right-20 w-32 h-32 text-[#56B246]/[0.03] rotate-12" />
+          <PawPrint className="absolute top-10 left-10 w-20 h-20 text-white/[0.02] -rotate-6" />
         </div>
         <div className="max-w-2xl mx-auto text-center relative">
           <Badge className="mb-6 bg-[#56B246]/15 text-[#56B246] border-[#56B246]/30 text-[11px] uppercase tracking-[0.18em] font-semibold px-4 py-1.5 rounded-full">
             Get Started Today
           </Badge>
-          <h2 className="text-3xl md:text-4xl font-black mb-5">
-            Ready to Transform<br />Your Clinic?
+          <h2 className="text-4xl md:text-5xl font-black mb-5 leading-tight">
+            Ready to Elevate<br />
+            <span className="text-[#56B246]">Your Clinic?</span>
           </h2>
-          <p className="text-white/40 text-sm leading-relaxed mb-8 max-w-md mx-auto">
-            Login credentials for the InnoVetPro database system are available upon request.
-            Provide your email to receive an instant access key.
+          <p className="text-white/40 text-sm leading-relaxed mb-10 max-w-md mx-auto">
+            Login credentials are available upon request. Submit your details and our team
+            will personally review and send you access within 24 hours.
           </p>
           <AccessForm center />
-          <p className="mt-4 text-xs text-white/25">
-            Your information is never shared with third parties.
-          </p>
+          <div className="flex items-center justify-center gap-6 mt-6 text-xs text-white/25">
+            <span className="flex items-center gap-1.5"><CheckCircle2 className="h-3.5 w-3.5 text-[#56B246]" />No credit card</span>
+            <span className="flex items-center gap-1.5"><CheckCircle2 className="h-3.5 w-3.5 text-[#56B246]" />Private & secure</span>
+            <span className="flex items-center gap-1.5"><CheckCircle2 className="h-3.5 w-3.5 text-[#56B246]" />24-hr response</span>
+          </div>
         </div>
       </section>
 
       {/* ── FOOTER ── */}
-      <footer className="border-t border-white/[0.06] py-10 px-6">
-        <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-5">
-          <AppLogo imgHeight={28} showText textClassName="text-sm font-bold text-white" />
-          <p className="text-xs text-white/25">
-            © {new Date().getFullYear()} InnoVetPro · Veterinary Management System
-          </p>
-          <div className="flex gap-6 text-xs text-white/35">
-            <button onClick={() => navigate("/login")} className="hover:text-white/70 transition-colors">Sign In</button>
-            <button onClick={() => navigate("/signup")} className="hover:text-white/70 transition-colors">Create Account</button>
-            <button onClick={() => navigate("/login/demo")} className="hover:text-white/70 transition-colors">Demo Clinic</button>
+      <footer className="border-t border-white/[0.06] py-12 px-6">
+        <div className="max-w-7xl mx-auto">
+          <div className="flex flex-col md:flex-row items-start justify-between gap-10 mb-10">
+            <div className="max-w-xs">
+              <AppLogo imgHeight={32} showText textClassName="text-sm font-bold text-white" className="mb-3" />
+              <p className="text-xs text-white/30 leading-relaxed">Intelligent veterinary management software built for clinics that care about efficiency and exceptional patient outcomes.</p>
+            </div>
+            <div className="grid grid-cols-2 gap-10 text-sm">
+              <div>
+                <div className="text-white/50 font-semibold mb-3 text-xs uppercase tracking-wider">Product</div>
+                {([["features","Features"],["workflow","How It Works"],["access","Request Access"]] as [string,string][]).map(([id,label]) => (
+                  <button key={id} onClick={() => goTo(id)} className="block text-white/30 hover:text-white/60 mb-2 text-xs transition-colors">{label}</button>
+                ))}
+              </div>
+              <div>
+                <div className="text-white/50 font-semibold mb-3 text-xs uppercase tracking-wider">Contact</div>
+                <a href="mailto:andygosystems@gmail.com" className="block text-white/30 hover:text-white/60 mb-2 text-xs transition-colors">andygosystems@gmail.com</a>
+                <a href="mailto:andrewmandieka@gmail.com" className="block text-white/30 hover:text-white/60 mb-2 text-xs transition-colors">andrewmandieka@gmail.com</a>
+                <button onClick={() => goTo("access")} className="block text-white/30 hover:text-white/60 mb-2 text-xs transition-colors">Request Access</button>
+              </div>
+            </div>
+          </div>
+          <div className="border-t border-white/[0.06] pt-6 flex flex-col sm:flex-row items-center justify-between gap-3">
+            <p className="text-xs text-white/20">© {new Date().getFullYear()} InnoVetPro · Veterinary Management System · All credentials provided upon request.</p>
+            <a href="https://andygosystems.com" target="_blank" rel="noopener noreferrer"
+              className="text-xs text-white/20 hover:text-white/40 transition-colors">
+              Developed by andygosystems.com
+            </a>
           </div>
         </div>
       </footer>
 
     </div>
   );
-}
-
-function scrollTo(id: string) {
-  document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
 }
