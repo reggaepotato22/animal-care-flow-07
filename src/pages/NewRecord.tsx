@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useWorkflow } from "@/hooks/useWorkflow";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { getPatients } from "@/lib/patientStore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -20,7 +21,7 @@ import { TreatmentSelector, EncounterItem } from "@/components/TreatmentSelector
 import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import jsPDF from 'jspdf';
-import { format, addDays } from "date-fns";
+import { format, addDays, formatDistanceToNow } from "date-fns";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
@@ -786,35 +787,73 @@ function loadPatientData(patientId: string | undefined, encounter?: any) {
   };
   if (!patientId) return fallback;
   try {
-    const raw = localStorage.getItem("acf_known_patients");
-    if (!raw) return fallback;
-    const patients = JSON.parse(raw) as Array<Record<string, any>>;
+    const patients = getPatients();
     const p = patients.find(pt => pt.patientId === patientId);
-    if (!p) return fallback;
+    if (!p) {
+      const raw = localStorage.getItem("acf_known_patients");
+      if (!raw) return fallback;
+      const legacyPatients = JSON.parse(raw) as Array<Record<string, any>>;
+      const legacy = legacyPatients.find(pt => pt.patientId === patientId);
+      if (!legacy) return fallback;
+      return {
+        id: patientId,
+        name: legacy.petName || legacy.name || fallback.name,
+        species: legacy.species || "",
+        breed: legacy.breed || "",
+        sex: legacy.gender || legacy.sex || "",
+        age: legacy.age || "",
+        weight: legacy.weight || "",
+        color: legacy.color || "",
+        microchip: "",
+        microchipId: "",
+        owner: {
+          name: legacy.ownerName || encounter?.ownerName || "",
+          phone: legacy.ownerPhone || "",
+          email: legacy.ownerEmail || "",
+          address: legacy.ownerAddress || ""
+        },
+        phone: legacy.ownerPhone || "",
+        email: legacy.ownerEmail || "",
+        address: legacy.ownerAddress || "",
+        allergies: legacy.allergies || [],
+        emergencyContact: {
+          name: legacy.emergencyContact || "",
+          phone: legacy.emergencyPhone || "",
+          relationship: ""
+        }
+      };
+    }
+
+    const latestVital = Array.isArray((p as any).vitals) && (p as any).vitals.length > 0
+      ? (p as any).vitals
+          .slice()
+          .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime())[0]
+      : null;
+    const latestWeight = latestVital?.weight || (p as any).weight || "";
     return {
       id: patientId,
-      name: p.petName || fallback.name,
-      species: p.species || "",
-      breed: p.breed || "",
-      sex: p.gender || "",
-      age: p.age || "",
-      weight: p.weight || "",
-      color: p.color || "",
+      name: (p as any).name || fallback.name,
+      species: (p as any).species || "",
+      breed: (p as any).breed || "",
+      sex: (p as any).sex || "",
+      age: (p as any).age || "",
+      weight: latestWeight || "",
+      color: (p as any).color || "",
       microchip: "",
       microchipId: "",
       owner: {
-        name: p.ownerName || encounter?.ownerName || "",
-        phone: p.ownerPhone || "",
-        email: p.ownerEmail || "",
-        address: p.ownerAddress || ""
+        name: (p as any).owner || encounter?.ownerName || "",
+        phone: (p as any).phone || "",
+        email: (p as any).email || "",
+        address: (p as any).address || ""
       },
-      phone: p.ownerPhone || "",
-      email: p.ownerEmail || "",
-      address: p.ownerAddress || "",
-      allergies: p.allergies || [],
+      phone: (p as any).phone || "",
+      email: (p as any).email || "",
+      address: (p as any).address || "",
+      allergies: ((p as any).allergies as string[]) || [],
       emergencyContact: {
-        name: p.emergencyContact || "",
-        phone: p.emergencyPhone || "",
+        name: "",
+        phone: "",
         relationship: ""
       }
     };
@@ -1452,6 +1491,7 @@ export default function NewRecord() {
   useEffect(() => {
     if (!activeEncounter) return;
     try {
+      setSaveState("saving");
       const payload = {
         encounterId:    activeEncounter.id,
         patientId:      selectedPatient,
@@ -1481,6 +1521,8 @@ export default function NewRecord() {
         data: payload as any,
       });
       broadcastClinicalRecordUpdate();
+      setSaveState("saved");
+      setLastSavedAt(Date.now());
       try { new BroadcastChannel(getHospChannelName()).postMessage({ type: "clinical_updated", encounterId: activeEncounter.id }); } catch {}
     } catch {}
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1535,6 +1577,10 @@ const [vaccination, setVaccination] = useState({
 
 // Attachments state
 const [attachments, setAttachments] = useState<File[]>([]);
+
+// Autosave status
+const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">("idle");
+const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
 
 const applyTemplate = (templateName: string, noteId?: string) => {
     const template = examinationTemplates[templateName as keyof typeof examinationTemplates];
@@ -2486,69 +2532,138 @@ const applyTemplate = (templateName: string, noteId?: string) => {
   return (
     <div className="relative min-h-screen">
       {/* Main Content Area */}
-      <div> {/* Removed right margin for sidebar */}
-        <div className="max-w-5xl mx-auto space-y-6 px-6"> {/* Fixed-width container */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              onClick={() => navigate(recordsBase)}
-              className="h-8 w-8 p-0"
-            >
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <div>
-            <h1 className="text-3xl font-bold">New Clinical Record</h1>
-            <p className="text-muted-foreground">Create a comprehensive SOAP note for patient examination</p>
+      <div>
+        <div className="max-w-5xl mx-auto space-y-6 px-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => navigate(recordsBase)}
+                className="h-8 w-8 p-0"
+              >
+                <ArrowLeft className="h-4 w-4" />
+              </Button>
+              <div>
+                <h1 className="text-3xl font-bold">New Clinical Record</h1>
+                <p className="text-muted-foreground">Create a comprehensive SOAP note for patient examination</p>
+              </div>
+            </div>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm">
+                  <MoreVertical className="h-4 w-4" />
+                  Actions
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <AdmissionRequestDialog
+                  patientData={{
+                    patientId: selectedPatient,
+                    patientName: mockPatientData.owner.name,
+                    petName: mockPatientData.name,
+                    species: mockPatientData.species + " (" + mockPatientData.breed + ")",
+                    veterinarian: selectedVeterinarian,
+                    diagnosis: (() => {
+                      const soapNote = clinicalNotes.find(n => n.type === "soap" && n.soapData);
+                      return soapNote?.soapData?.primaryDiagnosis || soapNote?.soapData?.assessment || "";
+                    })()
+                  }}
+                >
+                  <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                    <Bed className="mr-2 h-4 w-4" />
+                    Request Hospitalization
+                  </DropdownMenuItem>
+                </AdmissionRequestDialog>
+
+                <LabOrderDialog
+                  prefillData={{
+                    patientId: selectedPatient,
+                    veterinarian: selectedVeterinarian,
+                    diagnosis: (() => {
+                      const soapNote = clinicalNotes.find(n => n.type === "soap" && n.soapData);
+                      return soapNote?.soapData?.primaryDiagnosis || soapNote?.soapData?.assessment || "";
+                    })()
+                  }}
+                  onLabOrderCreated={handleLabOrderCreated}
+                >
+                  <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                    <TestTube className="mr-2 h-4 w-4" />
+                    Lab Request
+                  </DropdownMenuItem>
+                </LabOrderDialog>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
-        </div>
-        
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm">
-              <MoreVertical className="h-4 w-4" />
-              Actions
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <AdmissionRequestDialog
-              patientData={{
-                patientId: selectedPatient,
-                patientName: mockPatientData.owner.name,
-                petName: mockPatientData.name,
-                species: mockPatientData.species + " (" + mockPatientData.breed + ")",
-                veterinarian: selectedVeterinarian,
-                diagnosis: (() => {
-                  const soapNote = clinicalNotes.find(n => n.type === "soap" && n.soapData);
-                  return soapNote?.soapData?.primaryDiagnosis || soapNote?.soapData?.assessment || "";
-                })()
-              }}
-            >
-              <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
-                <Bed className="mr-2 h-4 w-4" />
-                Request Hospitalization
-              </DropdownMenuItem>
-            </AdmissionRequestDialog>
-            <LabOrderDialog 
-              prefillData={{
-                patientId: selectedPatient,
-                veterinarian: selectedVeterinarian,
-                diagnosis: (() => {
-                  const soapNote = clinicalNotes.find(n => n.type === "soap" && n.soapData);
-                  return soapNote?.soapData?.primaryDiagnosis || soapNote?.soapData?.assessment || "";
-                })()
-              }}
-              onLabOrderCreated={handleLabOrderCreated}
-            >
-              <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
-                <TestTube className="mr-2 h-4 w-4" />
-                Lab Request
-              </DropdownMenuItem>
-            </LabOrderDialog>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
+
+          <div>
+            <Card className="mt-4">
+              <CardContent className="py-3">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <div className="font-semibold truncate">{mockPatientData?.name || "Patient"}</div>
+                      {activeEncounter && (
+                        <Badge
+                          className={
+                            activeEncounter.status === "WAITING" ? "bg-yellow-100 text-yellow-800" :
+                            activeEncounter.status === "IN_TRIAGE" ? "bg-orange-100 text-orange-800" :
+                            activeEncounter.status === "TRIAGED" ? "bg-green-100 text-green-800" :
+                            activeEncounter.status === "IN_CONSULTATION" ? "bg-blue-100 text-blue-800" :
+                            activeEncounter.status === "IN_SURGERY" ? "bg-red-100 text-red-800" :
+                            activeEncounter.status === "RECOVERY" ? "bg-purple-100 text-purple-800" :
+                            activeEncounter.status === "DISCHARGED" ? "bg-green-100 text-green-800" :
+                            "bg-gray-100 text-gray-800"
+                          }
+                        >
+                          {activeEncounter.status.replace("_"," ").toLowerCase()}
+                        </Badge>
+                      )}
+                    </div>
+                    <div className="text-xs text-muted-foreground truncate">
+                      {mockPatientData?.species ? `${mockPatientData.species}` : "—"}
+                      {mockPatientData?.breed ? ` • ${mockPatientData.breed}` : ""}
+                    </div>
+                    <div className="mt-2 grid grid-cols-2 md:grid-cols-4 gap-2">
+                      <div className="text-xs">
+                        <span className="text-muted-foreground">Age:</span>{" "}
+                        <span className="font-medium">{mockPatientData?.age || "—"}</span>
+                      </div>
+                      <div className="text-xs">
+                        <span className="text-muted-foreground">Weight:</span>{" "}
+                        <span className="font-medium">{mockPatientData?.weight ? `${mockPatientData.weight}` : "—"}</span>
+                      </div>
+                      <div className="text-xs">
+                        <span className="text-muted-foreground">Owner:</span>{" "}
+                        <span className="font-medium">{mockPatientData?.owner?.name || "—"}</span>
+                      </div>
+                      <div className="text-xs">
+                        <span className="text-muted-foreground">Visit:</span>{" "}
+                        <span className="font-medium">
+                          {activeEncounter?.appointmentTime || activeEncounter?.appointmentType ? "appointment" : "walk-in"}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="shrink-0 text-xs text-muted-foreground">
+                    {saveState === "saving" ? (
+                      <span className="inline-flex items-center gap-1">
+                        <span className="h-2 w-2 rounded-full bg-primary animate-pulse" /> Saving…
+                      </span>
+                    ) : saveState === "saved" ? (
+                      <span className="inline-flex items-center gap-1">
+                        <span className="h-2 w-2 rounded-full bg-emerald-500" /> {lastSavedAt ? `Saved ${formatDistanceToNow(lastSavedAt, { addSuffix: true })}` : "Saved"}
+                      </span>
+                    ) : (
+                      <span>—</span>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
 
       {/* Persistent Encounter Header */}
       {activeEncounter && (
@@ -7396,12 +7511,8 @@ const applyTemplate = (templateName: string, noteId?: string) => {
         </Tabs>
       </footer>
 
-      </div> {/* End fixed-width container */}
-      </div> {/* End main content area */}
-      
-      {/* Right Sidebar */}
       <EncounterSidebar 
-        encounterItems={encounterItems as any}
+        encounterItems={encounterItems}
         onItemClick={(item) => {
           console.log("Clicked item:", item);
           // Handle item click - could open details dialog, etc.
@@ -7473,6 +7584,8 @@ const applyTemplate = (templateName: string, noteId?: string) => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+    </div>
     </div>
   );
 }
