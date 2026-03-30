@@ -440,3 +440,21 @@ export function resetSamplePatients(): void {
   localStorage.removeItem(initializedKey());
   initializeSamplePatients();
 }
+
+// Generate and save mock patients (up to `count`), returns saved records
+export function generateMockPatients(count: number = 5): PatientRow[] {
+  if (typeof window === "undefined") return [];
+
+  const existing = getPatients();
+  const toAdd = samplePatients.slice(0, Math.min(count, samplePatients.length));
+
+  const newRecords: PatientRow[] = toAdd.map((p, i) => ({
+    ...p,
+    id: `mock-${Date.now()}-${i}`,
+    patientId: generatePatientId(),
+    ownerId: generateOwnerId(),
+  }));
+
+  savePatients([...existing, ...newRecords]);
+  return newRecords;
+}

@@ -1,3 +1,4 @@
+import React from "react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -36,9 +37,10 @@ interface PatientCardProps {
   hasAppointmentToday?: boolean;
   appointmentDetails?: { time: string; vet: string };
   isCheckedIn?: boolean;
+  visitStatusBadge?: React.ReactNode;
 }
 
-export function PatientCard({ patient, onViewDetails, onTriage, hasAppointmentToday, appointmentDetails, isCheckedIn }: PatientCardProps) {
+export function PatientCard({ patient, onViewDetails, onTriage, hasAppointmentToday, appointmentDetails, isCheckedIn, visitStatusBadge }: PatientCardProps) {
   const getStatusColor = (status: string) => {
     switch (status) {
       case "healthy":
@@ -105,7 +107,9 @@ export function PatientCard({ patient, onViewDetails, onTriage, hasAppointmentTo
                 Allergies
               </Badge>
             )}
-            {isCheckedIn && (
+            {visitStatusBadge ? (
+              <span className="animate-pulse">{visitStatusBadge}</span>
+            ) : isCheckedIn && (
               <Badge variant="outline" className="text-[10px] bg-teal-50 text-teal-700 border-teal-200 animate-pulse">
                 In Clinic
               </Badge>

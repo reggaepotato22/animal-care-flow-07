@@ -59,16 +59,19 @@ import UserProfile from "./pages/UserProfile";
 import { PermissionRoute } from "@/components/PermissionRoute";
 import { AppearanceProvider } from "@/contexts/AppearanceContext";
 import { AccountProvider } from "@/contexts/AccountContext";
+import { TutorialProvider } from "@/contexts/TutorialContext";
 
 const queryClient = new QueryClient();
 
 function ProtectedRoutes() {
   const { isAuthenticated } = useAuth();
+  // TutorialProvider wraps protected routes so it resets on every navigation/refresh
   const location = useLocation();
   if (!isAuthenticated) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
   return (
+    <TutorialProvider>
     <Layout>
       <Routes>
         <Route path="/" element={<Index />} />
@@ -104,6 +107,7 @@ function ProtectedRoutes() {
         <Route path="*" element={<NotFound />} />
       </Routes>
     </Layout>
+    </TutorialProvider>
   );
 }
 

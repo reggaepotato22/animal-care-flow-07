@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 
-type AccentColor = "teal" | "blue" | "purple" | "orange" | "rose";
+type AccentColor = "green" | "teal" | "blue" | "purple" | "orange" | "rose";
 type BorderRadius = "none" | "sm" | "md" | "lg" | "full";
 
 interface AppearanceContextValue {
@@ -15,6 +15,7 @@ const AppearanceContext = createContext<AppearanceContextValue | null>(null);
 const STORAGE_KEY = "boravet_appearance";
 
 const ACCENT_VARS: Record<AccentColor, string> = {
+  green:  "111 43% 49%",
   teal:   "174 72% 40%",
   blue:   "217 91% 60%",
   purple: "262 83% 58%",
@@ -40,8 +41,8 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
   const [accentColor, setAccentColorState] = useState<AccentColor>(() => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
-      return raw ? (JSON.parse(raw).accentColor ?? "teal") : "teal";
-    } catch { return "teal"; }
+      return raw ? (JSON.parse(raw).accentColor ?? "green") : "green";
+    } catch { return "green"; }
   });
 
   const [borderRadius, setBorderRadiusState] = useState<BorderRadius>(() => {

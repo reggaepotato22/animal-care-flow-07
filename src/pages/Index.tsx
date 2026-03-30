@@ -12,11 +12,13 @@ import {
   Pill,
   CheckCheck,
   Users,
+  Trash2,
+  Database,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useNavigate, useLocation } from "react-router-dom";
-import { formatDistanceToNow, subMinutes, subHours, subDays, subSeconds } from "date-fns";
+import { formatDistanceToNow } from "date-fns";
 import { useRole } from "@/contexts/RoleContext";
 import { useWorkflowContext } from "@/contexts/WorkflowContext";
 import { useToast } from "@/hooks/use-toast";
@@ -36,7 +38,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { useNotifications } from "@/contexts/NotificationContext";
 import { loadStoredAppointments, subscribeToAppointments, isToday, isoToTimeLabel } from "@/lib/appointmentStore";
-import { getPatients } from "@/lib/patientStore";
+import { getPatients, clearAllData, generateMockPatients } from "@/lib/patientStore";
 import { useAccount } from "@/contexts/AccountContext";
 import { getAccountScopedKey } from "@/lib/accountStore";
 import { getHospChannelName } from "@/lib/hospitalizationStore";
@@ -248,7 +250,7 @@ const Index = () => {
           </p>
         </div>
         {has("can_register_patients") && (
-          <Button size="sm" onClick={() => navigate("/patients/add")}>+ New Patient</Button>
+          <Button size="sm" data-tutorial="dashboard-new-patient" onClick={() => navigate("/patients/add")}>+ New Patient</Button>
         )}
       </div>
 
@@ -383,14 +385,44 @@ const Index = () => {
         </CardContent>
       </Card>
 
-      {/* Sync Stats */}
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-sm text-muted-foreground">Total Patients</p>
-          <p className="text-2xl font-bold">{stats.patientCount || 0}</p>
+      {/* Data Management + Stats row */}
+      <div className="flex flex-wrap items-center justify-between gap-3 p-4 rounded-xl border bg-card">
+        <div className="flex items-center gap-3">
+          <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+            <Users className="h-5 w-5 text-primary" />
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Total Patients</p>
+            <p className="text-2xl font-bold text-foreground">{stats.patientCount}</p>
+          </div>
         </div>
-        <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
-          <Users className="h-5 w-5 text-blue-600" />
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8 text-xs gap-1.5"
+            onClick={() => {
+              const patients = generateMockPatients(5);
+              toast({ title: "Mock data generated", description: `${patients.length} sample patients added.` });
+              window.location.reload();
+            }}
+          >
+            <Database className="h-3.5 w-3.5" />
+            Generate Mock Data
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8 text-xs gap-1.5 border-destructive/40 text-destructive hover:bg-destructive/10"
+            onClick={() => {
+              clearAllData();
+              toast({ title: "Data cleared", description: "All data reset to empty state." });
+              window.location.reload();
+            }}
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+            Clear All Data
+          </Button>
         </div>
       </div>
 

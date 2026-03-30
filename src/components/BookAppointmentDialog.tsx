@@ -87,7 +87,7 @@ function generateICS(appt: {
   return [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
-    "PRODID:-//VetCare Pro//Appointment//EN",
+    "PRODID:-//InnoVetPro//Appointment//EN",
     "CALSCALE:GREGORIAN",
     "METHOD:PUBLISH",
     "BEGIN:VEVENT",
