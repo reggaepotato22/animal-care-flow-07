@@ -2769,12 +2769,6 @@ const applyTemplate = (templateName: string, noteId?: string) => {
                   Diagnostics
                 </TabsTrigger>
                 <TabsTrigger 
-                  value="diagnosis"
-                  className="h-11 px-4 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-foreground hover:bg-muted/50"
-                >
-                  Diagnosis
-                </TabsTrigger>
-                <TabsTrigger 
                   value="treatment"
                   className="h-11 px-4 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-foreground hover:bg-muted/50"
                 >
@@ -2969,7 +2963,7 @@ const applyTemplate = (templateName: string, noteId?: string) => {
           </TabsContent>
 
           {/* Default sidebar for other tabs */}
-          {["overview", "history", "physical-exam", "diagnostics", "diagnosis", "treatment", "notes"].map(tab => (
+          {["overview", "history", "physical-exam", "diagnostics", "treatment", "notes"].map(tab => (
             <TabsContent key={tab} value={tab} className="space-y-6">
               <Card>
                 <CardHeader>
@@ -3434,102 +3428,6 @@ const applyTemplate = (templateName: string, noteId?: string) => {
                           </div>
                         ))}
                       </div>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            {/* Diagnosis Tab */}
-            <TabsContent value="diagnosis" className="space-y-4">
-              {/* Confirmed Findings → Diagnosis link */}
-              {(() => {
-                const confirmed = clinicalNotes.flatMap(n => n.soapData?.clinicalFindings ?? []).filter(f => f.status === "confirmed");
-                if (confirmed.length === 0) return null;
-                return (
-                  <Card className="border-emerald-200 dark:border-emerald-800">
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-sm font-semibold flex items-center gap-2 text-emerald-700 dark:text-emerald-300">
-                        <Check className="h-4 w-4" />
-                        Confirmed Clinical Findings ({confirmed.length})
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-2">
-                      {confirmed.map(f => (
-                        <div key={f.id} className="flex items-start justify-between gap-3 p-2.5 bg-emerald-50/40 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800 rounded-lg">
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium">{f.finding}</p>
-                            <p className="text-[10px] text-muted-foreground mt-0.5">
-                              {f.source}{f.confirmedBy ? ` · Confirmed by ${f.confirmedBy}` : ""}
-                              {f.confirmationNote ? ` · "${f.confirmationNote}"` : ""}
-                            </p>
-                          </div>
-                          {f.nextStep && (
-                            <Badge variant="outline" className="text-[9px] shrink-0 capitalize border-primary/40 text-primary whitespace-nowrap">
-                              → {f.nextStep.replace("_", " ")}
-                            </Badge>
-                          )}
-                        </div>
-                      ))}
-                    </CardContent>
-                  </Card>
-                );
-              })()}
-
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-sm font-semibold">Diagnosis & Assessment</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {clinicalNotes.find(n => n.type === "soap") ? (() => {
-                    const sd = clinicalNotes.find(n => n.type === "soap")!.soapData!;
-                    return (
-                      <div className="space-y-4">
-                        <div className="space-y-1.5">
-                          <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Primary Diagnosis</Label>
-                          <div className="p-3 bg-primary/5 border border-primary/20 rounded-lg font-medium text-sm">
-                            {sd.primaryDiagnosis || <span className="text-muted-foreground italic">Not yet determined.</span>}
-                          </div>
-                        </div>
-                        {sd.differentialDiagnoses.length > 0 && (
-                          <div className="space-y-1.5">
-                            <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Differentials</Label>
-                            <div className="flex flex-wrap gap-1.5">
-                              {sd.differentialDiagnoses.map((d, i) => (
-                                <Badge key={i} variant="secondary" className="text-xs">{d}</Badge>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                        <div className="space-y-1.5">
-                          <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Assessment</Label>
-                          <div className="p-3 bg-muted/20 rounded-lg border text-sm whitespace-pre-wrap">
-                            {sd.assessment || <span className="text-muted-foreground italic">No assessment recorded.</span>}
-                          </div>
-                        </div>
-                        {sd.clinicalSummary && (
-                          <div className="space-y-1.5">
-                            <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Clinical Summary</Label>
-                            <div className="p-3 bg-muted/20 rounded-lg border text-sm whitespace-pre-wrap">{sd.clinicalSummary}</div>
-                          </div>
-                        )}
-                        {sd.prognosis && (
-                          <div className="flex items-center gap-3 p-3 bg-muted/10 rounded-lg border">
-                            <div className="flex-1">
-                              <p className="text-xs font-semibold text-muted-foreground uppercase">Prognosis</p>
-                              <p className="text-sm font-medium mt-0.5">{sd.prognosis}</p>
-                            </div>
-                            {sd.prognosisReason && (
-                              <p className="text-xs text-muted-foreground flex-1">{sd.prognosisReason}</p>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })() : (
-                    <div className="flex flex-col items-center gap-3 py-10 text-center">
-                      <FileText className="h-8 w-8 text-muted-foreground/30" />
-                      <p className="text-sm text-muted-foreground">Add a SOAP note in the Notes tab to record assessment and diagnosis.</p>
                     </div>
                   )}
                 </CardContent>
