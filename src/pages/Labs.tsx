@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Plus, Search, Filter, Download, TestTube, Calendar, Clock, AlertCircle, CheckCircle } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Plus, Search, Download, TestTube, Clock, AlertCircle, CheckCircle } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,47 +9,24 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { LabOrderDialog } from "@/components/LabOrderDialog";
 import { LabResultsDialog } from "@/components/LabResultsDialog";
 import { LabOrdersTable } from "@/components/LabOrdersTable";
-
-
-interface LabOrder {
-  id: string;
-  patientId: string;
-  patientName: string;
-  species: string;
-  breed: string;
-  orderDate: string;
-  veterinarian: string;
-  tests: string[];
-  priority: "routine" | "urgent" | "stat";
-  status: "pending" | "collected" | "in-progress" | "completed";
-  specialInstructions?: string;
-  diagnosis: string;
-  collectedDate?: string;
-  collectedBy?: string;
-  sampleType?: string;
-  resultDate?: string;
-  results?: any;
-}
-
-// Mock lab orders data (cleared)
-const mockLabOrders: LabOrder[] = [];
+import { loadLabOrders, subscribeToLabOrders, type LabOrder } from "@/lib/attachmentStore";
 
 const getStatusColor = (status: string) => {
   switch (status) {
-    case "pending": return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200";
-    case "collected": return "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200";
-    case "in-progress": return "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200";
-    case "completed": return "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200";
-    default: return "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200";
+    case "pending":     return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200";
+    case "in_progress": return "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200";
+    case "completed":   return "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200";
+    case "cancelled":   return "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200";
+    default:            return "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200";
   }
 };
 
 const getPriorityColor = (priority: string) => {
   switch (priority) {
-    case "stat": return "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200";
-    case "urgent": return "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200";
+    case "stat":    return "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200";
+    case "urgent":  return "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200";
     case "routine": return "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200";
-    default: return "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200";
+    default:        return "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200";
   }
 };
 
@@ -57,36 +34,29 @@ export default function Labs() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
-  const [labOrders, setLabOrders] = useState<LabOrder[]>(mockLabOrders);
+  const [labOrders, setLabOrders] = useState<LabOrder[]>(() => loadLabOrders());
 
-  const handleResultsAdded = (orderId: string, results: any) => {
-    setLabOrders(prev => prev.map(order => 
-      order.id === orderId 
-        ? { 
-            ...order, 
-            status: "completed" as const,
-            resultDate: results.resultDate,
-            results: results.results
-          }
-        : order
-    ));
-  };
+  // Live-sync: reload whenever a lab order is created or updated
+  useEffect(() => {
+    const unsub = subscribeToLabOrders(() => setLabOrders(loadLabOrders()));
+    return unsub;
+  }, []);
 
   const filteredOrders = labOrders.filter(order => {
-    const matchesSearch = order.patientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         order.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         order.tests.some(test => test.toLowerCase().includes(searchTerm.toLowerCase()));
-    const matchesStatus = statusFilter === "all" || order.status === statusFilter;
-    const matchesPriority = priorityFilter === "all" || order.priority === priorityFilter;
-    
+    const matchesSearch =
+      order.patientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      order.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      order.testName.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesStatus   = statusFilter   === "all" || order.status  === statusFilter;
+    const matchesPriority = priorityFilter === "all" || order.urgency === priorityFilter;
     return matchesSearch && matchesStatus && matchesPriority;
   });
 
   const stats = {
-    pending: labOrders.filter(o => o.status === "pending").length,
-    inProgress: labOrders.filter(o => o.status === "in-progress").length,
-    completed: labOrders.filter(o => o.status === "completed").length,
-    stat: labOrders.filter(o => o.priority === "stat").length
+    pending:    labOrders.filter(o => o.status === "pending").length,
+    inProgress: labOrders.filter(o => o.status === "in_progress").length,
+    completed:  labOrders.filter(o => o.status === "completed").length,
+    stat:       labOrders.filter(o => o.urgency === "stat").length,
   };
 
   return (
@@ -193,7 +163,7 @@ export default function Labs() {
                     <SelectItem value="all">All Status</SelectItem>
                     <SelectItem value="pending">Pending</SelectItem>
                     <SelectItem value="collected">Collected</SelectItem>
-                    <SelectItem value="in-progress">In Progress</SelectItem>
+                    <SelectItem value="in_progress">In Progress</SelectItem>
                     <SelectItem value="completed">Completed</SelectItem>
                   </SelectContent>
                 </Select>
@@ -218,7 +188,7 @@ export default function Labs() {
             </CardContent>
           </Card>
 
-          <LabOrdersTable orders={filteredOrders} onResultsAdded={handleResultsAdded} />
+          <LabOrdersTable orders={filteredOrders} onResultsAdded={() => setLabOrders(loadLabOrders())} />
         </TabsContent>
 
         <TabsContent value="results" className="space-y-4">
@@ -240,12 +210,12 @@ export default function Labs() {
                           <div className="flex items-center gap-2">
                             <span className="font-medium">{order.patientName}</span>
                             <Badge variant="outline">{order.id}</Badge>
-                            <Badge className={getPriorityColor(order.priority)}>
-                              {order.priority.toUpperCase()}
+                            <Badge className={getPriorityColor(order.urgency)}>
+                              {order.urgency.toUpperCase()}
                             </Badge>
                           </div>
                           <p className="text-sm text-muted-foreground mt-1">
-                            {order.tests.join(", ")} • {order.resultDate}
+                            {order.testName} • {order.completedAt ? new Date(order.completedAt).toLocaleDateString() : "—"}
                           </p>
                         </div>
                         <LabResultsDialog order={order}>

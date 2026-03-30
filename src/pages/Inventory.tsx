@@ -1,25 +1,39 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, Plus, Edit, AlertTriangle, Package, DollarSign, TrendingDown, AlertCircle } from "lucide-react";
-import { inventoryItems, inventoryCategories, InventoryItem } from "@/data/inventory";
+import { Search, Plus, Edit, AlertTriangle, Package, DollarSign, AlertCircle, Upload, Trash2 } from "lucide-react";
+import { inventoryCategories, InventoryItem } from "@/data/inventory";
 import { InventoryItemDialog } from "@/components/InventoryItemDialog";
+import { loadInventory, saveInventoryItem, deleteInventoryItem, parseInventoryCSV, INVENTORY_CHANNEL } from "@/lib/inventoryStore";
 import { format } from "date-fns";
+import { useToast } from "@/hooks/use-toast";
 
 export default function Inventory() {
+  const { toast } = useToast();
+  const [items, setItems] = useState<InventoryItem[]>(() => loadInventory());
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<InventoryItem | undefined>();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Re-sync from store on BroadcastChannel or storage events
+  useEffect(() => {
+    const refresh = () => setItems(loadInventory());
+    let ch: BroadcastChannel | null = null;
+    try { ch = new BroadcastChannel(INVENTORY_CHANNEL); ch.onmessage = refresh; } catch {}
+    window.addEventListener("storage", refresh);
+    return () => { ch?.close(); window.removeEventListener("storage", refresh); };
+  }, []);
 
   // Filter inventory items
   const filteredItems = useMemo(() => {
-    return inventoryItems.filter((item) => {
+    return items.filter((item) => {
       const matchesSearch = 
         item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         item.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -64,17 +78,64 @@ export default function Inventory() {
   };
 
   const handleSave = (item: InventoryItem) => {
-    // In a real app, this would save to the backend
-    console.log("Saving inventory item:", item);
+    const isNew = !items.find(i => i.id === item.id);
+    saveInventoryItem(item);
+    setItems(loadInventory());
     setIsDialogOpen(false);
+    toast({
+      title: isNew ? "Item Added" : "Item Updated",
+      description: `${item.name} has been ${isNew ? "added to" : "updated in"} inventory.`,
+    });
+  };
+
+  const handleDelete = (id: string) => {
+    deleteInventoryItem(id);
+    setItems(loadInventory());
+    toast({ title: "Item Removed", description: "Inventory item deleted." });
+  };
+
+  const handleCSVImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const text = ev.target?.result as string;
+      const parsed = parseInventoryCSV(text);
+      let count = 0;
+      parsed.forEach(partial => {
+        if (!partial.name) return;
+        const full: InventoryItem = {
+          id: partial.id || `inv-${Date.now()}-${Math.random().toString(36).slice(2,6)}`,
+          sku: partial.sku || "",
+          name: partial.name,
+          category: partial.category || "other",
+          description: partial.description,
+          quantity: partial.quantity ?? 0,
+          unit: partial.unit || "unit",
+          unitCost: partial.unitCost ?? 0,
+          supplier: partial.supplier,
+          location: partial.location,
+          reorderLevel: partial.reorderLevel ?? 5,
+          reorderQuantity: partial.reorderQuantity ?? 10,
+          isActive: partial.isActive ?? true,
+          lastUpdated: new Date().toISOString(),
+        };
+        saveInventoryItem(full);
+        count++;
+      });
+      setItems(loadInventory());
+      toast({ title: "CSV Imported", description: `${count} items imported successfully.` });
+    };
+    reader.readAsText(file);
+    e.target.value = "";
   };
 
   // Calculate stats
   const stats = useMemo(() => {
-    const totalItems = inventoryItems.length;
-    const totalValue = inventoryItems.reduce((sum, item) => sum + (item.quantity * item.unitCost), 0);
-    const lowStockCount = inventoryItems.filter(item => item.quantity <= item.reorderLevel).length;
-    const expiringCount = inventoryItems.filter(item => 
+    const totalItems = items.length;
+    const totalValue = items.reduce((sum, item) => sum + (item.quantity * item.unitCost), 0);
+    const lowStockCount = items.filter(item => item.quantity <= item.reorderLevel).length;
+    const expiringCount = items.filter(item => 
       item.expirationDate && new Date(item.expirationDate) < new Date(Date.now() + 90 * 24 * 60 * 60 * 1000)
     ).length;
 
@@ -84,7 +145,7 @@ export default function Inventory() {
       lowStockCount,
       expiringCount
     };
-  }, []);
+  }, [items]);
 
   const isLowStock = (item: InventoryItem) => item.quantity <= item.reorderLevel;
   const isExpiring = (item: InventoryItem) => {
@@ -105,8 +166,10 @@ export default function Inventory() {
           </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline">
-            Import/Export
+          <input ref={fileInputRef} type="file" accept=".csv" className="hidden" onChange={handleCSVImport} />
+          <Button variant="outline" onClick={() => fileInputRef.current?.click()}>
+            <Upload className="h-4 w-4 mr-2" />
+            Import CSV
           </Button>
           <Button onClick={handleAddNew}>
             <Plus className="mr-2 h-4 w-4" />
@@ -311,12 +374,11 @@ export default function Inventory() {
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center justify-center space-x-1">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleEdit(item)}
-                          >
+                          <Button variant="ghost" size="sm" onClick={() => handleEdit(item)} title="Edit">
                             <Edit className="h-3 w-3" />
+                          </Button>
+                          <Button variant="ghost" size="sm" onClick={() => handleDelete(item.id)} title="Delete" className="text-destructive hover:text-destructive">
+                            <Trash2 className="h-3 w-3" />
                           </Button>
                         </div>
                       </TableCell>

@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
+import { addStaff } from "@/lib/staffStore";
 
 const staffFormSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
@@ -37,6 +38,7 @@ const staffFormSchema = z.object({
   department: z.string().min(1, "Please select a department"),
   startDate: z.string().min(1, "Start date is required"),
   schedule: z.string().min(5, "Schedule description is required"),
+  availability: z.string().min(1, "Please select availability"),
   status: z.string().default("active"),
 });
 
@@ -45,9 +47,10 @@ type StaffFormValues = z.infer<typeof staffFormSchema>;
 interface AddStaffDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onSuccess?: () => void;
 }
 
-export function AddStaffDialog({ open, onOpenChange }: AddStaffDialogProps) {
+export function AddStaffDialog({ open, onOpenChange, onSuccess }: AddStaffDialogProps) {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
 
@@ -61,6 +64,7 @@ export function AddStaffDialog({ open, onOpenChange }: AddStaffDialogProps) {
       department: "",
       startDate: "",
       schedule: "",
+      availability: "",
       status: "active",
     },
   });
@@ -68,17 +72,34 @@ export function AddStaffDialog({ open, onOpenChange }: AddStaffDialogProps) {
   const onSubmit = async (data: StaffFormValues) => {
     setIsLoading(true);
     try {
-      // In a real app, this would make an API call
-      console.log("Adding staff member:", data);
-      
+      const newMember = addStaff({
+        name: data.name.trim(),
+        email: data.email.trim(),
+        phone: data.phone.trim(),
+        role: data.role,
+        department: data.department,
+        status: data.status,
+        startDate: data.startDate,
+        schedule: data.schedule,
+        availability: data.availability,
+        avatar: null,
+      });
+      // Dispatch notification
+      window.dispatchEvent(new CustomEvent("acf:notification", {
+        detail: {
+          type: "success",
+          message: `New staff member added: ${newMember.name} (${newMember.role})`,
+          targetRoles: ["SuperAdmin"],
+        },
+      }));
       toast({
         title: "Staff member added",
-        description: `${data.name} has been successfully added to the team.`,
+        description: `${newMember.name} (${newMember.role}) has been added to the team.`,
       });
-      
       form.reset();
       onOpenChange(false);
-    } catch (error) {
+      onSuccess?.();
+    } catch {
       toast({
         title: "Error",
         description: "Failed to add staff member. Please try again.",
@@ -210,6 +231,30 @@ export function AddStaffDialog({ open, onOpenChange }: AddStaffDialogProps) {
                     <FormControl>
                       <Input type="date" {...field} />
                     </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="availability"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Availability</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select availability" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="available">Available</SelectItem>
+                        <SelectItem value="busy">Busy</SelectItem>
+                        <SelectItem value="off-duty">Off Duty</SelectItem>
+                        <SelectItem value="on-leave">On Leave</SelectItem>
+                      </SelectContent>
+                    </Select>
                     <FormMessage />
                   </FormItem>
                 )}

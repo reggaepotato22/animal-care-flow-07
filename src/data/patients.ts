@@ -26,6 +26,7 @@ export type PatientRow = {
   nextAppointment?: string;
   vaccinations?: Array<{ name: string; date: string; due: string }>;
   allergies: string[];
+  behavioralWarnings?: Array<{ text: string; level: "low" | "medium" | "high" }>;
   medications?: Array<{ name: string; dosage: string; prescribed: string }>;
   vitals?: Array<{ date: string; temperature: string; heartRate: string; respiratoryRate: string; weight: string; bloodPressure: string }>;
   recentVisits?: Array<{ date: string; reason: string; vet: string; notes: string }>;

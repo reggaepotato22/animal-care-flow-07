@@ -12,6 +12,7 @@ interface PatientHeaderProps {
   onEncounterChange?: (id: string) => void;
   onUpdateStatus?: (id: string, status: any) => void;
   onStatusChipClass: (status: string) => string;
+  onPatientUpdate?: (updatedPatient: any) => void;
 }
 
 export function PatientHeader({
@@ -21,6 +22,7 @@ export function PatientHeader({
   onEncounterChange,
   onUpdateStatus,
   onStatusChipClass,
+  onPatientUpdate,
 }: PatientHeaderProps) {
   const navigate = useNavigate();
   
@@ -43,7 +45,7 @@ export function PatientHeader({
           </div>
         </div>
         <div className="hidden md:flex gap-2">
-          <EditPatientDialog patient={patient}>
+          <EditPatientDialog patient={patient} onPatientUpdate={onPatientUpdate}>
             <Button variant="outline" size="sm">
               <Edit className="mr-2 h-4 w-4" />
               Edit Patient

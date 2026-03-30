@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useReducer, useRef } from "react";
 import { useAccount } from "@/contexts/AccountContext";
 import { getAccountScopedKey } from "@/lib/accountStore";
+import { EMERGENCY_CHANNEL, playEmergencySound } from "@/lib/emergencyAlert";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -201,7 +202,17 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
 
     const handleWf = (e: MessageEvent) => {
       const { type, payload } = e.data as { type: string; payload: Record<string, unknown> };
-      if (type === "PATIENT_CHECKIN") {
+      if (type === "EMERGENCY_VISIT") {
+        const name = (payload.patientName as string) ?? "Patient";
+        addNotification({
+          type: "critical",
+          message: `🚨 EMERGENCY: ${name} — immediate triage required (${payload.chiefComplaint ?? ""})`,
+          patientId:   payload.patientId as string,
+          patientName: name,
+          step:        "TRIAGE",
+          targetRoles: ["SuperAdmin", "Nurse", "Vet", "Receptionist"],
+        });
+      } else if (type === "PATIENT_CHECKIN") {
         const meta = payload.meta as { name: string; owner: string } | undefined;
         const name = meta?.name ?? "Patient";
         const { message, targetRoles } = buildPayload(name, "TRIAGE");
@@ -244,6 +255,10 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       dispatch({ type: "ADD", payload: data.payload });
     };
 
+    // Cross-tab emergency sound: play siren whenever any tab broadcasts an emergency
+    const emergencyCh = new BroadcastChannel(EMERGENCY_CHANNEL);
+    emergencyCh.addEventListener("message", () => playEmergencySound());
+
     wfCh.addEventListener("message", handleWf);
     encCh.addEventListener("message", handleEnc);
     notifCh.addEventListener("message", handleNotif);
@@ -251,6 +266,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       wfCh.close();
       encCh.close();
       try { notifCh.close(); } catch {}
+      emergencyCh.close();
     };
   }, [activeAccountId, addNotification]);
 

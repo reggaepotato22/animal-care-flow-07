@@ -54,6 +54,7 @@ import Billing from "./pages/Billing";
 import { RoleProvider } from "@/contexts/RoleContext";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import PatientJourney from "./pages/PatientJourney";
+import ReferPatient from "./pages/ReferPatient";
 import UserProfile from "./pages/UserProfile";
 import { PermissionRoute } from "@/components/PermissionRoute";
 import { AppearanceProvider } from "@/contexts/AppearanceContext";
@@ -93,6 +94,7 @@ function ProtectedRoutes() {
         <Route path="/records/new" element={<NewRecord />} />
         <Route path="/records/:id" element={<ClinicalRecordDetails />} />
         <Route path="/patients/:id/journey" element={<PatientJourney />} />
+        <Route path="/patients/:id/refer" element={<ReferPatient />} />
         <Route path="/workflow-settings" element={<WorkflowSettings />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="/settings/communications" element={<SettingsCommunications />} />

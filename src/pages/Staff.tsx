@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Plus, Search, Filter, Calendar, Users, UserCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,15 +6,24 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { StaffCard } from "@/components/StaffCard";
 import { AddStaffDialog } from "@/components/AddStaffDialog";
 import { ScheduleManagement } from "@/components/ScheduleManagement";
-
-import { getStaff } from "@/lib/staffStore";
+import { getStaff, initializeSampleStaff } from "@/lib/staffStore";
 
 export default function Staff() {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterRole, setFilterRole] = useState("all");
   const [showAddDialog, setShowAddDialog] = useState(false);
-  
-  const staffMembers = getStaff();
+  const [staffMembers, setStaffMembers] = useState(() => {
+    initializeSampleStaff();
+    return getStaff();
+  });
+
+  const refreshStaff = () => setStaffMembers(getStaff());
+
+  useEffect(() => {
+    const onStorage = () => setStaffMembers(getStaff());
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, []);
 
   const filteredStaff = staffMembers.filter((staff) => {
     const matchesSearch = staff.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -139,6 +148,7 @@ export default function Staff() {
       <AddStaffDialog 
         open={showAddDialog} 
         onOpenChange={setShowAddDialog}
+        onSuccess={refreshStaff}
       />
     </div>
   );

@@ -16,6 +16,10 @@ import { useToast } from "@/hooks/use-toast";
 import { getStepRoute } from "@/config/workflow";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import { useEncounter } from "@/contexts/EncounterContext";
+import { getPatients, updatePatient } from "@/lib/patientStore";
+import { EncounterStatus } from "@/lib/types";
+import { getStaff, initializeSampleStaff } from "@/lib/staffStore";
 
 type TriageIntake = {
   chiefComplaint: string;
@@ -58,10 +62,6 @@ const riskFlags = [
   "Known toxin exposure",
   "Pregnant/lactating",
 ];
-
-import { useEncounter } from "@/contexts/EncounterContext";
-import { getPatients } from "@/lib/patientStore";
-import { EncounterStatus } from "@/lib/types";
 
 export default function Triage() {
   const location = useLocation();
@@ -121,6 +121,14 @@ export default function Triage() {
       }
     }
   }, [location.search, encounters]);
+
+  const availableVets = (() => {
+    initializeSampleStaff();
+    return getStaff().filter(s =>
+      s.status === "active" &&
+      (s.role.toLowerCase().includes("veterinarian") || s.role.toLowerCase().includes("vet"))
+    );
+  })();
 
   const [intakeById, setIntakeById] = useState<Record<string, TriageIntake>>(() => {
     try {
@@ -201,6 +209,23 @@ export default function Triage() {
     if (!selectedEncounter) return;
     
     markStatus("TRIAGED");
+
+    // Persist vitals to patient record
+    if (selectedEncounter.patientId && (intake.temperature || intake.heartRate || intake.respiratoryRate || intake.weight)) {
+      const patient = patientDetails;
+      if (patient) {
+        const newVital = {
+          date: new Date().toISOString().split("T")[0],
+          temperature: intake.temperature ? `${intake.temperature}°C` : "",
+          heartRate: intake.heartRate ? `${intake.heartRate} bpm` : "",
+          respiratoryRate: intake.respiratoryRate ? `${intake.respiratoryRate} rpm` : "",
+          weight: intake.weight ? `${intake.weight}` : "",
+          bloodPressure: "Normal",
+        };
+        const existingVitals = (patient.vitals || []) as any[];
+        updatePatient(patient.id, { vitals: [newVital, ...existingVitals] });
+      }
+    }
     
     // Transition workflow to CONSULTATION as it's "ready" for vet
     if (selectedEncounter.patientId) {
@@ -393,10 +418,20 @@ export default function Triage() {
                         <SelectValue placeholder="Select vet" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="Dr. Smith">Dr. Smith</SelectItem>
-                        <SelectItem value="Dr. Brown">Dr. Brown</SelectItem>
-                        <SelectItem value="Dr. Johnson">Dr. Johnson</SelectItem>
-                        <SelectItem value="Dr. Wilson">Dr. Wilson</SelectItem>
+                        {availableVets.length > 0 ? availableVets.map(v => (
+                          <SelectItem key={v.id} value={v.name}>
+                            <span className="flex items-center gap-2">
+                              {v.name}
+                              <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${
+                                v.availability === "available" ? "bg-emerald-100 text-emerald-700" :
+                                v.availability === "busy" ? "bg-amber-100 text-amber-700" :
+                                "bg-gray-100 text-gray-500"
+                              }`}>{v.availability || "active"}</span>
+                            </span>
+                          </SelectItem>
+                        )) : (
+                          <SelectItem value="__none__" disabled>No vets found — add staff first</SelectItem>
+                        )}
                       </SelectContent>
                     </Select>
                   </div>

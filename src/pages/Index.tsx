@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { DashboardStats } from "@/components/DashboardStats";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { formatDistanceToNow, subMinutes, subHours, subDays, subSeconds } from "date-fns";
 import { useRole } from "@/contexts/RoleContext";
 import { useWorkflowContext } from "@/contexts/WorkflowContext";
@@ -95,6 +95,9 @@ const ROLE_ALERTS: Record<string, { message: string; type: string; timestamp: Da
 
 const Index = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const walkinPatientId = new URLSearchParams(location.search).get("walkin") ?? "";
+  const appointmentsCardRef = useRef<HTMLDivElement>(null);
   const { has, role } = useRole();
   const { activeAccountId } = useAccount();
   const { toast } = useToast();
@@ -102,6 +105,14 @@ const Index = () => {
   const { createEncounter, getActiveEncounterForPatient, updateEncounterStatus } = useEncounter();
   const { notifications } = useNotifications();
   const [isAlertsModalOpen, setIsAlertsModalOpen] = useState(false);
+
+  // Scroll to check-in section when arriving via ?walkin=
+  useEffect(() => {
+    if (walkinPatientId && appointmentsCardRef.current) {
+      const el = appointmentsCardRef.current;
+      setTimeout(() => el.scrollIntoView({ behavior: "smooth", block: "center" }), 400);
+    }
+  }, [walkinPatientId]);
 
   // Live today's appointments (seed + stored), refresh on every booking
   const [allAppointments, setAllAppointments] = useState<DashAppt[]>(buildDashAppointments);
@@ -130,8 +141,22 @@ const Index = () => {
     return () => { channels.forEach(c => c.close()); window.removeEventListener("storage", onStorage); };
   }, [activeAccountId]);
 
-  const allCheckedIn  = wf.getCheckedInPatients();
-  const activePatients    = allCheckedIn.filter(p => p.step !== "COMPLETED");
+  const allCheckedIn = wf.getCheckedInPatients();
+  const TWENTY_FOUR_H = 24 * 60 * 60 * 1000;
+  const activePatients = allCheckedIn.filter(p => {
+    if (p.step === "COMPLETED") return false;
+    return (Date.now() - new Date(p.checkedInAt).getTime()) < TWENTY_FOUR_H;
+  });
+
+  // Auto-clear patients checked in >24 hours ago from active state
+  useEffect(() => {
+    allCheckedIn.forEach(p => {
+      if (p.step !== "COMPLETED" && (Date.now() - new Date(p.checkedInAt).getTime()) >= TWENTY_FOUR_H) {
+        wf.clearPatientFromActive(p.patientId);
+      }
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   // Get completed patients from process history for timeline data
   const processHistory = wf.getProcessHistory ? wf.getProcessHistory() : [];
   const todaysCompleted = processHistory.filter(p => {
@@ -196,6 +221,13 @@ const Index = () => {
       type: appt.type, checkedInAt: new Date().toISOString(),
     });
     toast({ title: "✓ Checked In", description: `${appt.patient} is now in the Triage queue.` });
+  };
+
+  const handleMarkComplete = (patientId: string, patientName: string) => {
+    const enc = getActiveEncounterForPatient(patientId);
+    if (enc) updateEncounterStatus(enc.id, "DISCHARGED");
+    wf.setStep(patientId, "COMPLETED");
+    toast({ title: "✓ Completed", description: `${patientName} has been marked as complete and removed from the queue.` });
   };
 
   const handleNurseTriage = (patientId: string) => {
@@ -322,6 +354,19 @@ const Index = () => {
                               <ArrowRight className="h-2.5 w-2.5" />
                             </Button>
                           )}
+
+                          {/* Mark as Complete — visible to SuperAdmin, Vet, Nurse */}
+                          {(role === "SuperAdmin" || role === "Vet" || role === "Nurse") && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-5 text-[9px] px-1.5 gap-0.5 text-emerald-700 hover:bg-emerald-50 shrink-0"
+                              onClick={() => handleMarkComplete(patient.patientId, patient.name)}
+                            >
+                              <CheckCheck className="h-2.5 w-2.5" />
+                              Complete
+                            </Button>
+                          )}
                         </div>
 
                         {/* Bottom row: compact progress bar */}
@@ -353,7 +398,7 @@ const Index = () => {
       <div className="grid gap-6 md:grid-cols-2">
 
         {/* Today's Appointments — content differs per role */}
-        <Card>
+        <Card ref={appointmentsCardRef} className={walkinPatientId ? "ring-2 ring-primary/50 transition-all" : ""}>
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center justify-between text-base">
               <span className="flex items-center gap-2">
@@ -369,6 +414,12 @@ const Index = () => {
                 {todayCount} {role === "Nurse" ? "waiting" : role === "Vet" ? "ready" : "pending"}
               </Badge>
             </CardTitle>
+            {walkinPatientId && role !== "Nurse" && role !== "Vet" && (
+              <div className="mt-1 flex items-center gap-2 rounded-md bg-primary/10 border border-primary/30 px-3 py-1.5 text-xs text-primary font-medium">
+                <UserCheck className="h-3.5 w-3.5 shrink-0" />
+                Walk-in patient added — click <strong>Check-in</strong> below to proceed
+              </div>
+            )}
           </CardHeader>
           <CardContent>
             {todayCount === 0 ? (
@@ -386,7 +437,12 @@ const Index = () => {
                 {/* ── RECEPTIONIST / SUPERADMIN: unchecked-in appointments ── */}
                 {role !== "Nurse" && role !== "Vet" && pendingAppts.map(appt => (
                   <div key={appt.id}
-                    className="flex items-center justify-between p-3 border border-border rounded-lg hover:bg-muted/40 transition-colors">
+                    className={cn(
+                      "flex items-center justify-between p-3 border rounded-lg transition-colors",
+                      walkinPatientId && appt.patientId === walkinPatientId
+                        ? "border-primary bg-primary/5 ring-1 ring-primary/40"
+                        : "border-border hover:bg-muted/40"
+                    )}>
                     <div className="min-w-0">
                       <p className="font-semibold text-sm">{appt.patient}</p>
                       <p className="text-xs text-muted-foreground">{appt.owner}</p>

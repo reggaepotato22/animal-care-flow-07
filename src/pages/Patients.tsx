@@ -283,6 +283,7 @@ export default function Patients() {
                   onTriage={hasActiveVisit ? handleSendToTriage : undefined}
                   hasAppointmentToday={!!todayAppointment}
                   appointmentDetails={todayAppointment ? { time: todayAppointment.time, vet: todayAppointment.vet } : undefined}
+                  isCheckedIn={hasActiveVisit}
                 />
               );
             })}
@@ -324,14 +325,26 @@ export default function Patients() {
                     >
                       <TableCell className="font-mono text-xs text-muted-foreground">{patient.patientId}</TableCell>
                       <TableCell className="font-semibold text-foreground group-hover:text-primary transition-colors">
-                        <div className="flex items-center gap-2">
-                          {patient.name}
-                          {patient.allergies && patient.allergies.length > 0 && patient.allergies[0] !== "None known" && (
-                            <Badge variant="outline" className="h-4 px-1 text-[9px] bg-red-50 text-red-600 border-red-200">
-                              <AlertTriangle className="h-2 w-2 mr-0.5" />
-                              Allergies
-                            </Badge>
-                          )}
+                        <div className="flex flex-col gap-1">
+                          <div className="flex items-center gap-1.5">
+                            {patient.name}
+                            {patient.allergies && patient.allergies.length > 0 && patient.allergies[0] !== "None known" && (
+                              <Badge variant="outline" className="h-4 px-1 text-[9px] bg-red-50 text-red-600 border-red-200">
+                                <AlertTriangle className="h-2 w-2 mr-0.5" />
+                                Allergies
+                              </Badge>
+                            )}
+                            {encounters.some(enc => enc.patientId === patient.id && ["WAITING","IN_TRIAGE","TRIAGED","IN_CONSULTATION"].includes(enc.status)) && (
+                              <Badge variant="outline" className="h-4 px-1 text-[9px] bg-teal-50 text-teal-700 border-teal-200 animate-pulse">In Clinic</Badge>
+                            )}
+                          </div>
+                          {(patient as any).behavioralWarnings?.filter((w: any) => w.text).map((w: any, i: number) => (
+                            <div key={i} className={`inline-flex items-center gap-0.5 text-[9px] font-medium px-1 py-0 rounded ${
+                              w.level === "high" ? "bg-red-50 text-red-700" : w.level === "medium" ? "bg-orange-50 text-orange-700" : "bg-blue-50 text-blue-700"
+                            }`}>
+                              <AlertTriangle className="h-2 w-2" />{w.text}
+                            </div>
+                          ))}
                         </div>
                       </TableCell>
                       <TableCell>

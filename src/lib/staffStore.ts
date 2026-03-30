@@ -12,6 +12,7 @@ export interface Staff {
   status: string;
   startDate: string;
   schedule: string;
+  availability: string;
   avatar: string | null;
 }
 
@@ -31,6 +32,7 @@ export const sampleStaff: Omit<Staff, "id">[] = [
     status: "active",
     startDate: "2022-01-15",
     schedule: "Monday-Friday, 8:00 AM - 6:00 PM",
+    availability: "available",
     avatar: null,
   },
   {
@@ -42,6 +44,7 @@ export const sampleStaff: Omit<Staff, "id">[] = [
     status: "active",
     startDate: "2023-03-20",
     schedule: "Tuesday-Saturday, 9:00 AM - 5:00 PM",
+    availability: "available",
     avatar: null,
   },
   {
@@ -53,6 +56,7 @@ export const sampleStaff: Omit<Staff, "id">[] = [
     status: "active",
     startDate: "2021-11-08",
     schedule: "Monday-Friday, 7:00 AM - 4:00 PM",
+    availability: "available",
     avatar: null,
   },
   {
@@ -64,6 +68,7 @@ export const sampleStaff: Omit<Staff, "id">[] = [
     status: "active",
     startDate: "2023-06-12",
     schedule: "Wednesday-Sunday, 10:00 AM - 6:00 PM",
+    availability: "available",
     avatar: null,
   },
 ];
