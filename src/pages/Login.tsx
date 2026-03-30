@@ -144,10 +144,6 @@ export default function Login() {
                 </p>
               </div>
             </div>
-            <div className="rounded-md bg-amber-100/80 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/40 px-3 py-2 text-xs font-mono space-y-0.5">
-              <div><span className="text-muted-foreground">Email:</span> <span className="font-semibold">demo@vetcare.demo</span></div>
-              <div><span className="text-muted-foreground">Password:</span> <span className="font-semibold">demo123</span></div>
-            </div>
             <Link to="/login/demo" className="block">
               <Button variant="outline" className="w-full h-9 border-amber-300 text-amber-800 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/30 font-medium">
                 Enter Demo Clinic
