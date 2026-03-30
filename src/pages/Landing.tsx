@@ -13,44 +13,73 @@ import {
 } from "lucide-react";
 
 // ── Lead capture ─────────────────────────────────────────────────────────────
-const ACCESS_KEY   = "innovetpro_access_requests";
-const EJS_SERVICE  = import.meta.env.VITE_EMAILJS_SERVICE_ID   as string | undefined;
-const EJS_KEY      = import.meta.env.VITE_EMAILJS_PUBLIC_KEY    as string | undefined;
-const EJS_NOTIFY   = import.meta.env.VITE_EMAILJS_NOTIFY_TPL   as string | undefined;
-const EJS_CONFIRM  = import.meta.env.VITE_EMAILJS_CONFIRM_TPL  as string | undefined;
+const ACCESS_KEY    = "innovetpro_access_requests";
+
+// Formspree  → owner notifications (set VITE_FORMSPREE_ENDPOINT in Vercel env vars)
+const FORMSPREE     = import.meta.env.VITE_FORMSPREE_ENDPOINT   as string | undefined;
+
+// EmailJS    → branded confirmation to submitter (set all 4 vars in Vercel)
+const EJS_SERVICE   = import.meta.env.VITE_EMAILJS_SERVICE_ID   as string | undefined;
+const EJS_KEY       = import.meta.env.VITE_EMAILJS_PUBLIC_KEY   as string | undefined;
+const EJS_CONFIRM   = import.meta.env.VITE_EMAILJS_CONFIRM_TPL  as string | undefined;
 
 function saveLocal(email: string, phone: string) {
   const prev = JSON.parse(localStorage.getItem(ACCESS_KEY) || "[]");
   localStorage.setItem(ACCESS_KEY, JSON.stringify([...prev, { email, phone, at: new Date().toISOString() }]));
 }
 
-async function ejsSend(templateId: string, params: Record<string, string>) {
-  if (!EJS_SERVICE || !EJS_KEY) return;
-  const res = await fetch("https://api.emailjs.com/api/v1.0/email/send", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ service_id: EJS_SERVICE, template_id: templateId, user_id: EJS_KEY, template_params: params }),
-  });
-  if (!res.ok) throw new Error("Email delivery failed — please try again.");
-}
-
 async function submitRequest(email: string, phone: string): Promise<void> {
   saveLocal(email, phone);
   const timestamp = new Date().toLocaleString("en-US", { dateStyle: "full", timeStyle: "short" });
+  const errors: string[] = [];
 
-  // 1 — Notify owners
-  if (EJS_NOTIFY) {
-    await ejsSend(EJS_NOTIFY, {
-      from_email: email,
-      phone,
-      timestamp,
-      notify_emails: "andygosystems@gmail.com, andrewmandieka@gmail.com",
-    });
+  // ── 1. Formspree → notify BOTH owners ───────────────────────────────────
+  if (FORMSPREE) {
+    try {
+      const res = await fetch(FORMSPREE, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({
+          email,
+          phone,
+          timestamp,
+          subject:  "🐾 New InnoVetPro Access Request",
+          message:  `Access request received on ${timestamp}\n\nEmail: ${email}\nPhone: ${phone}`,
+          _replyto: email,
+          _cc:      "andrewmandieka@gmail.com",
+        }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({})) as { error?: string };
+        errors.push(d.error ?? "Notification failed");
+      }
+    } catch {
+      errors.push("Could not reach notification service");
+    }
   }
 
-  // 2 — Branded confirmation back to submitter
-  if (EJS_CONFIRM) {
-    await ejsSend(EJS_CONFIRM, { to_email: email, phone, timestamp });
+  // ── 2. EmailJS → branded confirmation to the submitter ──────────────────
+  if (EJS_SERVICE && EJS_KEY && EJS_CONFIRM) {
+    try {
+      const res = await fetch("https://api.emailjs.com/api/v1.0/email/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          service_id: EJS_SERVICE,
+          template_id: EJS_CONFIRM,
+          user_id: EJS_KEY,
+          template_params: { to_email: email, phone, timestamp },
+        }),
+      });
+      if (!res.ok) errors.push("Confirmation email failed");
+    } catch {
+      errors.push("Could not reach confirmation service");
+    }
+  }
+
+  // Only hard-fail if Formspree was configured but errored (means env is set but broken)
+  if (errors.length && FORMSPREE) {
+    throw new Error(errors.join(" · "));
   }
 }
 
@@ -82,6 +111,12 @@ const WORKFLOW = [
   { num: "03", role: "Pharmacist & Billing", color: "bg-[#56B246]",  icon: Pill,        desc: "Dispense medication, update inventory, generate invoice, and close the visit." },
 ];
 
+const STATS = [
+  { num: "10K+",  label: "Patients Managed" },
+  { num: "500+",  label: "Clinics Onboarded" },
+  { num: "5",     label: "Staff Roles" },
+  { num: "99.9%", label: "Uptime SLA" },
+];
 
 const TESTIMONIALS = [
   { name: "Dr. Sarah Mitchell",  role: "Chief Veterinarian",  clinic: "Greenfield Animal Hospital", quote: "InnoVetPro transformed how we run our clinic. The workflow automation alone saves us 2+ hours every single day.", stars: 5 },
@@ -327,6 +362,23 @@ export default function Landing() {
               <AccessForm />
             </div>
             <p className="text-xs text-white/25">Credentials sent within 24 hrs · No credit card required</p>
+
+            {/* Trust badges */}
+            <div className="flex flex-wrap gap-4 mt-8">
+              <div className="flex items-center gap-2 bg-white/[0.05] border border-white/[0.07] rounded-xl px-4 py-2.5">
+                <div className="flex">{[0,1,2,3,4].map(i => <Star key={i} className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />)}</div>
+                <span className="text-xs text-white font-semibold">4.9 / 5</span>
+                <span className="text-[10px] text-white/30">· 2.6K+ clinics</span>
+              </div>
+              <div className="flex items-center gap-2 bg-white/[0.05] border border-white/[0.07] rounded-xl px-4 py-2.5">
+                <Activity className="h-4 w-4 text-[#56B246]" />
+                <span className="text-xs text-white/70"><span className="text-white font-bold">1,240+</span> patients today</span>
+              </div>
+              <div className="flex items-center gap-2 bg-white/[0.05] border border-white/[0.07] rounded-xl px-4 py-2.5">
+                <Shield className="h-4 w-4 text-blue-400" />
+                <span className="text-xs text-white/70">99.9% uptime</span>
+              </div>
+            </div>
           </div>
 
           {/* Right — mock app window */}
@@ -435,6 +487,22 @@ export default function Landing() {
         </div>
       </section>
 
+      {/* ── STATS ── */}
+      <section className="py-20 px-6 border-y border-white/[0.06]">
+        <div className="max-w-5xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-10 text-center">
+          {STATS.map(({ num, label }) => (
+            <div key={label}>
+              <div className="text-4xl md:text-5xl font-black text-white mb-2 leading-none">
+                <span className="text-[#56B246]">{num.replace(/[0-9]+/,"")}</span>
+                <span>{num.replace(/[^0-9.]+/g,"")}</span>
+                <span className="text-[#56B246]">{num.match(/[^0-9.]+$/)?.[0] ?? ""}</span>
+              </div>
+              <div className="text-[11px] text-white/30 uppercase tracking-wider font-medium">{label}</div>
+            </div>
+          ))}
+        </div>
+      </section>
+
       {/* ── TESTIMONIALS ── */}
       <section id="testimonials" className="py-28 px-6">
         <div className="max-w-6xl mx-auto">
@@ -501,24 +569,21 @@ export default function Landing() {
             <div className="grid grid-cols-2 gap-10 text-sm">
               <div>
                 <div className="text-white/50 font-semibold mb-3 text-xs uppercase tracking-wider">Product</div>
-                {([["features","Features"],["workflow","How It Works"],["access","Request Access"]] as [string,string][]).map(([id,label]) => (
+                {[["features","Features"],["workflow","How It Works"],["access","Request Access"]].map(([id,label]) => (
                   <button key={id} onClick={() => goTo(id)} className="block text-white/30 hover:text-white/60 mb-2 text-xs transition-colors">{label}</button>
                 ))}
               </div>
               <div>
-                <div className="text-white/50 font-semibold mb-3 text-xs uppercase tracking-wider">Contact</div>
-                <a href="mailto:andygosystems@gmail.com" className="block text-white/30 hover:text-white/60 mb-2 text-xs transition-colors">andygosystems@gmail.com</a>
-                <a href="mailto:andrewmandieka@gmail.com" className="block text-white/30 hover:text-white/60 mb-2 text-xs transition-colors">andrewmandieka@gmail.com</a>
-                <button onClick={() => goTo("access")} className="block text-white/30 hover:text-white/60 mb-2 text-xs transition-colors">Request Access</button>
+                <div className="text-white/50 font-semibold mb-3 text-xs uppercase tracking-wider">Access</div>
+                <button onClick={() => navigate("/login/demo")} className="block text-white/30 hover:text-white/60 mb-2 text-xs transition-colors">Sign In</button>
+                <button onClick={() => navigate("/signup")} className="block text-white/30 hover:text-white/60 mb-2 text-xs transition-colors">Create Account</button>
+                <button onClick={() => navigate("/login/demo")} className="block text-white/30 hover:text-white/60 mb-2 text-xs transition-colors">Demo Clinic</button>
               </div>
             </div>
           </div>
           <div className="border-t border-white/[0.06] pt-6 flex flex-col sm:flex-row items-center justify-between gap-3">
-            <p className="text-xs text-white/20">© {new Date().getFullYear()} InnoVetPro · Veterinary Management System · All credentials provided upon request.</p>
-            <a href="https://andygosystems.com" target="_blank" rel="noopener noreferrer"
-              className="text-xs text-white/20 hover:text-white/40 transition-colors">
-              Developed by andygosystems.com
-            </a>
+            <p className="text-xs text-white/20">© {new Date().getFullYear()} InnoVetPro · Veterinary Management System</p>
+            <p className="text-xs text-white/20">All credentials provided personally upon request.</p>
           </div>
         </div>
       </footer>
