@@ -90,7 +90,9 @@ export default function PatientDetails() {
     };
     saveAppointment(appt);
     broadcastAppointmentUpdate();
-    navigate(`/?walkin=${patient.id}`);
+    navigate(
+      `/records/new?patientId=${encodeURIComponent(patient.id)}&petName=${encodeURIComponent(patient.name)}&owner=${encodeURIComponent((patient as any).owner || "")}`
+    );
   };
 
   const handleDeceased = () => {
