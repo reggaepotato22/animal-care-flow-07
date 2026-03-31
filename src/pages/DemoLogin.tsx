@@ -21,7 +21,7 @@ export default function DemoLogin() {
   const location = useLocation();
 
   const from = (location.state as { from?: { pathname: string } })?.from?.pathname;
-  const redirectTo = (from && from !== "/") ? from : "/patients";
+  const redirectTo = (from && from !== "/") ? from : "/dashboard";
 
   useEffect(() => {
     const unsub = subscribeToDemoCredentials(() => setDemoCreds(getDemoCredentials()));
@@ -128,4 +128,3 @@ export default function DemoLogin() {
     </div>
   );
 }
-

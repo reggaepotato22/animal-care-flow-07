@@ -84,7 +84,7 @@ export function AdminNavigation() {
       {!collapsed && (
         <div className="p-4 border-t border-border">
           <NavLink
-            to="/"
+            to="/dashboard"
             className="flex items-center text-sm text-muted-foreground hover:text-foreground"
           >
             <Heart className="h-4 w-4 mr-2" />

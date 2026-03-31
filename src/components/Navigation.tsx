@@ -29,7 +29,7 @@ import { useAccount } from "@/contexts/AccountContext";
 import { hasFeature } from "@/lib/accountStore";
 
 const navigationItems = [
-  { name: "Dashboard",           href: "/",                       icon: LayoutDashboard },
+  { name: "Dashboard",           href: "/dashboard",              icon: LayoutDashboard },
   { name: "Registered Patients", href: "/patients",               icon: ClipboardList },
   { name: "Appointments",        href: "/appointments",           icon: Calendar },
   { name: "Clinical Records",    href: "/records",                icon: ScrollText },
@@ -112,7 +112,7 @@ export function Navigation() {
             <NavLink
               key={item.name}
               to={item.href}
-              end={item.href === "/"}
+              end={item.href === "/dashboard"}
               data-tutorial={
                 item.name === "Registered Patients" ? "nav-registered-patients" :
                 item.name === "Billing" ? "nav-billing" : undefined

@@ -21,7 +21,7 @@ export function GlobalSearch({ open, onOpenChange, initialQuery = "" }: { open: 
   }, [value]);
 
   const quickLinks = [
-    { label: "Dashboard", icon: Activity, to: "/" },
+    { label: "Dashboard", icon: Activity, to: "/dashboard" },
     { label: "Patients", icon: User, to: "/patients" },
     { label: "Triage", icon: Stethoscope, to: "/triage" },
     { label: "Appointments", icon: Calendar, to: "/appointments" },
