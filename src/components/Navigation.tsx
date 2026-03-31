@@ -38,7 +38,6 @@ const navigationItems = [
   { name: "Hospitalization",     href: "/hospitalization",        icon: Hospital },
   { name: "Treatments",          href: "/treatments",             icon: Stethoscope },
   { name: "Inventory",           href: "/inventory",              icon: Package },
-  { name: "Pharmacy",            href: "/inventory",              icon: Beaker },
   { name: "Billing",             href: "/billing",                icon: CreditCard },
   { name: "Postmortem",          href: "/postmortem",             icon: FileText },
   { name: "Staff Management",    href: "/staff",                  icon: UsersIcon },
@@ -97,7 +96,6 @@ export function Navigation() {
             if (item.name === "Communications")      return has("can_manage_users");
             if (item.name === "Appearance")          return true;
             if (item.name === "Inventory")           return has("can_manage_inventory") && hasFeature("inventory", activeAccount);
-            if (item.name === "Pharmacy")            return has("can_dispense") && hasFeature("inventory", activeAccount);
             if (item.name === "Billing")             return has("can_access_billing");
             if (item.name === "Triage")              return has("can_triage");
             if (item.name === "Labs")                return has("can_view_records") && hasFeature("labs", activeAccount);
