@@ -82,7 +82,7 @@ export function generateMockInventory(): InventoryItem[] {
 
 /** Wipe all inventory items from localStorage (used by Clear All Data). */
 export function clearInventoryData(): void {
-  localStorage.removeItem(INVENTORY_KEY);
+  localStorage.setItem(INVENTORY_KEY, JSON.stringify([]));
   broadcastInventoryUpdate();
 }
 
