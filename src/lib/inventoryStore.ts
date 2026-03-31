@@ -63,6 +63,29 @@ export function broadcastInventoryUpdate(): void {
   } catch {}
 }
 
+/** Reset inventory to the seed dataset with randomised quantities and today's timestamps. */
+export function generateMockInventory(): InventoryItem[] {
+  const now = new Date().toISOString();
+  const fresh: InventoryItem[] = seedInventory.map(item => ({
+    ...item,
+    id: `inv-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    quantity: Math.floor(item.reorderLevel * 1.5 + Math.random() * item.reorderQuantity),
+    lastUpdated: now,
+    expirationDate: item.expirationDate
+      ? new Date(Date.now() + (180 + Math.floor(Math.random() * 365)) * 86400000).toISOString().slice(0, 10)
+      : undefined,
+  }));
+  localStorage.setItem(INVENTORY_KEY, JSON.stringify(fresh));
+  broadcastInventoryUpdate();
+  return fresh;
+}
+
+/** Wipe all inventory items from localStorage (used by Clear All Data). */
+export function clearInventoryData(): void {
+  localStorage.removeItem(INVENTORY_KEY);
+  broadcastInventoryUpdate();
+}
+
 /** Parse a simple CSV string (headers on first row) into InventoryItems */
 export function parseInventoryCSV(csv: string): Partial<InventoryItem>[] {
   const lines = csv.split(/\r?\n/).filter(Boolean);
