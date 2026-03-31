@@ -61,6 +61,7 @@ import { AppearanceProvider } from "@/contexts/AppearanceContext";
 import { AccountProvider } from "@/contexts/AccountContext";
 import { TutorialProvider } from "@/contexts/TutorialContext";
 import Landing from "./pages/Landing";
+import { FeedbackProvider } from "@/contexts/FeedbackContext";
 
 const queryClient = new QueryClient();
 
@@ -72,6 +73,7 @@ function ProtectedRoutes() {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
   return (
+    <FeedbackProvider>
     <TutorialProvider>
     <Layout>
       <Routes>
@@ -109,6 +111,7 @@ function ProtectedRoutes() {
       </Routes>
     </Layout>
     </TutorialProvider>
+    </FeedbackProvider>
   );
 }
 

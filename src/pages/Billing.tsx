@@ -11,6 +11,7 @@ import { Search, Receipt, User, Phone, Stethoscope, Pill, CheckCircle, Clock, XC
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { useWorkflowContext } from "@/contexts/WorkflowContext";
+import { useFeedback } from "@/contexts/FeedbackContext";
 
 const BILLING_KEY = "acf_billing_records";
 
@@ -50,6 +51,7 @@ const STATUS_STYLES = {
 export default function Billing() {
   const { toast } = useToast();
   const { setStep } = useWorkflowContext();
+  const { triggerSurvey } = useFeedback();
   const [records, setRecords] = useState<BillingRecord[]>(() => loadBilling());
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | BillingRecord["status"]>("all");
@@ -94,6 +96,7 @@ export default function Billing() {
     // Move patient workflow to COMPLETED
     if (bill.patientId) setStep(bill.patientId, "COMPLETED");
     toast({ title: "✓ Payment Recorded", description: `${bill.petName}'s invoice marked as paid.` });
+    triggerSurvey("invoice_finalized");
   };
 
   const openMpesa = (bill: BillingRecord) => {
