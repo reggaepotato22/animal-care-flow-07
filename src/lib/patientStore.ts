@@ -427,9 +427,29 @@ export function clearCache(): void {
 }
 
 // Clear all app data including patients (complete reset)
+// Auth/account keys are preserved so the active session survives the reload.
+const AUTH_PRESERVE_KEYS = [
+  "vetcare-demo-auth",
+  "vetcare-admin-auth",
+  "vetcare_registered_users",
+  "acf_demo_credentials",
+  "acf_accounts",
+  "acf_active_account_id",
+];
+
 export function clearAllData(): void {
   if (typeof window === "undefined") return;
+  // Snapshot auth keys before wiping
+  const preserved: Record<string, string> = {};
+  for (const key of AUTH_PRESERVE_KEYS) {
+    const val = localStorage.getItem(key);
+    if (val !== null) preserved[key] = val;
+  }
   localStorage.clear();
+  // Restore auth keys so the session stays alive after reload
+  for (const [key, val] of Object.entries(preserved)) {
+    localStorage.setItem(key, val);
+  }
 }
 
 // Reset and re-initialize sample patients
