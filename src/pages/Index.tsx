@@ -39,6 +39,7 @@ import { Separator } from "@/components/ui/separator";
 import { useNotifications } from "@/contexts/NotificationContext";
 import { loadStoredAppointments, subscribeToAppointments, isToday, isoToTimeLabel } from "@/lib/appointmentStore";
 import { getPatients, clearAllData, generateMockPatients } from "@/lib/patientStore";
+import { generateMockInventory, clearInventoryData } from "@/lib/inventoryStore";
 import { useAccount } from "@/contexts/AccountContext";
 import { getAccountScopedKey } from "@/lib/accountStore";
 import { getHospChannelName } from "@/lib/hospitalizationStore";
@@ -403,7 +404,8 @@ const Index = () => {
             className="h-8 text-xs gap-1.5"
             onClick={() => {
               const patients = generateMockPatients(5);
-              toast({ title: "Mock data generated", description: `${patients.length} sample patients added.` });
+              const items = generateMockInventory();
+              toast({ title: "Mock data generated", description: `${patients.length} patients + ${items.length} inventory items added.` });
               window.location.reload();
             }}
           >
@@ -416,6 +418,7 @@ const Index = () => {
             className="h-8 text-xs gap-1.5 border-destructive/40 text-destructive hover:bg-destructive/10"
             onClick={() => {
               clearAllData();
+              clearInventoryData();
               toast({ title: "Data cleared", description: "All data reset to empty state." });
               window.location.reload();
             }}
