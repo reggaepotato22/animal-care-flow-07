@@ -20,7 +20,7 @@ export default function Login() {
   const location  = useLocation();
 
   const from = (location.state as { from?: { pathname: string } })?.from?.pathname;
-  const redirectTo = (from && from !== "/") ? from : "/patients";
+  const redirectTo = (from && from !== "/") ? from : "/dashboard";
 
   useEffect(() => {
     if (isAuthenticated) navigate(redirectTo, { replace: true });

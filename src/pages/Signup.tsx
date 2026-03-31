@@ -125,7 +125,7 @@ export default function Signup() {
     // Auto login with the created account
     const success = await login(adminEmail, adminPassword);
     if (success) {
-      navigate("/", { replace: true });
+      navigate("/dashboard", { replace: true });
     } else {
       setError("Account created but login failed. Please try logging in.");
     }

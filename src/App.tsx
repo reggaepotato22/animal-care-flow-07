@@ -75,7 +75,7 @@ function ProtectedRoutes() {
     <TutorialProvider>
     <Layout>
       <Routes>
-        <Route path="/" element={<Index />} />
+        <Route path="/dashboard" element={<Index />} />
         <Route path="/patients" element={<Patients />} />
         <Route path="/patients/add" element={<AddPatient />} />
         <Route path="/patients/:id" element={<PatientDetails />} />

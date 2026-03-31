@@ -66,11 +66,11 @@ function buildDashAppointments(): DashAppt[] {
 
 // ─── Step config ──────────────────────────────────────────────────────────────
 const STEP_CONFIG: Record<WorkflowStepId, { label: string; color: string; icon: React.ElementType; route: string }> = {
-  REGISTERED:   { label: "Checked In",   color: "text-slate-700 bg-slate-100 dark:bg-slate-800 dark:text-slate-300 border border-slate-300",      icon: UserCheck,   route: "/" },
+  REGISTERED:   { label: "Checked In",   color: "text-slate-700 bg-slate-100 dark:bg-slate-800 dark:text-slate-300 border border-slate-300",      icon: UserCheck,   route: "/dashboard" },
   TRIAGE:       { label: "Triage",       color: "text-amber-700 bg-amber-100 dark:bg-amber-950 dark:text-amber-300 border border-amber-400",       icon: Stethoscope, route: "/triage" },
   CONSULTATION: { label: "Consultation", color: "text-blue-700 bg-blue-100 dark:bg-blue-950 dark:text-blue-300 border border-blue-400",            icon: Activity,    route: "/records" },
   PHARMACY:     { label: "Pharmacy",     color: "text-purple-700 bg-purple-100 dark:bg-purple-950 dark:text-purple-300 border border-purple-400",  icon: Pill,        route: "/inventory" },
-  COMPLETED:    { label: "Completed",    color: "text-emerald-700 bg-emerald-100 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-400", icon: CheckCheck, route: "/" },
+  COMPLETED:    { label: "Completed",    color: "text-emerald-700 bg-emerald-100 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-400", icon: CheckCheck, route: "/dashboard" },
 };
 
 // ─── Encounter status highlighted badge config ────────────────────────────────
