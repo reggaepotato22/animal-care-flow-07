@@ -38,8 +38,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { useNotifications } from "@/contexts/NotificationContext";
 import { loadStoredAppointments, subscribeToAppointments, isToday, isoToTimeLabel } from "@/lib/appointmentStore";
-import { getPatients, clearAllData, generateMockPatients } from "@/lib/patientStore";
-import { generateMockInventory, clearInventoryData } from "@/lib/inventoryStore";
+import { getPatients, clearPatientData, generateMockPatients } from "@/lib/patientStore";
+import { generateMockInventory } from "@/lib/inventoryStore";
 import { useAccount } from "@/contexts/AccountContext";
 import { getAccountScopedKey } from "@/lib/accountStore";
 import { getHospChannelName } from "@/lib/hospitalizationStore";
@@ -417,9 +417,8 @@ const Index = () => {
             variant="outline"
             className="h-8 text-xs gap-1.5 border-destructive/40 text-destructive hover:bg-destructive/10"
             onClick={() => {
-              clearAllData();
-              clearInventoryData();
-              toast({ title: "Data cleared", description: "All data reset to empty state." });
+              clearPatientData();
+              toast({ title: "Patient data cleared", description: "All patient and clinical data reset. Inventory untouched." });
               window.location.reload();
             }}
           >

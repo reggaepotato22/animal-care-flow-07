@@ -1,13 +1,23 @@
 
-import { savePatients, samplePatients, generatePatientId, generateOwnerId } from "./patientStore";
+import { savePatients, samplePatients, generatePatientId, generateOwnerId, AUTH_PRESERVE_KEYS } from "./patientStore";
 import { saveStaff, sampleStaff } from "./staffStore";
 import { createDemoAppointments, saveAppointments } from "./appointmentStore";
 import { saveRoles, saveGroups, saveUsers, sampleRoles, sampleGroups, sampleUsers } from "./roleStore";
 import { getAccountScopedKey } from "./accountStore";
+import { generateMockInventory, clearInventoryData } from "./inventoryStore";
 
 export function clearAllData() {
   if (typeof window === "undefined") return;
+  const preserved: Record<string, string> = {};
+  for (const key of AUTH_PRESERVE_KEYS) {
+    const val = localStorage.getItem(key);
+    if (val !== null) preserved[key] = val;
+  }
   localStorage.clear();
+  for (const [key, val] of Object.entries(preserved)) {
+    localStorage.setItem(key, val);
+  }
+  clearInventoryData();
   window.location.reload();
 }
 
@@ -36,6 +46,9 @@ export function seedMockData() {
   saveUsers(sampleUsers);
 
   saveAppointments(createDemoAppointments(patients[0]?.id || "p1"));
+
+  // Seed Inventory
+  generateMockInventory();
 
   // Mark as initialized
   localStorage.setItem(getAccountScopedKey("vetcare_sample_patients_initialized"), "true");
