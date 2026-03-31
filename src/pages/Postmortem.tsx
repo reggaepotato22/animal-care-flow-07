@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, Plus, FileText, Skull, ChevronDown, ChevronRight, Calendar, User } from "lucide-react";
+import { Search, Plus, FileText, FileSearch, ChevronDown, ChevronRight, Calendar, User } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
@@ -176,7 +176,7 @@ export default function Postmortem() {
         {filteredRecords.length === 0 && (
           <Card>
             <CardContent className="text-center py-12">
-              <Skull className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+              <FileSearch className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
               <p className="text-muted-foreground">No post-mortem records found matching your criteria.</p>
             </CardContent>
           </Card>
