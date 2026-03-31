@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
+import { useFeedback } from "@/contexts/FeedbackContext";
 import { useWorkflow } from "@/hooks/useWorkflow";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { getPatients } from "@/lib/patientStore";
@@ -869,6 +870,7 @@ const DRAFT_RECORD_KEY = (patientId: string) => `acf_draft_record_${patientId}`;
 export default function NewRecord() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { triggerSurvey } = useFeedback();
   const { encounters, activeEncounter, setActiveEncounter, updateEncounterStatus, getEncountersByPatient, getActiveEncounterForPatient, createEncounter } = useEncounter();
   const recordsBase = "/records";
   const [templateSearch, setTemplateSearch] = useState("");
@@ -1916,6 +1918,7 @@ const applyTemplate = (templateName: string, noteId?: string) => {
       },
     }));
 
+    triggerSurvey("record_saved");
     navigate(recordsBase);
   };
 

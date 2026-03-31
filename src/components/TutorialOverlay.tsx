@@ -295,7 +295,7 @@ export function TutorialRelaunchButton() {
     <button
       onClick={startTutorial}
       title="Restart tutorial"
-      className="fixed bottom-5 right-5 z-50 h-10 w-10 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center hover:bg-primary/90 transition-all hover:scale-105"
+      className="fixed bottom-16 right-4 z-50 h-10 w-10 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center hover:bg-primary/90 transition-all hover:scale-105"
     >
       <BookOpen className="h-4 w-4" />
     </button>

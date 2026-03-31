@@ -2,6 +2,9 @@ import { Navigation } from "@/components/Navigation";
 import { Header } from "@/components/Header";
 import { useAppointmentReminders } from "@/hooks/useAppointmentReminders";
 import { TutorialOverlay, TutorialRelaunchButton } from "@/components/TutorialOverlay";
+import { FeedbackButton } from "@/components/feedback/FeedbackButton";
+import { FeedbackModal } from "@/components/feedback/FeedbackModal";
+import { MicroSurvey } from "@/components/feedback/MicroSurvey";
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -23,6 +26,10 @@ export function Layout({ children, footer }: LayoutProps) {
       {/* InnoVetPro Tutorial — auto-triggers on every page load, resets on refresh */}
       <TutorialOverlay />
       <TutorialRelaunchButton />
+      {/* Feedback system */}
+      <FeedbackButton />
+      <FeedbackModal />
+      <MicroSurvey />
     </div>
   );
 }
