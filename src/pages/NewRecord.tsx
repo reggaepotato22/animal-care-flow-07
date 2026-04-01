@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate, useLocation, useParams } from "react-router-dom";
 import { useFeedback } from "@/contexts/FeedbackContext";
 import { useWorkflow } from "@/hooks/useWorkflow";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -870,22 +870,25 @@ const DRAFT_RECORD_KEY = (patientId: string) => `acf_draft_record_${patientId}`;
 export default function NewRecord() {
   const navigate = useNavigate();
   const location = useLocation();
+  const params = useParams<{ patientId?: string; encounterId?: string }>();
   const { triggerSurvey } = useFeedback();
   const { encounters, activeEncounter, setActiveEncounter, updateEncounterStatus, getEncountersByPatient, getActiveEncounterForPatient, createEncounter } = useEncounter();
-  const recordsBase = "/records";
   const [templateSearch, setTemplateSearch] = useState("");
   const [activeTab, setActiveTab] = useState("overview");
 
-  // ── URL search params (from dashboard 'Consult' button) ─────────────────────
+  // ── URL params — support both new canonical route and legacy query-string ────
   const searchParams = new URLSearchParams(location.search);
-  const urlPatientId  = searchParams.get("patientId") ?? undefined;
+  const urlPatientId  = params.patientId ?? searchParams.get("patientId") ?? undefined;
+  const urlEncounterId = (params.encounterId && params.encounterId !== "new") ? params.encounterId : undefined;
+
+  const recordsBase = urlPatientId ? `/patients/${urlPatientId}/chart` : "/records";
   const urlPetName    = searchParams.get("petName")   ?? undefined;
   const urlOwner      = searchParams.get("owner")     ?? undefined;
   const urlDraft      = searchParams.get("draft") === "true";
 
-  // Get encounterId from location state or activeEncounter
-  const stateEncounterId = (location.state as any)?.encounterId;
-  const statePatientId   = (location.state as any)?.patientId ?? urlPatientId;
+  // Get encounterId from route param, location state, or activeEncounter
+  const stateEncounterId = urlEncounterId ?? (location.state as any)?.encounterId;
+  const statePatientId   = urlPatientId ?? (location.state as any)?.patientId;
 
   // ── Auto-set encounter when arriving via dashboard Consult button ────────────
   useEffect(() => {
@@ -1231,8 +1234,18 @@ export default function NewRecord() {
   const [selectedPatient, setSelectedPatient] = useState(
     visitData?.patientId || urlPatientId || ""
   );
-  const [selectedVeterinarian, setSelectedVeterinarian] = useState(visitData?.veterinarian || "");
+  const [selectedVeterinarian, setSelectedVeterinarian] = useState(
+    visitData?.veterinarian || activeEncounter?.veterinarian || ""
+  );
   const wf = useWorkflow({ patientId: selectedPatient });
+
+  // Auto-capture vet + keep in sync when encounter loads
+  useEffect(() => {
+    if (activeEncounter?.veterinarian && !selectedVeterinarian) {
+      setSelectedVeterinarian(activeEncounter.veterinarian);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeEncounter?.veterinarian]);
 
   // Auto-create SOAP note from Triage data
   useEffect(() => {
@@ -1502,8 +1515,9 @@ export default function NewRecord() {
     return note.content?.trim() ? (note.content.trim().substring(0, 150) + (note.content.length > 150 ? '...' : '')) : "Empty note";
   };
 
-  // Medications state
+  // Medications + Prescription state
   const [medications, setMedications] = useState<Medication[]>([]);
+  const [rxNotes, setRxNotes] = useState("");
   const [newMedication, setNewMedication] = useState({
     name: "",
     dosage: "",
@@ -1771,63 +1785,136 @@ const applyTemplate = (templateName: string, noteId?: string) => {
     setMedications(medications.filter(med => med.id !== id));
   };
 
-  const generatePrescriptionPDF = () => {
-    const doc = new jsPDF();
-    
-    // Header
-    doc.setFontSize(20);
-    doc.text('VETERINARY PRESCRIPTION', 105, 20, { align: 'center' });
-    
-    // Clinic info
-    doc.setFontSize(12);
-    doc.text('InnoVetPro Clinic', 20, 40);
-    doc.text('123 Animal Street, Pet City, PC 12345', 20, 50);
-    doc.text('Phone: (555) 123-4567', 20, 60);
-    
-    // Date
-    doc.text(`Date: ${new Date().toLocaleDateString()}`, 150, 40);
-    
-    // Patient info
-    doc.setFontSize(14);
-    doc.text('Patient Information:', 20, 80);
-    doc.setFontSize(12);
-    doc.text('Pet Name: [Selected Patient]', 20, 95);
-    doc.text('Owner: [Selected Owner]', 20, 105);
-    doc.text('Species: [Selected Species]', 20, 115);
-    
-    // Veterinarian info
-    doc.text('Prescribing Veterinarian: [Selected Vet]', 20, 130);
-    
-    // Medications
-    doc.setFontSize(14);
-    doc.text('Prescribed Medications:', 20, 150);
-    
-    let yPosition = 165;
-    medications.forEach((med, index) => {
-      doc.setFontSize(12);
-      doc.text(`${index + 1}. ${med.name}`, 25, yPosition);
-      doc.text(`   Dosage: ${med.dosage}`, 25, yPosition + 10);
-      doc.text(`   Frequency: ${med.frequency}`, 25, yPosition + 20);
-      doc.text(`   Duration: ${med.duration}`, 25, yPosition + 30);
-      if (med.instructions) {
-        doc.text(`   Instructions: ${med.instructions}`, 25, yPosition + 40);
-        yPosition += 60;
-      } else {
-        yPosition += 50;
-      }
-    });
-    
-    // Signature area
-    yPosition += 20;
-    doc.text('Veterinarian Signature: ________________________', 20, yPosition);
-    doc.text('Date: ________________________', 20, yPosition + 15);
-    
-    // Footer
+  const generatePrescriptionPDF = (rxNotes?: string) => {
+    const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+    const pageW = doc.internal.pageSize.getWidth();
+    const marginX = 40;
+    let y = 40;
+
+    // ── Letterhead ────────────────────────────────────────────────────────────
+    doc.setFillColor(30, 60, 40);
+    doc.rect(0, 0, pageW, 70, 'F');
+
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(22);
+    doc.setFont('helvetica', 'bold');
+    doc.text('InnoVetPro Clinic', marginX, 30);
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.text('123 Animal Street, Pet City, PC 12345  ·  Tel: (555) 123-4567  ·  vet@innovetpro.demo', marginX, 48);
+    doc.setFontSize(13);
+    doc.setFont('helvetica', 'bold');
+    doc.text('VETERINARY PRESCRIPTION', pageW - marginX, 30, { align: 'right' });
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Date: ${new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' })}`, pageW - marginX, 48, { align: 'right' });
+
+    // ── Patient box ───────────────────────────────────────────────────────────
+    y = 90;
+    doc.setTextColor(30, 60, 40);
     doc.setFontSize(10);
-    doc.text('This prescription is valid for 6 months from the date of issue.', 20, 280);
-    
-    // Save the PDF
-    doc.save(`prescription-${new Date().toISOString().split('T')[0]}.pdf`);
+    doc.setFont('helvetica', 'bold');
+    doc.text('PATIENT INFORMATION', marginX, y);
+    doc.setDrawColor(30, 60, 40);
+    doc.line(marginX, y + 4, pageW - marginX, y + 4);
+    y += 18;
+
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(30, 30, 30);
+    doc.setFontSize(10);
+    const patientLines = [
+      [`Patient:`,  displayPetName || '—'],
+      [`Owner:`,    displayOwner   || '—'],
+      [`Species:`,  mockPatientData?.species || '—'],
+      [`Breed:`,    mockPatientData?.breed   || '—'],
+      [`Weight:`,   mockPatientData?.weight  ? `${mockPatientData.weight} kg` : '—'],
+    ];
+    patientLines.forEach(([label, val]) => {
+      doc.setFont('helvetica', 'bold');
+      doc.text(label, marginX, y);
+      doc.setFont('helvetica', 'normal');
+      doc.text(val, marginX + 80, y);
+      y += 16;
+    });
+
+    // ── Prescribing vet ───────────────────────────────────────────────────────
+    y += 6;
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(30, 60, 40);
+    doc.text('PRESCRIBING VETERINARIAN', marginX, y);
+    doc.line(marginX, y + 4, pageW - marginX, y + 4);
+    y += 18;
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(30, 30, 30);
+    doc.text(selectedVeterinarian || '—', marginX, y);
+    y += 24;
+
+    // ── Medications ───────────────────────────────────────────────────────────
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(30, 60, 40);
+    doc.text('PRESCRIBED MEDICATIONS', marginX, y);
+    doc.line(marginX, y + 4, pageW - marginX, y + 4);
+    y += 18;
+
+    if (medications.length === 0) {
+      doc.setFont('helvetica', 'italic');
+      doc.setTextColor(120, 120, 120);
+      doc.text('No medications prescribed.', marginX, y);
+      y += 18;
+    } else {
+      medications.forEach((med, idx) => {
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(30, 30, 30);
+        doc.text(`${idx + 1}.  ${med.name}  —  ${med.dosage}`, marginX, y);
+        y += 14;
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(60, 60, 60);
+        doc.text(`     Frequency: ${med.frequency}   ·   Duration: ${med.duration}`, marginX, y);
+        y += 12;
+        if (med.instructions) {
+          doc.text(`     Instructions: ${med.instructions}`, marginX, y);
+          y += 12;
+        }
+        y += 6;
+      });
+    }
+
+    // ── Additional notes ──────────────────────────────────────────────────────
+    if (rxNotes?.trim()) {
+      y += 6;
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(30, 60, 40);
+      doc.text('ADDITIONAL INSTRUCTIONS', marginX, y);
+      doc.line(marginX, y + 4, pageW - marginX, y + 4);
+      y += 16;
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(30, 30, 30);
+      const wrapped = doc.splitTextToSize(rxNotes.trim(), pageW - marginX * 2);
+      doc.text(wrapped, marginX, y);
+      y += wrapped.length * 14 + 10;
+    }
+
+    // ── Signature ─────────────────────────────────────────────────────────────
+    y += 20;
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(30, 30, 30);
+    doc.text('Veterinarian Signature:', marginX, y);
+    doc.setDrawColor(100, 100, 100);
+    doc.line(marginX + 140, y + 2, marginX + 350, y + 2);
+    y += 20;
+    doc.text('Date:', marginX, y);
+    doc.line(marginX + 30, y + 2, marginX + 180, y + 2);
+
+    // ── Footer ────────────────────────────────────────────────────────────────
+    const footerY = doc.internal.pageSize.getHeight() - 28;
+    doc.setFillColor(30, 60, 40);
+    doc.rect(0, footerY - 8, pageW, 36, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.text('This prescription is valid for 6 months from the date of issue. For veterinary use only.', pageW / 2, footerY + 8, { align: 'center' });
+
+    doc.save(`prescription-${displayPetName.replace(/\s/g,'-') || 'patient'}-${new Date().toISOString().split('T')[0]}.pdf`);
   };
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -2615,8 +2702,8 @@ const applyTemplate = (templateName: string, noteId?: string) => {
                 <ArrowLeft className="h-4 w-4" />
               </Button>
               <div>
-                <h1 className="text-3xl font-bold">New Clinical Record</h1>
-                <p className="text-muted-foreground">Create a comprehensive SOAP note for patient examination</p>
+                <h1 className="text-3xl font-bold">Clinical Workspace</h1>
+                <p className="text-muted-foreground">Write notes, create orders, and manage this encounter</p>
               </div>
             </div>
 
@@ -3075,54 +3162,25 @@ const applyTemplate = (templateName: string, noteId?: string) => {
             >
               <div className="flex w-full h-11 items-center justify-start gap-1 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
                 <TabsList className="flex h-11 items-center justify-start gap-1 bg-transparent border-0 p-0">
-                <TabsTrigger 
-                  value="overview"
-                  className="h-11 px-4 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-foreground hover:bg-muted/50"
-                >
-                  Overview
-                </TabsTrigger>
-                <TabsTrigger 
-                  value="history"
-                  className="h-11 px-4 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-foreground hover:bg-muted/50"
-                >
-                  History
-                </TabsTrigger>
-                <TabsTrigger 
-                  value="physical-exam"
-                  className="h-11 px-4 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-foreground hover:bg-muted/50"
-                >
-                  Physical Exam
-                </TabsTrigger>
-                <TabsTrigger 
-                  value="diagnostics"
-                  className="h-11 px-4 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-foreground hover:bg-muted/50"
-                >
-                  Diagnostics
-                </TabsTrigger>
-                <TabsTrigger 
-                  value="vaccinations"
-                  className="h-11 px-4 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-foreground hover:bg-muted/50"
-                >
-                  Vaccinations
-                </TabsTrigger>
-                <TabsTrigger 
-                  value="medications"
-                  className="h-11 px-4 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-foreground hover:bg-muted/50"
-                >
-                  Medications
-                </TabsTrigger>
-                <TabsTrigger 
-                  value="treatment"
-                  className="h-11 px-4 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-foreground hover:bg-muted/50"
-                >
-                  Treatment
-                </TabsTrigger>
-                <TabsTrigger 
-                  value="notes"
-                  className="h-11 px-4 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-foreground hover:bg-muted/50"
-                >
-                  Notes
-                </TabsTrigger>
+                {([
+                  { value: "overview",      label: "Overview" },
+                  { value: "history",       label: "History" },
+                  { value: "physical-exam", label: "Physical Exam" },
+                  { value: "clinical-notes",label: "Clinical Notes" },
+                  { value: "diagnostics",   label: "Diagnostics" },
+                  { value: "treatment",     label: "Treatment" },
+                  { value: "medications",   label: "Medications" },
+                  { value: "vaccinations",  label: "Vaccinations" },
+                  { value: "prescriptions", label: "Prescriptions" },
+                ] as const).map(tab => (
+                  <TabsTrigger
+                    key={tab.value}
+                    value={tab.value}
+                    className="h-11 px-4 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:text-foreground hover:bg-muted/50"
+                  >
+                    {tab.label}
+                  </TabsTrigger>
+                ))}
               </TabsList>
               </div>
             </div>
@@ -3132,10 +3190,10 @@ const applyTemplate = (templateName: string, noteId?: string) => {
       <div ref={groupRef}>
       <div className="flex min-h-[600px] rounded-lg border mt-4">
         {/* Left Panel - Quick Templates and Medical History */}
-        <div className={["treatment","notes"].includes(activeTab) ? "w-[44%] border-r shrink-0" : "hidden"}>
+        <div className={["treatment","clinical-notes"].includes(activeTab) ? "w-[44%] border-r shrink-0" : "hidden"}>
           <div className="h-full p-6 space-y-6 overflow-y-auto">
             {/* Quick Templates Section - visible on Notes tab where clinical notes are managed */}
-            <TabsContent value="notes" className="space-y-6">
+            <TabsContent value="clinical-notes" className="space-y-6">
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -3958,8 +4016,8 @@ const applyTemplate = (templateName: string, noteId?: string) => {
               </div>
             </TabsContent>
 
-            {/* Notes Tab - Single Active Note View */}
-            <TabsContent value="notes" className="space-y-6">
+            {/* Clinical Notes Tab - Single Active Note View */}
+            <TabsContent value="clinical-notes" className="space-y-6">
               {activeNoteId && clinicalNotes.length > 0 ? (() => {
                 const note = clinicalNotes.find(n => n.id === activeNoteId);
                 if (!note) return <p className="text-center text-muted-foreground py-8">Note not found</p>;
@@ -4005,42 +4063,26 @@ const applyTemplate = (templateName: string, noteId?: string) => {
                               {isSoapNote ? (
                                 // Render SOAP form
                                 <div className="space-y-8">
-                                  {/* Patient and Veterinarian Selection */}
+                                  {/* Patient and Veterinarian — auto-captured, read-only */}
                                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                     <div className="flex flex-col gap-1.5 min-w-0">
-                                      <Label htmlFor={`patient-${note.id}`} className="text-xs font-medium">
+                                      <Label className="text-xs font-medium flex items-center gap-1">
                                         Patient
+                                        <span className="text-[10px] text-muted-foreground font-normal">(auto-captured)</span>
                                       </Label>
-                                      <Select value={selectedPatient} onValueChange={setSelectedPatient}>
-                                        <SelectTrigger id={`patient-${note.id}`} className="w-full truncate">
-                                          <SelectValue placeholder="Select patient" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                          <SelectItem value="1">Max (Golden Retriever) — Sarah Johnson</SelectItem>
-                                          <SelectItem value="2">Whiskers (Persian Cat) — Mike Wilson</SelectItem>
-                                          <SelectItem value="3">Bella (Labrador) — Emily Davis</SelectItem>
-                                        </SelectContent>
-                                      </Select>
+                                      <div className="flex h-9 w-full items-center rounded-md border border-input bg-muted/40 px-3 py-1 text-sm text-foreground">
+                                        {displayPetName || <span className="text-muted-foreground italic">No patient selected</span>}
+                                      </div>
                                     </div>
 
                                     <div className="flex flex-col gap-1.5 min-w-0">
-                                      <Label htmlFor={`veterinarian-${note.id}`} className="text-xs font-medium">
+                                      <Label className="text-xs font-medium flex items-center gap-1">
                                         Attending Veterinarian
+                                        <span className="text-[10px] text-muted-foreground font-normal">(auto-captured)</span>
                                       </Label>
-                                      <Select value={selectedVeterinarian} onValueChange={setSelectedVeterinarian}>
-                                        <SelectTrigger id={`veterinarian-${note.id}`} className="w-full truncate">
-                                          <SelectValue placeholder="Select veterinarian" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                          <SelectItem value="Dr. Smith">Dr. Smith</SelectItem>
-                                          <SelectItem value="Dr. Brown">Dr. Brown</SelectItem>
-                                          <SelectItem value="Dr. Johnson">Dr. Johnson</SelectItem>
-                                          <SelectItem value="Dr. Wilson">Dr. Wilson</SelectItem>
-                                          <SelectItem value="Dr. Emergency">Dr. Emergency</SelectItem>
-                                          <SelectItem value="Dr. Davis">Dr. Davis</SelectItem>
-                                          <SelectItem value="Dr. Thompson">Dr. Thompson</SelectItem>
-                                        </SelectContent>
-                                      </Select>
+                                      <div className="flex h-9 w-full items-center rounded-md border border-input bg-muted/40 px-3 py-1 text-sm text-foreground">
+                                        {selectedVeterinarian || <span className="text-muted-foreground italic">Not assigned</span>}
+                                      </div>
                                     </div>
                                   </div>
 
@@ -7489,7 +7531,147 @@ const applyTemplate = (templateName: string, noteId?: string) => {
 
 
 
-            {/* Discharge Tab */}
+            {/* Prescriptions Tab */}
+            <TabsContent value="prescriptions" className="space-y-6">
+              {/* Header info bar */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="rounded-lg border bg-muted/40 px-4 py-3 space-y-1">
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Patient</p>
+                  <p className="text-sm font-medium">{displayPetName || <span className="italic text-muted-foreground">—</span>}</p>
+                  <p className="text-xs text-muted-foreground">{mockPatientData?.species} · {mockPatientData?.breed}</p>
+                </div>
+                <div className="rounded-lg border bg-muted/40 px-4 py-3 space-y-1">
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Owner</p>
+                  <p className="text-sm font-medium">{displayOwner || '—'}</p>
+                </div>
+                <div className="rounded-lg border bg-muted/40 px-4 py-3 space-y-1">
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Prescribing Veterinarian</p>
+                  <p className="text-sm font-medium">{selectedVeterinarian || <span className="italic text-muted-foreground">Not assigned</span>}</p>
+                </div>
+              </div>
+
+              {/* Medication list */}
+              <Card>
+                <CardHeader className="pb-3 flex flex-row items-center justify-between">
+                  <div>
+                    <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                      <Pill className="h-4 w-4 text-primary" />
+                      Prescribed Medications
+                    </CardTitle>
+                    <CardDescription className="text-xs">Add medications to include on this prescription</CardDescription>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {medications.map((med, idx) => (
+                    <div key={med.id} className="flex items-start justify-between gap-3 p-3 rounded-lg border bg-background">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-bold text-primary w-5">{idx + 1}.</span>
+                          <p className="text-sm font-semibold">{med.name}</p>
+                          <Badge variant="outline" className="text-[10px] h-4 px-1">{med.dosage}</Badge>
+                        </div>
+                        <p className="text-xs text-muted-foreground ml-7 mt-0.5">
+                          {med.frequency} · {med.duration}{med.instructions ? ` · ${med.instructions}` : ''}
+                        </p>
+                      </div>
+                      <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-destructive shrink-0"
+                        onClick={() => removeMedication(med.id)}>
+                        <X className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  ))}
+
+                  {/* Add medication form */}
+                  <div className="border rounded-lg p-3 space-y-3 bg-muted/30">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Add Medication</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <Label className="text-xs">Drug Name *</Label>
+                        <Input
+                          placeholder="e.g. Amoxicillin"
+                          value={newMedication.name}
+                          onChange={e => setNewMedication(p => ({ ...p, name: e.target.value }))}
+                          className="h-8 text-sm"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Dosage *</Label>
+                        <Input
+                          placeholder="e.g. 250 mg"
+                          value={newMedication.dosage}
+                          onChange={e => setNewMedication(p => ({ ...p, dosage: e.target.value }))}
+                          className="h-8 text-sm"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Frequency</Label>
+                        <Input
+                          placeholder="e.g. Twice daily"
+                          value={newMedication.frequency}
+                          onChange={e => setNewMedication(p => ({ ...p, frequency: e.target.value }))}
+                          className="h-8 text-sm"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Duration</Label>
+                        <Input
+                          placeholder="e.g. 7 days"
+                          value={newMedication.duration}
+                          onChange={e => setNewMedication(p => ({ ...p, duration: e.target.value }))}
+                          className="h-8 text-sm"
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Special Instructions</Label>
+                      <Input
+                        placeholder="e.g. Give with food"
+                        value={newMedication.instructions}
+                        onChange={e => setNewMedication(p => ({ ...p, instructions: e.target.value }))}
+                        className="h-8 text-sm"
+                      />
+                    </div>
+                    <Button size="sm" variant="outline" onClick={addMedication}
+                      disabled={!newMedication.name.trim() || !newMedication.dosage.trim()}
+                      className="gap-1">
+                      <Plus className="h-3 w-3" />
+                      Add to Prescription
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Additional instructions */}
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-semibold">Additional Instructions / Notes</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <Textarea
+                    placeholder="e.g. Keep away from direct sunlight. Complete full course even if symptoms resolve..."
+                    className="min-h-[80px] text-sm"
+                    value={rxNotes}
+                    onChange={e => setRxNotes(e.target.value)}
+                  />
+                </CardContent>
+              </Card>
+
+              {/* Generate prescription */}
+              <div className="flex items-center justify-between p-4 rounded-lg border bg-muted/30">
+                <div>
+                  <p className="text-sm font-semibold">Generate Prescription PDF</p>
+                  <p className="text-xs text-muted-foreground">Downloads a formal prescription with clinic letterhead and signature block</p>
+                </div>
+                <Button
+                  onClick={() => generatePrescriptionPDF(rxNotes)}
+                  disabled={medications.length === 0}
+                  className="gap-2 shrink-0"
+                >
+                  <Download className="h-4 w-4" />
+                  Download Prescription
+                </Button>
+              </div>
+            </TabsContent>
 
           {/* Action Buttons */}
           <Card className="mt-6">

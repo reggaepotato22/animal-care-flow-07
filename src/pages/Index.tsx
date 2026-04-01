@@ -552,7 +552,7 @@ const Index = () => {
                           size="sm"
                           variant="outline"
                           className="h-7 text-xs border-blue-400 text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950"
-                          onClick={() => navigate(`/records/new?patientId=${p.patientId}&petName=${encodeURIComponent(p.name)}&owner=${encodeURIComponent(p.owner)}&draft=true`)}
+                          onClick={() => navigate(`/patients/${p.patientId}/encounters/new?petName=${encodeURIComponent(p.name)}&owner=${encodeURIComponent(p.owner)}&draft=true`)}
                         >
                           <Activity className="h-3 w-3 mr-1" />Consult
                         </Button>

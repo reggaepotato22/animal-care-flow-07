@@ -225,6 +225,7 @@ export default function WorkflowSettings() {
     setSettings(prev => {
       const next = { ...prev, [key]: value };
       saveSettings(next);
+      window.dispatchEvent(new StorageEvent("storage", { key: SETTINGS_KEY }));
       return next;
     });
   };
