@@ -6,16 +6,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { StaffCard } from "@/components/StaffCard";
 import { AddStaffDialog } from "@/components/AddStaffDialog";
 import { ScheduleManagement } from "@/components/ScheduleManagement";
-import { getStaff, initializeSampleStaff } from "@/lib/staffStore";
+import { getStaff } from "@/lib/staffStore";
 
 export default function Staff() {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterRole, setFilterRole] = useState("all");
   const [showAddDialog, setShowAddDialog] = useState(false);
-  const [staffMembers, setStaffMembers] = useState(() => {
-    initializeSampleStaff();
-    return getStaff();
-  });
+  const [staffMembers, setStaffMembers] = useState(() => getStaff());
 
   const refreshStaff = () => setStaffMembers(getStaff());
 
@@ -69,7 +66,25 @@ export default function Staff() {
         </Button>
       </div>
 
-      {/* Stats Overview */}
+      {/* ── Zero-state ── */}
+      {staffMembers.length === 0 && (
+        <div className="flex flex-col items-center justify-center py-24 text-center rounded-xl border-2 border-dashed border-border bg-muted/20">
+          <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+            <Users className="h-8 w-8 text-primary/60" />
+          </div>
+          <h3 className="text-lg font-semibold mb-1">No Staff Members Yet</h3>
+          <p className="text-sm text-muted-foreground max-w-xs mb-6">
+            Your staff directory is empty. Generate mock data from the dashboard to populate it, or add a staff member manually.
+          </p>
+          <Button onClick={() => setShowAddDialog(true)} size="sm">
+            <Plus className="h-4 w-4 mr-2" />
+            Add First Staff Member
+          </Button>
+        </div>
+      )}
+
+      {/* Stats + Tabs — only when staff exist */}
+      {staffMembers.length > 0 && (<>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {stats.map((stat) => (
           <div key={stat.title} className="bg-card rounded-lg border p-6">
@@ -144,6 +159,7 @@ export default function Staff() {
           <ScheduleManagement staff={staffMembers} />
         </TabsContent>
       </Tabs>
+      </>)}
 
       <AddStaffDialog 
         open={showAddDialog} 

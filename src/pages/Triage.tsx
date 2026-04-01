@@ -19,7 +19,7 @@ import { Separator } from "@/components/ui/separator";
 import { useEncounter } from "@/contexts/EncounterContext";
 import { getPatients, updatePatient } from "@/lib/patientStore";
 import { EncounterStatus } from "@/lib/types";
-import { getStaff, initializeSampleStaff } from "@/lib/staffStore";
+import { getStaff } from "@/lib/staffStore";
 
 type TriageIntake = {
   chiefComplaint: string;
@@ -123,7 +123,6 @@ export default function Triage() {
   }, [location.search, encounters]);
 
   const availableVets = (() => {
-    initializeSampleStaff();
     return getStaff().filter(s =>
       s.status === "active" &&
       (s.role.toLowerCase().includes("veterinarian") || s.role.toLowerCase().includes("vet"))

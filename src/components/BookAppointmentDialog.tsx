@@ -44,6 +44,7 @@ import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { toast } from "@/components/ui/use-toast";
 import { saveAppointment, broadcastAppointmentUpdate } from "@/lib/appointmentStore";
+import { loadClinicalRecords } from "@/lib/clinicalRecordStore";
 
 // ── Google Calendar helpers ────────────────────────────────────────────────────
 
@@ -153,11 +154,8 @@ function loadKnownPatients(): KnownPatient[] {
     }
 
     // Merge patients from saved clinical records
-    const rawClin = localStorage.getItem("acf_clinical_records");
-    if (rawClin) {
-      const clinList = JSON.parse(rawClin) as Array<{
-        patientId: string; petName?: string; ownerName?: string;
-      }>;
+    const clinList = loadClinicalRecords();
+    if (clinList.length > 0) {
       clinList.forEach(r => {
         if (!merged.find(m => m.patientId === r.patientId)) {
           merged.push({

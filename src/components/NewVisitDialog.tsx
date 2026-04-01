@@ -35,7 +35,7 @@ import { useEncounter } from "@/contexts/EncounterContext";
 import { broadcastClinicalRecordUpdate, upsertClinicalRecord } from "@/lib/clinicalRecordStore";
 import { getHospChannelName } from "@/lib/hospitalizationStore";
 import { broadcastEmergencyAlert } from "@/lib/emergencyAlert";
-import { getStaff, initializeSampleStaff } from "@/lib/staffStore";
+import { getStaff } from "@/lib/staffStore";
 
 const newVisitSchema = z.object({
   encounterType: z.string().min(1, "Encounter type is required") as z.ZodType<EncounterType>,
@@ -91,7 +91,6 @@ export function NewVisitDialog({ children, patientId: propPatientId, patientName
   const effectivePatientId = propPatientId ?? paramPatientId;
 
   const vetOptions = useMemo(() => {
-    initializeSampleStaff();
     const staff = getStaff().filter(s =>
       s.status === "active" &&
       (s.role.toLowerCase().includes("veterinarian") || s.role.toLowerCase().includes("vet"))

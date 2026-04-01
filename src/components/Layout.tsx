@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Navigation } from "@/components/Navigation";
 import { Header } from "@/components/Header";
 import { useAppointmentReminders } from "@/hooks/useAppointmentReminders";
@@ -12,13 +13,25 @@ interface LayoutProps {
 }
 
 export function Layout({ children, footer }: LayoutProps) {
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   useAppointmentReminders();
   return (
     <div className="h-screen bg-background flex w-full overflow-hidden">
-      <Navigation />
+      {/* Mobile backdrop — sits behind drawer, above main content */}
+      {mobileNavOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 z-[9980] md:hidden"
+          onClick={() => setMobileNavOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+      <Navigation
+        mobileOpen={mobileNavOpen}
+        onMobileClose={() => setMobileNavOpen(false)}
+      />
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        <Header />
-        <main className="flex-1 p-6 overflow-y-auto">
+        <Header onMobileMenuOpen={() => setMobileNavOpen(true)} />
+        <main className="flex-1 p-4 md:p-6 overflow-y-auto">
           {children}
         </main>
         {footer}

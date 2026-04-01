@@ -21,6 +21,7 @@ import {
   Mail,
   BarChart,
   ClipboardList,
+  Truck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -29,10 +30,12 @@ import { useAccount } from "@/contexts/AccountContext";
 import { hasFeature } from "@/lib/accountStore";
 
 const navigationItems = [
+  { name: "Field Mode",          href: "/field",                  icon: Truck },
   { name: "Dashboard",           href: "/dashboard",              icon: LayoutDashboard },
   { name: "Registered Patients", href: "/patients",               icon: ClipboardList },
   { name: "Appointments",        href: "/appointments",           icon: Calendar },
   { name: "Triage",              href: "/triage",                 icon: Activity },
+  { name: "Records",             href: "/records",                icon: FileText },
   { name: "Labs",                href: "/labs",                   icon: Beaker },
   { name: "Hospitalization",     href: "/hospitalization",        icon: Hospital },
   { name: "Treatments",          href: "/treatments",             icon: Stethoscope },
@@ -65,8 +68,16 @@ function getSkipTriageSetting(): boolean {
   } catch { return false; }
 }
 
-export function Navigation() {
-  const [collapsed, setCollapsed] = useState(false);
+interface NavigationProps {
+  mobileOpen?: boolean;
+  onMobileClose?: () => void;
+}
+
+export function Navigation({ mobileOpen = false, onMobileClose }: NavigationProps) {
+  // Auto-collapse on tablet (< 1280px), expanded on desktop
+  const [collapsed, setCollapsed] = useState(() =>
+    typeof window !== "undefined" ? window.innerWidth < 1280 : false
+  );
   const [skipTriage, setSkipTriage] = useState(getSkipTriageSetting);
   const { has } = useRole();
   const { activeAccount } = useAccount();
@@ -81,10 +92,18 @@ export function Navigation() {
 
   return (
     <nav className={cn(
-      "transition-all duration-300 flex flex-col",
-      "h-screen sticky top-0 shrink-0 overflow-hidden",
+      "flex flex-col h-screen overflow-hidden",
       "bg-[hsl(var(--sidebar-background))] border-r border-[hsl(var(--sidebar-border))]",
-      collapsed ? "w-16" : "w-64"
+      // Mobile: fixed overlay drawer, slides in/out
+      "fixed inset-y-0 left-0 z-[9990]",
+      "transition-transform duration-300 ease-in-out",
+      mobileOpen ? "translate-x-0" : "-translate-x-full",
+      // md+: static in layout flow, always visible
+      "md:relative md:inset-auto md:z-auto md:translate-x-0",
+      "md:shrink-0 md:transition-all md:duration-300",
+      // Width: mobile fixed, md+ responsive to collapsed
+      "w-72",
+      collapsed ? "md:w-16" : "md:w-64"
     )}>
       {/* Logo Header */}
       <div className="p-4 border-b border-[hsl(var(--sidebar-border))]">
@@ -106,6 +125,7 @@ export function Navigation() {
       <div className="flex-1 py-3 overflow-y-auto scrollbar-thin">
         {navigationItems
           .filter((item) => {
+            if (item.name === "Field Mode")          return has("can_triage");
             if (item.name === "Audit Trails")        return has("can_view_audit") && hasFeature("audit_logs", activeAccount);
             if (item.name === "Clinic Settings")     return has("can_manage_users");
             if (item.name === "Staff Management")    return has("can_manage_users");
@@ -116,6 +136,7 @@ export function Navigation() {
             if (item.name === "Inventory")           return has("can_manage_inventory") && hasFeature("inventory", activeAccount);
             if (item.name === "Billing")             return has("can_access_billing");
             if (item.name === "Triage")              return !skipTriage && has("can_triage");
+            if (item.name === "Records")             return has("can_view_records");
             if (item.name === "Labs")                return has("can_view_records") && hasFeature("labs", activeAccount);
             if (item.name === "Hospitalization")     return has("can_view_records") && hasFeature("hospitalization", activeAccount);
             if (item.name === "Treatments")          return has("can_view_records") && hasFeature("clinical_records", activeAccount);
@@ -129,9 +150,14 @@ export function Navigation() {
               key={item.name}
               to={item.href}
               end={item.href === "/dashboard"}
+              onClick={onMobileClose}
               data-tutorial={
                 item.name === "Registered Patients" ? "nav-registered-patients" :
-                item.name === "Billing" ? "nav-billing" : undefined
+                item.name === "Billing"             ? "nav-billing" :
+                item.name === "Records"             ? "nav-records" :
+                item.name === "Inventory"           ? "nav-inventory" :
+                item.name === "Triage"              ? "triage-page" :
+                undefined
               }
               className={({ isActive }) =>
                 cn(

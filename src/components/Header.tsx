@@ -1,4 +1,4 @@
-import { Bell, Search as SearchIcon, User, LogOut, Sun, Moon, Leaf, SunMoon, Shield, CheckCheck, Trash2, Settings } from "lucide-react";
+import { Bell, Search as SearchIcon, User, LogOut, Sun, Moon, Leaf, SunMoon, Shield, CheckCheck, Trash2, Settings, Menu } from "lucide-react";
 import { AppLogo } from "@/components/AppLogo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,7 +23,11 @@ import { WorkflowProgress } from "@/components/WorkflowProgress";
 import { useNotifications } from "@/contexts/NotificationContext";
 import { cn } from "@/lib/utils";
 
-export function Header() {
+interface HeaderProps {
+  onMobileMenuOpen?: () => void;
+}
+
+export function Header({ onMobileMenuOpen }: HeaderProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, logout } = useAuth();
@@ -67,11 +71,24 @@ export function Header() {
   const isDev = process.env.NODE_ENV === 'development' || true; // Always show for demo
 
   return (
-    <header className="bg-card border-b border-border px-6 py-4 sticky top-0 z-30">
+    <header className="bg-card border-b border-border px-4 md:px-6 py-3 md:py-4 sticky top-0 z-30">
       <div className="flex flex-col gap-4">
         <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-4">
-            <AppLogo imgHeight={32} showText textClassName="text-xl font-bold" />
+          <div className="flex items-center space-x-2 md:space-x-4">
+            {/* Hamburger — mobile only */}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="md:hidden h-9 w-9 shrink-0"
+              onClick={onMobileMenuOpen}
+              aria-label="Open navigation"
+            >
+              <Menu className="h-5 w-5" />
+            </Button>
+            {/* Logo: visible on mobile (sidebar is hidden); hidden on md+ (sidebar shows it) */}
+            <div className="md:hidden">
+              <AppLogo imgHeight={28} showText textClassName="text-base font-bold" />
+            </div>
             <div className="relative w-96 hidden lg:block">
               <SearchIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
               <Input
@@ -87,8 +104,9 @@ export function Header() {
             </div>
           </div>
           
-          <div className="flex items-center space-x-4">
-            <div className="flex items-center gap-1">
+          <div className="flex items-center space-x-1 md:space-x-2">
+            {/* Theme switchers — hidden on mobile to save space */}
+            <div className="hidden sm:flex items-center gap-1">
               <Button variant="ghost" size="icon" onClick={() => setTheme("light")} title="Light">
                 <Sun className="h-4 w-4" />
               </Button>

@@ -86,7 +86,12 @@ function mapEncounterStatus(status: string): ClinicalRecord["status"] {
     case "IN_TRIAGE": return "in-triage";
     case "TRIAGED": return "triaged";
     case "IN_CONSULTATION": return "in-consultation";
-    case "DISCHARGED": return "completed";
+    case "DISCHARGED":
+    case "completed": return "completed";
+    case "follow-up": return "follow-up";
+    case "waiting": return "waiting";
+    case "in-triage": return "in-triage";
+    case "triaged": return "triaged";
     default: return "ongoing";
   }
 }

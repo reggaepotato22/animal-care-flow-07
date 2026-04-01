@@ -7,7 +7,7 @@ import { sendFeedback } from "@/lib/feedbackService";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { X, Loader2, Send, Star } from "lucide-react";
+import { X, Loader2, Send, Star, CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export function MicroSurvey() {
@@ -90,7 +90,7 @@ export function MicroSurvey() {
       <div className="px-4 pb-4 pt-3 space-y-3">
         {submitted ? (
           <div className="py-4 text-center space-y-1">
-            <p className="text-2xl">👂</p>
+            <CheckCircle2 className="h-8 w-8 text-primary mx-auto" />
             <p className="text-sm font-semibold">We heard you!</p>
             <p className="text-xs text-muted-foreground">
               You mentioned a {survey?.event?.replace(/_/g, " ")} experience.<br />

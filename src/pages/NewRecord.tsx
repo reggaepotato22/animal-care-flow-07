@@ -1929,24 +1929,22 @@ const applyTemplate = (templateName: string, noteId?: string) => {
   const handleSaveRecord = () => {
     const pid = selectedPatient || urlPatientId;
 
-    // Persist to clinical records in localStorage
+    // Persist to clinical records (account-scoped key via clinicalRecordStore)
     if (pid) {
       try {
-        const savedKey = "acf_clinical_records";
-        const existing: unknown[] = JSON.parse(localStorage.getItem(savedKey) ?? "[]");
-        const record = {
-          id: `rec-${Date.now()}`,
+        const recId = `rec-${Date.now()}`;
+        upsertClinicalRecord({
+          id: recId,
+          encounterId: activeEncounter?.id ?? recId,
           patientId: pid,
           petName:   displayPetName || pid,
           ownerName: displayOwner,
-          notes:     clinicalNotes,
           status:    "completed",
           savedAt:   new Date().toISOString(),
-          encounterId: activeEncounter?.id,
           veterinarian: selectedVeterinarian || "",
-          encounterItems,
-        };
-        localStorage.setItem(savedKey, JSON.stringify([record, ...existing]));
+          data: { notes: clinicalNotes, encounterItems },
+        });
+        broadcastClinicalRecordUpdate();
         localStorage.removeItem(DRAFT_RECORD_KEY(pid));
       } catch {}
     }
