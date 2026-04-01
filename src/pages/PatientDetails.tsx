@@ -21,7 +21,8 @@ import { NewVisitDialog } from "@/components/NewVisitDialog";
 import { DischargeSummaryDialog } from "@/components/DischargeSummaryDialog";
 import { PostMortemReportDialog } from "@/components/PostMortemReportDialog";
 import { EditPatientDialog } from "@/components/EditPatientDialog";
-import { ArrowLeft, Calendar, MapPin, Phone, Heart, Edit, Trash2, FileText, Pill, Stethoscope, Activity, MoreVertical, FileSearch, ChevronDown, AlertTriangle, Clock, TestTube, Mail, MessageSquare, User, Building2, MapPinIcon, DollarSign, CheckCircle, Circle, AlertCircle, XCircle, Hospital, ArrowUpRight, Plus } from "lucide-react";
+import { ArrowLeft, Calendar, MapPin, Phone, Heart, Edit, Trash2, FileText, Pill, Stethoscope, Activity, MoreVertical, FileSearch, ChevronDown, AlertTriangle, Clock, TestTube, Mail, MessageSquare, User, Building2, MapPinIcon, DollarSign, CheckCircle, Circle, AlertCircle, XCircle, Hospital, ArrowUpRight, Plus, BarChart2, Scissors, RefreshCw, PlayCircle } from "lucide-react";
+import type { EncounterType } from "@/lib/types";
 import { getHospChannelName } from "@/lib/hospitalizationStore";
 
 export default function PatientDetails() {
@@ -91,7 +92,7 @@ export default function PatientDetails() {
     saveAppointment(appt);
     broadcastAppointmentUpdate();
     navigate(
-      `/records/new?patientId=${encodeURIComponent(patient.id)}&petName=${encodeURIComponent(patient.name)}&owner=${encodeURIComponent((patient as any).owner || "")}`
+      `/patients/${encodeURIComponent(patient.id)}/encounters/new?petName=${encodeURIComponent(patient.name)}&owner=${encodeURIComponent((patient as any).owner || "")}`
     );
   };
 
@@ -136,13 +137,15 @@ export default function PatientDetails() {
         date: new Date(enc.startTime).toLocaleDateString(),
         time: new Date(enc.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         timestamp: new Date(enc.startTime).getTime(),
-        type: "Visit",
+        type: enc.type || "CONSULTATION",
+        encounterType: enc.type || "CONSULTATION" as EncounterType,
         reason: enc.reason || "General Visit",
         status: enc.status,
         personnel: enc.veterinarian || "Not assigned",
         notes: enc.chiefComplaint,
+        patientId: enc.patientId,
         isLive: true,
-        isActive: ["WAITING", "IN_TRIAGE", "TRIAGED", "IN_CONSULTATION", "IN_SURGERY", "RECOVERY"].includes(enc.status)
+        isActive: ["WAITING", "IN_TRIAGE", "TRIAGED", "IN_CONSULTATION", "IN_PROCEDURE", "IN_SURGERY", "RECOVERY", "IN_FOLLOW_UP", "IN_HOSPITAL_ROUND"].includes(enc.status)
       }));
 
     const historical = (patient.medicalHistory || []).map(mh => {
@@ -269,13 +272,45 @@ export default function PatientDetails() {
   };
 
   const getEncounterTypeIcon = (type: string) => {
-    switch (type.toLowerCase()) {
-      case "checkup": return <Activity className="h-4 w-4" />;
-      case "vaccination": return <Stethoscope className="h-4 w-4" />;
-      case "surgery": return <Heart className="h-4 w-4" />;
-      case "procedure": return <TestTube className="h-4 w-4" />;
-      case "emergency": return <AlertTriangle className="h-4 w-4" />;
+    switch (type.toUpperCase()) {
+      case "CONSULTATION": return <Stethoscope className="h-4 w-4" />;
+      case "TRIAGE":       return <AlertTriangle className="h-4 w-4" />;
+      case "PROCEDURE":    return <Scissors className="h-4 w-4" />;
+      case "SURGERY":      return <Heart className="h-4 w-4" />;
+      case "FOLLOW_UP":    return <RefreshCw className="h-4 w-4" />;
+      case "HOSPITAL_ROUND": return <Building2 className="h-4 w-4" />;
+      case "checkup":      return <Activity className="h-4 w-4" />;
+      case "vaccination":  return <Stethoscope className="h-4 w-4" />;
+      case "emergency":    return <AlertTriangle className="h-4 w-4" />;
       default: return <FileText className="h-4 w-4" />;
+    }
+  };
+
+  /** Map EncounterType to the IN_* status for that type */
+  const getActiveStatus = (type: EncounterType): string => ({
+    CONSULTATION:   "IN_CONSULTATION",
+    TRIAGE:         "IN_TRIAGE",
+    PROCEDURE:      "IN_PROCEDURE",
+    SURGERY:        "IN_SURGERY",
+    FOLLOW_UP:      "IN_FOLLOW_UP",
+    HOSPITAL_ROUND: "IN_HOSPITAL_ROUND",
+  }[type] ?? "IN_CONSULTATION");
+
+  const encounterTypeLabel: Record<string, string> = {
+    CONSULTATION: "Consultation", TRIAGE: "Triage",
+    PROCEDURE: "Procedure", SURGERY: "Surgery",
+    FOLLOW_UP: "Follow-Up", HOSPITAL_ROUND: "Hospital Round",
+  };
+
+  const handleStartEncounter = (enc: typeof allEncounters[0]) => {
+    if (!enc.isLive) return;
+    const type = enc.encounterType as EncounterType;
+    const status = getActiveStatus(type) as any;
+    updateEncounterStatus(enc.id, status);
+    if (type === "TRIAGE") {
+      navigate(`/triage?patientId=${enc.patientId || patient.id}`);
+    } else {
+      navigate(`/patients/${enc.patientId || patient.id}/encounters/${enc.id}`);
     }
   };
 
@@ -312,6 +347,10 @@ export default function PatientDetails() {
           </div>
         </div>
         <div className="flex items-center space-x-2">
+          <Button variant="outline" onClick={() => navigate(`/patients/${patient.id}/chart`)}>
+            <BarChart2 className="mr-2 h-4 w-4" />
+            Patient Chart
+          </Button>
           <Button variant="outline" onClick={() => navigate(`/patients/${patient.id}/journey`)}>
             <Activity className="mr-2 h-4 w-4" />
             Patient Journey
@@ -463,7 +502,7 @@ export default function PatientDetails() {
                 <div 
                   key={enc.id} 
                   className={`p-4 transition-colors hover:bg-muted/50 cursor-pointer ${enc.isActive ? 'bg-primary/5 border-l-4 border-l-primary shadow-sm' : ''}`}
-                  onClick={() => navigate(enc.isLive ? `/records/${enc.id}` : `/patients/${patient.id}`)}
+                  onClick={() => navigate(`/patients/${enc.patientId || patient.id}/chart`)}
                 >
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-3">
@@ -503,6 +542,17 @@ export default function PatientDetails() {
                         >
                           <CheckCircle className="h-3 w-3" />
                           Check In
+                        </Button>
+                      )}
+                      {enc.isLive && ["WAITING", "TRIAGED"].includes(enc.status) && has("can_edit_medical_records") && (
+                        <Button
+                          size="sm"
+                          variant="default"
+                          className="h-7 text-xs gap-1"
+                          onClick={(e) => { e.stopPropagation(); handleStartEncounter(enc); }}
+                        >
+                          <PlayCircle className="h-3 w-3" />
+                          Start {encounterTypeLabel[enc.encounterType] || "Visit"}
                         </Button>
                       )}
                     </div>

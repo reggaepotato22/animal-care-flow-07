@@ -34,8 +34,11 @@ const STEP_LABELS: Record<string, string> = {
   IN_TRIAGE: "triage in progress",
   TRIAGED: "triage complete — ready for vet",
   IN_CONSULTATION: "in consultation",
+  IN_PROCEDURE: "procedure in progress",
   IN_SURGERY: "in surgery",
   RECOVERY: "in recovery",
+  IN_FOLLOW_UP: "follow-up in progress",
+  IN_HOSPITAL_ROUND: "hospital round in progress",
   DISCHARGED: "discharged",
 };
 

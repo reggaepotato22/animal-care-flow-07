@@ -455,7 +455,7 @@ export function completeLabOrder(orderId: string, attachmentIds: string[], labNo
             labName: order.labName,
             attachmentIds: attachmentIds,
             completedAt: new Date().toISOString(),
-            actionUrl: `/records/new?patient=${order.patientId}`,
+            actionUrl: `/patients/${order.patientId}/encounters/new`,
           }
         }
       }));

@@ -21,7 +21,6 @@ import AddPatient from "./pages/AddPatient";
 import PatientDetails from "./pages/PatientDetails";
 import Appointments from "./pages/Appointments";
 import AppointmentDetails from "./pages/AppointmentDetails";
-import Records from "./pages/Records";
 import NewRecord from "./pages/NewRecord";
 import ClinicalRecordDetails from "./pages/ClinicalRecordDetails";
 import Staff from "./pages/Staff";
@@ -96,9 +95,11 @@ function ProtectedRoutes() {
         <Route path="/billing" element={<Billing />} />
         <Route path="/staff" element={<Staff />} />
         <Route path="/reports" element={<Reports />} />
-        <Route path="/records" element={<Records />} />
+        {/* Canonical routes */}
+        <Route path="/patients/:patientId/encounters/:encounterId" element={<NewRecord />} />
+        <Route path="/patients/:patientId/chart" element={<ClinicalRecordDetails />} />
+        {/* Legacy alias for /records/new — kept for backward compat */}
         <Route path="/records/new" element={<NewRecord />} />
-        <Route path="/records/:id" element={<ClinicalRecordDetails />} />
         <Route path="/patients/:id/journey" element={<PatientJourney />} />
         <Route path="/patients/:id/refer" element={<ReferPatient />} />
         <Route path="/workflow-settings" element={<WorkflowSettings />} />

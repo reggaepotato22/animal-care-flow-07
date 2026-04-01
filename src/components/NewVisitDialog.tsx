@@ -3,6 +3,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useParams, useNavigate } from "react-router-dom";
 import * as z from "zod";
+import type { EncounterType } from "@/lib/types";
 import {
   Dialog,
   DialogContent,
@@ -27,7 +28,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import { FileText } from "lucide-react";
+import { FileText, Stethoscope, AlertTriangle, Scissors, HeartPulse, RefreshCw, Building2 } from "lucide-react";
 import { toast } from "sonner";
 import { useWorkflowContext } from "@/contexts/WorkflowContext";
 import { useEncounter } from "@/contexts/EncounterContext";
@@ -37,6 +38,7 @@ import { broadcastEmergencyAlert } from "@/lib/emergencyAlert";
 import { getStaff, initializeSampleStaff } from "@/lib/staffStore";
 
 const newVisitSchema = z.object({
+  encounterType: z.string().min(1, "Encounter type is required") as z.ZodType<EncounterType>,
   reason: z.string().min(1, "Reason for visit is required"),
   chiefComplaint: z.string().min(1, "Chief complaint is required"),
   attendingVet: z.string().min(1, "Attending veterinarian is required"),
@@ -50,6 +52,15 @@ interface NewVisitDialogProps {
   patientName?: string;
 }
 
+const ENCOUNTER_TYPES: { value: EncounterType; label: string; description: string; icon: React.ElementType; color: string }[] = [
+  { value: "CONSULTATION",    label: "Consultation",     description: "Full clinical exam & treatment plan",  icon: Stethoscope,  color: "text-blue-600 bg-blue-50 border-blue-200" },
+  { value: "TRIAGE",          label: "Triage",           description: "Urgent intake & vitals assessment",     icon: AlertTriangle, color: "text-amber-600 bg-amber-50 border-amber-200" },
+  { value: "PROCEDURE",       label: "Procedure",        description: "Minor procedure or intervention",       icon: Scissors,     color: "text-purple-600 bg-purple-50 border-purple-200" },
+  { value: "SURGERY",         label: "Surgery",          description: "Surgical operation requiring theatre",  icon: HeartPulse,   color: "text-red-600 bg-red-50 border-red-200" },
+  { value: "FOLLOW_UP",       label: "Follow-Up",        description: "Post-treatment check on progress",      icon: RefreshCw,    color: "text-emerald-600 bg-emerald-50 border-emerald-200" },
+  { value: "HOSPITAL_ROUND",  label: "Hospital Round",   description: "Inpatient daily monitoring round",       icon: Building2,    color: "text-cyan-600 bg-cyan-50 border-cyan-200" },
+];
+
 const REASON_OPTIONS = [
   "Annual Checkup",
   "Vaccination",
@@ -62,6 +73,11 @@ const REASON_OPTIONS = [
   "Upper Respiratory",
   "Other",
 ];
+
+/** Map encounter type to its initial status when the visit is first created (still WAITING) */
+function getInitialStatus(type: EncounterType) {
+  return "WAITING" as const;
+}
 
 
 export function NewVisitDialog({ children, patientId: propPatientId, patientName }: NewVisitDialogProps) {
@@ -85,22 +101,26 @@ export function NewVisitDialog({ children, patientId: propPatientId, patientName
 
   const form = useForm<NewVisitFormData>({
     resolver: zodResolver(newVisitSchema),
-    defaultValues: { reason: "", chiefComplaint: "", attendingVet: "" },
+    defaultValues: { encounterType: "CONSULTATION", reason: "", chiefComplaint: "", attendingVet: "" },
   });
 
   const watchedReason = form.watch("reason");
+  const watchedType = form.watch("encounterType");
   const isEmergencyReason = watchedReason === "Emergency Visit" ||
-    (watchedReason === "Other" && otherUrgency === "emergency");
+    (watchedReason === "Other" && otherUrgency === "emergency") ||
+    watchedType === "TRIAGE";
 
   const onSubmit = (data: NewVisitFormData) => {
     if (!effectivePatientId) return;
 
-    const isEmergency = data.reason === "Emergency Visit" ||
+    const isEmergency = data.encounterType === "TRIAGE" ||
+      data.reason === "Emergency Visit" ||
       (data.reason === "Other" && otherUrgency === "emergency");
 
     const encStatus = isEmergency ? "IN_TRIAGE" : "WAITING";
 
     const encounter = createEncounter(effectivePatientId, {
+      type: data.encounterType,
       reason: data.reason,
       chiefComplaint: data.chiefComplaint,
       veterinarian: data.attendingVet,
@@ -190,11 +210,9 @@ export function NewVisitDialog({ children, patientId: propPatientId, patientName
     form.reset();
     setOtherUrgency(null);
 
-    if (isEmergency) {
-      navigate(`/triage?patientId=${effectivePatientId}`);
-    } else {
-      navigate(`/patients/${effectivePatientId}`);
-    }
+    // Always navigate to patient details — the "Start" CTA on the encounter card
+    // is responsible for opening the workspace or /triage
+    navigate(`/patients/${effectivePatientId}`);
   };
 
   return (
@@ -210,17 +228,8 @@ export function NewVisitDialog({ children, patientId: propPatientId, patientName
       <DialogContent className="sm:max-w-[480px]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            {isEmergencyReason ? (
-              <span className="flex items-center gap-1.5 text-red-600">
-                <FileText className="h-4 w-4" />
-                Emergency Visit
-              </span>
-            ) : (
-              <span className="flex items-center gap-1.5">
-                <FileText className="h-4 w-4" />
-                New Visit{patientName ? ` — ${patientName}` : ""}
-              </span>
-            )}
+            <FileText className="h-4 w-4" />
+            New Visit{patientName ? ` — ${patientName}` : ""}
           </DialogTitle>
         </DialogHeader>
 
@@ -233,6 +242,42 @@ export function NewVisitDialog({ children, patientId: propPatientId, patientName
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+
+            {/* Encounter Type */}
+            <FormField
+              control={form.control}
+              name="encounterType"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Encounter Type</FormLabel>
+                  <div className="grid grid-cols-2 gap-2">
+                    {ENCOUNTER_TYPES.map((et) => {
+                      const Icon = et.icon;
+                      const isSelected = field.value === et.value;
+                      return (
+                        <button
+                          key={et.value}
+                          type="button"
+                          onClick={() => field.onChange(et.value)}
+                          className={`flex items-start gap-2 rounded-lg border p-2.5 text-left text-sm transition-all ${
+                            isSelected
+                              ? `${et.color} ring-2 ring-offset-1 ring-current font-medium`
+                              : "border-border hover:bg-muted"
+                          }`}
+                        >
+                          <Icon className={`h-4 w-4 mt-0.5 shrink-0 ${isSelected ? "" : "text-muted-foreground"}`} />
+                          <div>
+                            <p className="font-medium leading-tight">{et.label}</p>
+                            <p className="text-[10px] text-muted-foreground leading-tight mt-0.5">{et.description}</p>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
             {/* Reason */}
             <FormField

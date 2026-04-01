@@ -16,11 +16,22 @@ export interface Pet {
   weight?: string;
 }
 
-export type EncounterStatus = "WAITING" | "IN_TRIAGE" | "TRIAGED" | "IN_CONSULTATION" | "IN_SURGERY" | "RECOVERY" | "DISCHARGED";
+export type EncounterType = "CONSULTATION" | "TRIAGE" | "PROCEDURE" | "SURGERY" | "FOLLOW_UP" | "HOSPITAL_ROUND";
+
+export type EncounterStatus =
+  | "WAITING"
+  | "IN_TRIAGE" | "TRIAGED"
+  | "IN_CONSULTATION"
+  | "IN_PROCEDURE"
+  | "IN_SURGERY" | "RECOVERY"
+  | "IN_FOLLOW_UP"
+  | "IN_HOSPITAL_ROUND"
+  | "DISCHARGED";
 
 export interface Encounter {
   id: string;
   patientId: string;
+  type?: EncounterType;
   status: EncounterStatus;
   startTime: string;
   endTime?: string;

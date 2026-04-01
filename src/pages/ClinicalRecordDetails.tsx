@@ -386,9 +386,11 @@ function formatFileSize(bytes: number): string {
 export default function ClinicalRecordDetails() {
   const navigate = useNavigate();
   const location = useLocation();
-  const params = useParams();
+  const params = useParams<{ id?: string; patientId?: string }>();
   const { encounters, getEncountersByPatient } = useEncounter();
-  const recordsBase = "/records";
+
+  const isNewRoute = !!params.patientId;
+  const recordsBase = isNewRoute ? `/patients/${params.patientId}` : "/records";
 
   // All state declarations must come before any useMemo/useEffect that references them
   const [activeTab, setActiveTab] = useState("soap");
@@ -402,18 +404,27 @@ export default function ClinicalRecordDetails() {
   const [treatmentSort, setTreatmentSort] = useState<"recent" | "category" | "status">("recent");
   const [collapsedVaccinations, setCollapsedVaccinations] = useState<Set<string>>(new Set());
 
-  // Get record ID from URL params
+  // Support both old /records/:id (encounter id) and new /patients/:patientId/chart
   const recordId = params.id;
-  
-  // Find encounter by record ID
+  const urlPatientId = params.patientId;
+
+  // Find encounter: via explicit record id OR most recent for the patient
   const encounter = useMemo(() => {
-    return encounters.find(e => e.id === recordId);
-  }, [encounters, recordId]);
-  
+    if (recordId) return encounters.find(e => e.id === recordId);
+    if (urlPatientId) {
+      const patientEncs = getEncountersByPatient(urlPatientId);
+      return patientEncs.find(e => e.isActive) ?? patientEncs[0];
+    }
+    return undefined;
+  }, [encounters, recordId, urlPatientId, getEncountersByPatient]);
+
+  const effectiveRecordId = recordId ?? encounter?.id;
+  const effectivePatientId = urlPatientId ?? encounter?.patientId;
+
   // Load real patient data
   const patientData = useMemo(() => {
-    return getPatientData(encounter?.patientId, encounter, recordId);
-  }, [encounter, recordId, refresh]);
+    return getPatientData(effectivePatientId, encounter, effectiveRecordId);
+  }, [encounter, effectiveRecordId, effectivePatientId, refresh]);
 
   useEffect(() => {
     const unsub = subscribeToClinicalRecords(() => setRefresh(r => r + 1));
@@ -1008,7 +1019,7 @@ export default function ClinicalRecordDetails() {
         </Button>
         
         <div className="flex-1">
-          <h1 className="text-3xl font-bold">{patientData.petName} - Clinical Record</h1>
+          <h1 className="text-3xl font-bold">{patientData.petName} - {isNewRoute ? "Patient Chart" : "Clinical Record"}</h1>
           <p className="text-muted-foreground flex items-center gap-4 mt-1">
             <span className="flex items-center gap-1">
               <User className="h-4 w-4" />

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { AppLogo } from "@/components/AppLogo";
 import { NavLink } from "react-router-dom";
 import {
@@ -32,7 +32,6 @@ const navigationItems = [
   { name: "Dashboard",           href: "/dashboard",              icon: LayoutDashboard },
   { name: "Registered Patients", href: "/patients",               icon: ClipboardList },
   { name: "Appointments",        href: "/appointments",           icon: Calendar },
-  { name: "Clinical Records",    href: "/records",                icon: ScrollText },
   { name: "Triage",              href: "/triage",                 icon: Activity },
   { name: "Labs",                href: "/labs",                   icon: Beaker },
   { name: "Hospitalization",     href: "/hospitalization",        icon: Hospital },
@@ -55,10 +54,30 @@ function InnoVetProLogo({ collapsed }: { collapsed: boolean }) {
     : <AppLogo imgHeight={32} showText showTagline textClassName="text-base text-sidebar-foreground" />;
 }
 
+const WORKFLOW_SETTINGS_KEY = "boravet_workflow_settings";
+
+function getSkipTriageSetting(): boolean {
+  try {
+    const raw = localStorage.getItem(WORKFLOW_SETTINGS_KEY);
+    if (!raw) return false;
+    const parsed = JSON.parse(raw);
+    return parsed?.allow_skip_triage === true;
+  } catch { return false; }
+}
+
 export function Navigation() {
   const [collapsed, setCollapsed] = useState(false);
+  const [skipTriage, setSkipTriage] = useState(getSkipTriageSetting);
   const { has } = useRole();
   const { activeAccount } = useAccount();
+
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === WORKFLOW_SETTINGS_KEY) setSkipTriage(getSkipTriageSetting());
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, []);
 
   return (
     <nav className={cn(
@@ -87,7 +106,6 @@ export function Navigation() {
       <div className="flex-1 py-3 overflow-y-auto scrollbar-thin">
         {navigationItems
           .filter((item) => {
-            if (item.name === "Clinical Records")    return has("can_view_records") && hasFeature("clinical_records", activeAccount);
             if (item.name === "Audit Trails")        return has("can_view_audit") && hasFeature("audit_logs", activeAccount);
             if (item.name === "Clinic Settings")     return has("can_manage_users");
             if (item.name === "Staff Management")    return has("can_manage_users");
@@ -97,7 +115,7 @@ export function Navigation() {
             if (item.name === "Appearance")          return true;
             if (item.name === "Inventory")           return has("can_manage_inventory") && hasFeature("inventory", activeAccount);
             if (item.name === "Billing")             return has("can_access_billing");
-            if (item.name === "Triage")              return has("can_triage");
+            if (item.name === "Triage")              return !skipTriage && has("can_triage");
             if (item.name === "Labs")                return has("can_view_records") && hasFeature("labs", activeAccount);
             if (item.name === "Hospitalization")     return has("can_view_records") && hasFeature("hospitalization", activeAccount);
             if (item.name === "Treatments")          return has("can_view_records") && hasFeature("clinical_records", activeAccount);

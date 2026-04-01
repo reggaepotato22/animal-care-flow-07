@@ -314,7 +314,7 @@ export default function AppointmentDetails() {
         <CardContent>
           <div className="flex flex-wrap gap-2">
             {has("can_edit_medical_records") && (
-              <Button variant="outline" onClick={() => navigate(`/records/new?patientId=${appointment.patientId}&appointmentId=${appointment.id}`)}>
+              <Button variant="outline" onClick={() => navigate(`/patients/${appointment.patientId}/encounters/new?appointmentId=${appointment.id}`)}>
                 <FileText className="mr-2 h-4 w-4" />
                 Create Clinical Record
               </Button>

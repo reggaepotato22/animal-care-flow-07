@@ -263,7 +263,7 @@ export default function Triage() {
       description: `Transitioning ${selectedEncounter.petName} to consultation record.`,
     });
 
-    navigate("/records/new", {
+    navigate(`/patients/${selectedEncounter.patientId}/encounters/${selectedEncounter.id}`, {
       state: {
         encounterId: selectedEncounter.id,
         patientId: selectedEncounter.patientId,
