@@ -101,7 +101,7 @@ export default function UserProfile() {
   const [syncing, setSyncing] = useState(false);
 
   const handleGCalConnect = () => {
-    const demoEmail = user?.email ?? "demo@vetcare.demo";
+    const demoEmail = user?.email ?? "vet@clinic.demo";
     const updated: GCalPrefs = { ...gCal, connected: true, email: demoEmail, lastSynced: new Date().toISOString() };
     setGCal(updated);
     saveGCalPrefs(updated);

@@ -11,13 +11,13 @@ export interface DemoUser {
 
 export const DEMO_USER: DemoUser = {
   id: "demo-1",
-  email: "demo@vetcare.demo",
+  email: "vet@clinic.demo",
   name: "Demo User",
 };
 
 export const DEFAULT_DEMO_CREDENTIALS: DemoCredentials = {
-  email: "demo@vetcare.demo",
-  password: "demo123",
+  email: "vet@clinic.demo",
+  password: "#demo123",
 };
 
 const DEMO_CREDENTIALS_KEY = "acf_demo_credentials";
