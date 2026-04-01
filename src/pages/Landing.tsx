@@ -69,7 +69,7 @@ async function submitRequest(email: string, phone: string): Promise<void> {
           service_id: EJS_SERVICE,
           template_id: EJS_CONFIRM,
           user_id: EJS_KEY,
-          template_params: { to_email: email, phone, timestamp },
+          template_params: { email_address: email, phone_number: phone, submission_time: timestamp },
         }),
       });
       if (!res.ok) errors.push("Confirmation email failed");
