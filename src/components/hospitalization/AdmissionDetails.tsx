@@ -5,11 +5,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Calendar, User, Stethoscope, MapPin, Edit, Check, X, Scissors, ChevronRight, AlertTriangle, Bed } from "lucide-react";
+import { Calendar, User, Stethoscope, MapPin, Edit, Check, X, Scissors, ChevronRight, AlertTriangle, Bed, Shield, CreditCard, Lock, Unlock, Syringe, Utensils } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import {
-  advanceSurgeryStage, broadcastHospUpdate, saveHospRecord,
+  advanceSurgeryStage, broadcastHospUpdate, saveHospRecord, updatePaymentStatus,
   SURGERY_STAGE_LABELS, SURGERY_STAGE_ORDER,
   type HospRecord, type SurgeryStage,
 } from "@/lib/hospitalizationStore";
@@ -40,8 +41,12 @@ export function AdmissionDetails({ record }: AdmissionDetailsProps) {
   const [editedAssignment, setEditedAssignment] = useState({
     attendingVet: record.attendingVet,
     ward: record.ward,
-    kennelNumber: `K-${record.id.slice(-2)}`,
+    kennelNumber: record.kennelId ?? `K-${record.id.slice(-2)}`,
   });
+  const [preOpSedation, setPreOpSedation] = useState(record.preOpSedation ?? false);
+  const [preOpFasting, setPreOpFasting] = useState(record.preOpFasting ?? false);
+  const [payStatus, setPayStatus] = useState<"pending"|"paid"|"pre_authorized">(record.paymentStatus ?? "pending");
+  const [bypassAdmin, setBypassAdmin] = useState("");
   const [stageNote, setStageNote] = useState("");
   const [stageBy, setStageBy]   = useState("");
 
@@ -73,11 +78,36 @@ export function AdmissionDetails({ record }: AdmissionDetailsProps) {
     toast({ title: "Reason updated" });
   };
 
+  const handleTogglePreOp = (field: "preOpSedation" | "preOpFasting", val: boolean) => {
+    if (field === "preOpSedation") setPreOpSedation(val);
+    else setPreOpFasting(val);
+    const updated = { ...localRecord, [field]: val, updatedAt: new Date().toISOString() };
+    saveHospRecord(updated);
+    broadcastHospUpdate();
+    setLocalRecord(updated);
+    toast({ title: `Pre-op flag updated`, description: `${field === "preOpSedation" ? "Sedation" : "Fasting"} ${val ? "required" : "not required"}` });
+  };
+
+  const handlePaymentUpdate = (status: "paid" | "pre_authorized") => {
+    const updated = updatePaymentStatus(localRecord.id, status, bypassAdmin || undefined);
+    if (updated) {
+      setLocalRecord(updated);
+      setPayStatus(status);
+      toast({
+        title: status === "paid" ? "✓ Payment Confirmed" : "✓ Pre-Authorization Granted",
+        description: `Discharge is now unlocked for ${localRecord.petName}.`,
+      });
+    }
+  };
+
+  const canDischarge = payStatus === "paid" || payStatus === "pre_authorized";
+
   const handleSaveAssignment = () => {
     const updated = {
       ...localRecord,
       attendingVet: editedAssignment.attendingVet,
       ward: editedAssignment.ward,
+      kennelId: editedAssignment.kennelNumber,
       updatedAt: new Date().toISOString(),
     };
     saveHospRecord(updated);
@@ -89,6 +119,83 @@ export function AdmissionDetails({ record }: AdmissionDetailsProps) {
 
   return (
     <div className="space-y-6">
+
+      {/* ── Pre-Op Flags (Receptionist sets at check-in) ── */}
+      <Card className="border-amber-200 dark:border-amber-800/40">
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <AlertTriangle className="h-4 w-4 text-amber-500" />
+            Pre-Operative Status
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="flex items-center justify-between rounded-xl border px-4 py-3 bg-muted/30">
+              <div className="flex items-center gap-3">
+                <Syringe className="h-5 w-5 text-purple-500" />
+                <div>
+                  <p className="text-sm font-semibold">Sedation Required</p>
+                  <p className="text-xs text-muted-foreground">Flag if pre-op sedation is ordered</p>
+                </div>
+              </div>
+              <Switch checked={preOpSedation} onCheckedChange={v => handleTogglePreOp("preOpSedation", v)} />
+            </div>
+            <div className="flex items-center justify-between rounded-xl border px-4 py-3 bg-muted/30">
+              <div className="flex items-center gap-3">
+                <Utensils className="h-5 w-5 text-orange-500" />
+                <div>
+                  <p className="text-sm font-semibold">Fasting Required</p>
+                  <p className="text-xs text-muted-foreground">NPO — nothing by mouth</p>
+                </div>
+              </div>
+              <Switch checked={preOpFasting} onCheckedChange={v => handleTogglePreOp("preOpFasting", v)} />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ── Payment & Discharge Gate ── */}
+      <Card className={canDischarge ? "border-emerald-300 dark:border-emerald-700" : "border-destructive/30"}>
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <CreditCard className="h-4 w-4 text-blue-500" />
+            Payment & Discharge Authorization
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center gap-3 rounded-xl border px-4 py-3 bg-muted/30">
+            {canDischarge
+              ? <Unlock className="h-5 w-5 text-emerald-500 shrink-0" />
+              : <Lock className="h-5 w-5 text-destructive shrink-0" />}
+            <div className="flex-1">
+              <p className={`text-sm font-semibold ${canDischarge ? "text-emerald-600 dark:text-emerald-400" : "text-destructive"}`}>
+                {canDischarge ? "Discharge Unlocked" : "Discharge Locked — Payment Pending"}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {payStatus === "paid" ? "Payment confirmed" : payStatus === "pre_authorized" ? "Pre-authorized by admin" : "Awaiting payment confirmation"}
+              </p>
+            </div>
+          </div>
+          {!canDischarge && (
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Admin bypass — authorized by</Label>
+                <Input className="h-8 text-sm" placeholder="Admin name for audit log…" value={bypassAdmin}
+                  onChange={e => setBypassAdmin(e.target.value)} />
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button size="sm" className="gap-1.5" onClick={() => handlePaymentUpdate("paid")}>
+                  <CreditCard className="h-3.5 w-3.5" /> Mark as Paid
+                </Button>
+                <Button size="sm" variant="outline" className="gap-1.5" onClick={() => handlePaymentUpdate("pre_authorized")}>
+                  <Shield className="h-3.5 w-3.5" /> Pre-Authorize Discharge
+                </Button>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       {/* ── Surgery Stage Pipeline ── */}
       <Card className="border-primary/20">
         <CardHeader className="pb-3">

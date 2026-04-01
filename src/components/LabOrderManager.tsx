@@ -551,9 +551,9 @@ export function LabOrderManager({ patientId, patientName, createdBy, encounterId
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="routine">🕐 Routine</SelectItem>
-                    <SelectItem value="urgent">⚠️ Urgent</SelectItem>
-                    <SelectItem value="stat">⚡ STAT</SelectItem>
+                    <SelectItem value="routine">Routine</SelectItem>
+                    <SelectItem value="urgent">Urgent</SelectItem>
+                    <SelectItem value="stat">STAT — Critical</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -567,12 +567,12 @@ export function LabOrderManager({ patientId, patientName, createdBy, encounterId
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Dog">🐕 Dog</SelectItem>
-                  <SelectItem value="Cat">🐈 Cat</SelectItem>
-                  <SelectItem value="Bird">🦜 Bird</SelectItem>
-                  <SelectItem value="Rabbit">🐰 Rabbit</SelectItem>
-                  <SelectItem value="Reptile">🦎 Reptile</SelectItem>
-                  <SelectItem value="Other">🐾 Other</SelectItem>
+                  <SelectItem value="Dog">Dog</SelectItem>
+                  <SelectItem value="Cat">Cat</SelectItem>
+                  <SelectItem value="Bird">Bird</SelectItem>
+                  <SelectItem value="Rabbit">Rabbit</SelectItem>
+                  <SelectItem value="Reptile">Reptile</SelectItem>
+                  <SelectItem value="Other">Other</SelectItem>
                 </SelectContent>
               </Select>
             </div>

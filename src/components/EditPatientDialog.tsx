@@ -298,9 +298,9 @@ export function EditPatientDialog({ patient, children, onPatientUpdate }: EditPa
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="low">🔵 Low</SelectItem>
-                          <SelectItem value="medium">🟠 Medium</SelectItem>
-                          <SelectItem value="high">🔴 High</SelectItem>
+                          <SelectItem value="low">Low</SelectItem>
+                          <SelectItem value="medium">Medium</SelectItem>
+                          <SelectItem value="high">High</SelectItem>
                         </SelectContent>
                       </Select>
                       <Button

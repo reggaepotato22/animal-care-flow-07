@@ -3,6 +3,7 @@
 // automatically dispatched on every status transition.
 
 import { getAccountScopedKey, getActiveAccountId } from "@/lib/accountStore";
+import { upsertClinicalRecord, broadcastClinicalRecordUpdate } from "@/lib/clinicalRecordStore";
 
 export type SurgeryStage =
   | "AWAITING_SURGERY"
@@ -13,6 +14,37 @@ export type SurgeryStage =
   | "DISCHARGED";
 
 export type HospStatus = "admitted" | "critical" | "discharged" | "surgery_prep" | "in_surgery" | "recovery" | "in_ward";
+
+export interface WellnessCheck {
+  id: string;
+  timestamp: string;
+  recordedBy: string;
+  shift: "morning" | "afternoon" | "night";
+  foodIntake: "none" | "partial" | "full";
+  waterIntake: "none" | "reduced" | "normal" | "increased";
+  stoolOutput: "none" | "soft" | "normal" | "diarrhea" | "bloody";
+  urineOutput: "none" | "reduced" | "normal" | "increased";
+  behavior: "normal" | "lethargic" | "agitated" | "restless";
+  notes?: string;
+}
+
+export interface ProgressNote {
+  id: string;
+  date: string;
+  time: string;
+  veterinarian: string;
+  temperature: string;
+  bloodPressure: string;
+  heartRate: string;
+  respiratoryRate: string;
+  weight?: string;
+  painScore: number;
+  assessment: string;
+  plan: string;
+  modifications: string[];
+  nextReview: string;
+  condition: "improving" | "stable" | "declining";
+}
 
 export interface HospRecord {
   id: string;
@@ -32,6 +64,15 @@ export interface HospRecord {
   priority?: "routine" | "urgent" | "emergency";
   stageHistory?: { stage: string; timestamp: string; by?: string; note?: string }[];
   feedingSchedule?: FeedingEntry[];
+  wellnessChecks?: WellnessCheck[];
+  progressNotes?: ProgressNote[];
+  /** Kennel/cage ID assigned at admission */
+  kennelId?: string;
+  /** Pre-operative flags */
+  preOpSedation?: boolean;
+  preOpFasting?: boolean;
+  /** Payment status — used for discharge hard-lock */
+  paymentStatus?: "pending" | "paid" | "pre_authorized";
   createdAt: string;
   updatedAt: string;
 }
@@ -166,22 +207,24 @@ function syncToClinicalRecords(
   note?: string
 ): void {
   try {
-    const savedKey = "acf_clinical_records";
-    const existing: unknown[] = JSON.parse(localStorage.getItem(savedKey) ?? "[]");
-    const entry = {
-      id:          `hosp-${rec.id}-${Date.now()}`,
+    const entryId = `hosp-${rec.id}-${Date.now()}`;
+    upsertClinicalRecord({
+      id:          entryId,
+      encounterId: entryId,
       patientId:   rec.patientId,
       petName:     rec.petName,
       ownerName:   rec.patientName,
-      type:        "hospitalization",
       status:      stage,
-      label:       SURGERY_STAGE_LABELS[stage].label,
-      note:        note ?? SURGERY_STAGE_LABELS[stage].description,
-      by:          by ?? rec.attendingVet,
       savedAt:     new Date().toISOString(),
-      hospitalRecordId: rec.id,
-    };
-    localStorage.setItem(savedKey, JSON.stringify([entry, ...existing]));
+      veterinarian: by ?? rec.attendingVet,
+      data: {
+        type:  "hospitalization",
+        label: SURGERY_STAGE_LABELS[stage].label,
+        note:  note ?? SURGERY_STAGE_LABELS[stage].description,
+        hospitalRecordId: rec.id,
+      },
+    });
+    broadcastClinicalRecordUpdate();
   } catch {}
 }
 
@@ -204,6 +247,91 @@ function dispatchHospNotification(rec: HospRecord, stage: SurgeryStage): void {
     ch.postMessage({ type: hospEventName(), recordId: rec.id, stage });
     ch.close();
   } catch {}
+}
+
+// ── Wellness checks ───────────────────────────────────────────────────────────
+
+export function addWellnessCheck(recordId: string, check: WellnessCheck): void {
+  const all = loadHospRecords();
+  const idx = all.findIndex(r => r.id === recordId);
+  if (idx < 0) return;
+  if (!all[idx].wellnessChecks) all[idx].wellnessChecks = [];
+  all[idx].wellnessChecks!.push(check);
+  all[idx].updatedAt = new Date().toISOString();
+  try { localStorage.setItem(hospKey(), JSON.stringify(all)); } catch {}
+  broadcastHospUpdate();
+  // Notify attendant-role notification
+  const rec = all[idx];
+  window.dispatchEvent(new CustomEvent("acf:notification", {
+    detail: {
+      type: "info",
+      message: `Wellness check logged for ${rec.petName} — ${check.shift} shift`,
+      patientId: rec.patientId,
+      patientName: rec.petName,
+      targetRoles: ["Vet", "SuperAdmin"],
+    },
+  }));
+}
+
+// ── Progress notes (persisted) ────────────────────────────────────────────────
+
+export function addProgressNote(recordId: string, note: ProgressNote): void {
+  const all = loadHospRecords();
+  const idx = all.findIndex(r => r.id === recordId);
+  if (idx < 0) return;
+  if (!all[idx].progressNotes) all[idx].progressNotes = [];
+  all[idx].progressNotes!.unshift(note);
+  all[idx].updatedAt = new Date().toISOString();
+  try { localStorage.setItem(hospKey(), JSON.stringify(all)); } catch {}
+  broadcastHospUpdate();
+  // Notify attendant that vet has completed daily progress note
+  const rec = all[idx];
+  window.dispatchEvent(new CustomEvent("acf:notification", {
+    detail: {
+      type: "success",
+      message: `Progress note added for ${rec.petName} by ${note.veterinarian} — ${note.condition} (Temp: ${note.temperature})`,
+      patientId: rec.patientId,
+      patientName: rec.petName,
+      targetRoles: ["Nurse", "SuperAdmin", "Receptionist"],
+    },
+  }));
+}
+
+/** Returns true if a progress note was submitted today for this record */
+export function hasTodayProgressNote(recordId: string): boolean {
+  const rec = loadHospRecords().find(r => r.id === recordId);
+  if (!rec?.progressNotes?.length) return false;
+  const today = new Date().toISOString().slice(0, 10);
+  return rec.progressNotes.some(n => n.date === today);
+}
+
+// ── Payment / discharge ───────────────────────────────────────────────────────
+
+export function updatePaymentStatus(
+  recordId: string,
+  status: "pending" | "paid" | "pre_authorized",
+  by?: string
+): HospRecord | null {
+  const all = loadHospRecords();
+  const idx = all.findIndex(r => r.id === recordId);
+  if (idx < 0) return null;
+  all[idx].paymentStatus = status;
+  all[idx].updatedAt = new Date().toISOString();
+  try { localStorage.setItem(hospKey(), JSON.stringify(all)); } catch {}
+  broadcastHospUpdate();
+  const rec = all[idx];
+  if (status === "paid" || status === "pre_authorized") {
+    window.dispatchEvent(new CustomEvent("acf:notification", {
+      detail: {
+        type: "success",
+        message: `Payment ${status === "paid" ? "confirmed" : "pre-authorized"} for ${rec.petName} — discharge unlocked`,
+        patientId: rec.patientId,
+        patientName: rec.petName,
+        targetRoles: ["Receptionist", "SuperAdmin"],
+      },
+    }));
+  }
+  return all[idx];
 }
 
 // ── Feeding schedule helpers ──────────────────────────────────────────────────

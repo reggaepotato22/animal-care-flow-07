@@ -3,14 +3,14 @@ import { InventoryItem, inventoryItems as seedInventory } from "@/data/inventory
 const INVENTORY_KEY = "acf_inventory_items";
 export const INVENTORY_CHANNEL = "acf_inventory_updates";
 
+/** Returns inventory from localStorage. Returns [] on first run (zero-state). */
 export function loadInventory(): InventoryItem[] {
   try {
     const raw = localStorage.getItem(INVENTORY_KEY);
     if (raw) return JSON.parse(raw) as InventoryItem[];
   } catch {}
-  // Seed from static data on first load
-  localStorage.setItem(INVENTORY_KEY, JSON.stringify(seedInventory));
-  return [...seedInventory];
+  // Zero-state: no auto-seed. Data only appears after "Generate Mock Data" is clicked.
+  return [];
 }
 
 export function saveInventoryItem(item: InventoryItem): void {

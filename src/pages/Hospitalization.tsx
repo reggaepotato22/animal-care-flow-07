@@ -13,6 +13,7 @@ import { ClinicalOrders } from "@/components/hospitalization/ClinicalOrders";
 import { MonitoringSection } from "@/components/hospitalization/MonitoringSection";
 import { ProgressNotes } from "@/components/hospitalization/ProgressNotes";
 import { FeedingSchedule } from "@/components/hospitalization/FeedingSchedule";
+import { WellnessChecks } from "@/components/hospitalization/WellnessChecks";
 import { AdmissionRequestDialog } from "@/components/AdmissionRequestDialog";
 import {
   loadHospRecords, saveHospRecord, subscribeToHospitalization, broadcastHospUpdate,
@@ -149,15 +150,23 @@ export default function Hospitalization() {
 
         <Tabs value={detailsTab} onValueChange={setDetailsTab} className="space-y-4">
           <TabsList className="flex w-full flex-wrap gap-1 h-auto p-1">
-            <TabsTrigger value="admission" className="flex-1 min-w-[120px]">Admission &amp; Surgery</TabsTrigger>
-            <TabsTrigger value="feeding"   className="flex-1 min-w-[120px]">Feeding Schedule</TabsTrigger>
-            <TabsTrigger value="orders"    className="flex-1 min-w-[120px]">Clinical Orders</TabsTrigger>
-            <TabsTrigger value="monitoring" className="flex-1 min-w-[120px]">Monitoring</TabsTrigger>
-            <TabsTrigger value="progress"  className="flex-1 min-w-[120px]">Progress Notes</TabsTrigger>
+            <TabsTrigger value="admission"  className="flex-1 min-w-[110px]">Admission &amp; Surgery</TabsTrigger>
+            <TabsTrigger value="wellness"   className="flex-1 min-w-[110px]">Wellness Checks</TabsTrigger>
+            <TabsTrigger value="feeding"    className="flex-1 min-w-[110px]">Feeding Schedule</TabsTrigger>
+            <TabsTrigger value="orders"     className="flex-1 min-w-[110px]">Clinical Orders</TabsTrigger>
+            <TabsTrigger value="monitoring" className="flex-1 min-w-[110px]">Monitoring</TabsTrigger>
+            <TabsTrigger value="progress"   className="flex-1 min-w-[110px]">Progress Notes</TabsTrigger>
           </TabsList>
 
           <TabsContent value="admission">
             <AdmissionDetails record={selectedRecord} />
+          </TabsContent>
+
+          <TabsContent value="wellness">
+            <WellnessChecks
+              record={selectedRecord}
+              onCheckAdded={() => setSelectedRecord({ ...selectedRecord, ...buildRecords().find(r => r.id === selectedRecord.id) })}
+            />
           </TabsContent>
 
           <TabsContent value="feeding">
@@ -173,7 +182,10 @@ export default function Hospitalization() {
           </TabsContent>
 
           <TabsContent value="progress">
-            <ProgressNotes record={selectedRecord} />
+            <ProgressNotes
+              record={selectedRecord}
+              onNoteAdded={() => setSelectedRecord({ ...selectedRecord, ...buildRecords().find(r => r.id === selectedRecord.id) })}
+            />
           </TabsContent>
         </Tabs>
       </div>

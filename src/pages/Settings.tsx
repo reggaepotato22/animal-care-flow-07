@@ -23,7 +23,8 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { useRole } from "@/contexts/RoleContext";
-import { clearCache, clearAllData, resetSamplePatients } from "@/lib/patientStore";
+import { clearCache, resetSamplePatients } from "@/lib/patientStore";
+import { clearAllData } from "@/lib/dataSeed";
 
 const settingsCategories = [
   {

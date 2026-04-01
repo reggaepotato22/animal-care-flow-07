@@ -287,9 +287,9 @@ export default function GenerateLink() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="routine">🕐 Routine</SelectItem>
-                    <SelectItem value="urgent">⚠️ Urgent</SelectItem>
-                    <SelectItem value="stat">⚡ STAT</SelectItem>
+                    <SelectItem value="routine">Routine</SelectItem>
+                    <SelectItem value="urgent">Urgent</SelectItem>
+                    <SelectItem value="stat">STAT — Critical</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

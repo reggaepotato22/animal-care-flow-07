@@ -1,23 +1,32 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, Plus, Edit, Copy, Power, DollarSign, Clock, FileText } from "lucide-react";
-import { treatmentItems as initialTreatmentItems, treatmentCategories, TreatmentItem } from "@/data/treatments";
-import { inventoryItems } from "@/data/inventory";
-import { Package } from "lucide-react";
+import { Search, Plus, Edit, Copy, Power, DollarSign, Clock, FileText, Package, Stethoscope } from "lucide-react";
+import { treatmentCategories, type TreatmentItem } from "@/data/treatments";
 import { TreatmentItemDialog } from "@/components/TreatmentItemDialog";
+import { loadTreatments, saveTreatmentItem, TREATMENTS_CHANNEL } from "@/lib/treatmentStore";
+import { loadInventory } from "@/lib/inventoryStore";
 
 export default function Treatments() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
-  const [statusFilter, setStatusFilter] = useState<string>("active");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedTreatment, setSelectedTreatment] = useState<TreatmentItem | undefined>();
-  const [treatmentItems, setTreatmentItems] = useState<TreatmentItem[]>(initialTreatmentItems);
+  const [treatmentItems, setTreatmentItems] = useState<TreatmentItem[]>(() => loadTreatments());
+
+  // Re-sync from store on BroadcastChannel or storage events
+  useEffect(() => {
+    const refresh = () => setTreatmentItems(loadTreatments());
+    let ch: BroadcastChannel | null = null;
+    try { ch = new BroadcastChannel(TREATMENTS_CHANNEL); ch.onmessage = refresh; } catch {}
+    window.addEventListener("storage", refresh);
+    return () => { ch?.close(); window.removeEventListener("storage", refresh); };
+  }, []);
 
   // Filter treatments
   const filteredTreatments = treatmentItems.filter((item) => {
@@ -60,8 +69,8 @@ export default function Treatments() {
   };
 
   const handleSave = (treatment: TreatmentItem) => {
-    // In a real app, this would save to the backend
-    console.log("Saving treatment:", treatment);
+    saveTreatmentItem(treatment);
+    setTreatmentItems(loadTreatments());
     window.dispatchEvent(new CustomEvent("acf:notification", {
       detail: {
         type: "info",
@@ -101,7 +110,25 @@ export default function Treatments() {
         </div>
       </div>
 
-      {/* Stats */}
+      {/* ── Zero-state ─────────────────────────────────────────────────────── */}
+      {treatmentItems.length === 0 && (
+        <div className="flex flex-col items-center justify-center py-24 text-center rounded-xl border-2 border-dashed border-border bg-muted/20">
+          <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+            <Stethoscope className="h-8 w-8 text-primary/60" />
+          </div>
+          <h3 className="text-lg font-semibold mb-1">No Treatment Catalog Yet</h3>
+          <p className="text-sm text-muted-foreground max-w-xs mb-6">
+            Your billable services and treatment catalog is empty. Generate mock data from the dashboard to populate it, or add items manually.
+          </p>
+          <Button onClick={handleAddNew} size="sm">
+            <Plus className="h-4 w-4 mr-2" />
+            Add First Treatment
+          </Button>
+        </div>
+      )}
+
+      {/* Stats + Table (only when data exists) */}
+      {treatmentItems.length > 0 && (<>
       <div className="grid gap-4 md:grid-cols-3">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -178,7 +205,7 @@ export default function Treatments() {
       {/* Treatment List Table */}
       <Card>
         <CardContent className="p-0">
-          <div className="rounded-md border">
+          <div className="rounded-md border overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -238,7 +265,7 @@ export default function Treatments() {
                         {treatment.linkedInventory && treatment.linkedInventory.length > 0 ? (
                           <div className="space-y-1">
                             {treatment.linkedInventory.map((linkedItem, idx) => {
-                              const invItem = inventoryItems.find(i => i.id === linkedItem.inventoryId);
+                              const invItem = loadInventory().find(i => i.id === linkedItem.inventoryId);
                               if (!invItem) return null;
                               return (
                                 <div key={idx} className="flex items-center gap-2 text-xs">
@@ -314,6 +341,8 @@ export default function Treatments() {
           </div>
         </CardContent>
       </Card>
+
+      </>)}
 
       {/* Treatment Item Dialog */}
       <TreatmentItemDialog
