@@ -7,12 +7,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AlertCircle, Eye, EyeOff, LogIn, FlaskConical } from "lucide-react";
+import { AlertCircle, Eye, EyeOff, LogIn, FlaskConical, KeyRound } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { validateToken, setActiveToken } from "@/lib/tokenStore";
 
 export default function Login() {
   const [email, setEmail]       = useState("");
   const [password, setPassword] = useState("");
+  const [token, setToken]       = useState("");
   const [showPw, setShowPw]     = useState(false);
   const [error, setError]       = useState("");
   const { login, isAuthenticated } = useAuth();
@@ -29,7 +31,13 @@ export default function Login() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    const accessToken = validateToken(token);
+    if (!accessToken) {
+      setError("Invalid or expired Access Token. Check your token and try again. Demo token: DEMO-INNOVETPRO-2024");
+      return;
+    }
     if (login(email, password)) {
+      setActiveToken(accessToken);
       navigate(redirectTo, { replace: true });
     } else {
       setError("Invalid email or password. If using the demo clinic, click \"Enter Demo Clinic\" below.");
@@ -72,6 +80,22 @@ export default function Login() {
                   <AlertDescription className="text-xs">{error}</AlertDescription>
                 </Alert>
               )}
+              <div className="space-y-1.5">
+                <Label htmlFor="token" className="text-xs font-medium flex items-center gap-1">
+                  <KeyRound className="h-3 w-3" /> Access Token
+                </Label>
+                <Input
+                  id="token"
+                  type="text"
+                  placeholder="e.g. DEMO-INNOVETPRO-2024"
+                  value={token}
+                  onChange={(e) => setToken(e.target.value.toUpperCase())}
+                  autoComplete="off"
+                  className="h-9 font-mono tracking-wider"
+                  required
+                />
+                <p className="text-[10px] text-muted-foreground">Provided when you subscribe. Demo: <span className="font-mono font-medium">DEMO-INNOVETPRO-2024</span></p>
+              </div>
               <div className="space-y-1.5">
                 <Label htmlFor="email" className="text-xs font-medium">Email</Label>
                 <Input

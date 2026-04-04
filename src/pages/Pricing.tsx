@@ -30,23 +30,23 @@ const PLANS: Plan[] = [
     id: "starter",
     name: "Starter",
     icon: Zap,
-    monthlyPrice: 29,
-    annualPrice: 23,
-    description: "Perfect for solo practitioners and small clinics just getting started.",
+    monthlyPrice: 4500,
+    annualPrice: 3750,
+    description: "Solo practitioners, mobile vets, and small clinics transitioning away from paper records.",
     highlight: false,
-    cta: "Start Free Trial",
+    cta: "Get Access Token",
     ctaVariant: "outline",
     features: [
-      { text: "Up to 3 staff accounts", included: true },
-      { text: "Patient records & appointments", included: true },
-      { text: "Basic inventory management", included: true },
-      { text: "PDF record export", included: true },
-      { text: "Email support (48h response)", included: true },
-      { text: "Hospitalization module", included: false },
-      { text: "Surgery pipeline tracking", included: false },
-      { text: "Wellness checks & progress notes", included: false },
+      { text: "Up to 2 users (1 Vet + 1 Receptionist)", included: true },
+      { text: "Pet & client database", included: true },
+      { text: "Standard appointment scheduling", included: true },
+      { text: "Basic billing & invoicing", included: true },
+      { text: "Standard email support", included: true },
+      { text: "Inventory & pharmacy management", included: false },
+      { text: "Automated SMS/Email reminders", included: false },
+      { text: "Lab results tracking & attachment", included: false },
       { text: "Multi-branch management", included: false },
-      { text: "Priority support", included: false },
+      { text: "Dedicated account manager", included: false },
     ],
   },
   {
@@ -54,23 +54,23 @@ const PLANS: Plan[] = [
     name: "Professional",
     icon: Building2,
     badge: "Most Popular",
-    monthlyPrice: 89,
-    annualPrice: 71,
-    description: "Full clinical workflow for established clinics with hospitalization needs.",
+    monthlyPrice: 12000,
+    annualPrice: 10000,
+    description: "Busy established clinics with multiple doctors, a dispensary, and higher daily foot traffic.",
     highlight: true,
-    cta: "Start Free Trial",
+    cta: "Get Access Token",
     ctaVariant: "default",
     features: [
-      { text: "Up to 15 staff accounts", included: true },
-      { text: "Patient records & appointments", included: true },
-      { text: "Advanced inventory + auto-decrement", included: true },
-      { text: "PDF record export", included: true },
-      { text: "Priority email support (8h response)", included: true },
-      { text: "Hospitalization module", included: true },
-      { text: "Surgery pipeline tracking", included: true },
-      { text: "Wellness checks & progress notes", included: true },
+      { text: "Up to 10 users", included: true },
+      { text: "Everything in Starter, plus:", included: true },
+      { text: "Inventory & pharmacy management", included: true },
+      { text: "Automated appointment & vaccination reminders (SMS/Email)", included: true },
+      { text: "Lab results tracking & attachment", included: true },
+      { text: "Financial reporting & analytics", included: true },
+      { text: "Priority support", included: true },
       { text: "Multi-branch management", included: false },
       { text: "Dedicated account manager", included: false },
+      { text: "Custom integrations (KRA eTIMS)", included: false },
     ],
   },
   {
@@ -78,33 +78,34 @@ const PLANS: Plan[] = [
     name: "Clinic Chain",
     icon: Network,
     badge: "Enterprise",
-    monthlyPrice: 249,
-    annualPrice: 199,
-    description: "Built for multi-location groups with centralized oversight and custom integrations.",
+    monthlyPrice: 35000,
+    annualPrice: 29167,
+    description: "Large veterinary hospitals, 24-hour facilities, and multi-branch practices across Kenya.",
     highlight: false,
     cta: "Contact Sales",
     ctaVariant: "outline",
     features: [
-      { text: "Unlimited staff accounts", included: true },
-      { text: "Patient records & appointments", included: true },
-      { text: "Advanced inventory + auto-decrement", included: true },
-      { text: "PDF record export", included: true },
+      { text: "Unlimited users", included: true },
+      { text: "Everything in Professional, plus:", included: true },
+      { text: "Multi-branch data syncing & central management", included: true },
+      { text: "Advanced role-based access control", included: true },
+      { text: "Custom integrations (KRA eTIMS, accounting software)", included: true },
+      { text: "Dedicated account manager & on-site training", included: true },
       { text: "24/7 phone & chat support", included: true },
-      { text: "Hospitalization module", included: true },
-      { text: "Surgery pipeline tracking", included: true },
-      { text: "Wellness checks & progress notes", included: true },
-      { text: "Multi-branch management", included: true },
-      { text: "Dedicated account manager", included: true },
+      { text: "SLA guarantees", included: true },
+      { text: "Custom reporting & API access", included: true },
+      { text: "White-glove onboarding", included: true },
     ],
   },
 ];
 
 const FAQS = [
-  { q: "Is there a free trial?", a: "Yes — all Starter and Professional plans include a 14-day free trial with no credit card required." },
-  { q: "Can I switch plans later?", a: "Absolutely. Upgrade or downgrade at any time from your clinic settings page. Billing is prorated." },
-  { q: "Where is my data stored?", a: "All data is stored securely and encrypted at rest in ISO-27001-certified data centres in East Africa and EU." },
+  { q: "How do I get access?", a: "After choosing a plan, you receive a unique Access Token. Enter it on the sign-in page alongside your credentials to activate your clinic's subscription." },
+  { q: "Is there a demo I can try?", a: "Yes — use the demo token DEMO-INNOVETPRO-2024 on the sign-in page for full unlimited access to the demo clinic." },
+  { q: "Can I switch plans later?", a: "Absolutely. Contact us to upgrade or downgrade at any time. Billing is prorated for annual plans." },
+  { q: "Where is my data stored?", a: "All data is stored securely and encrypted at rest in certified data centres in East Africa." },
   { q: "Do you support offline use?", a: "InnoVetPro works in low-connectivity environments with local-first data sync that pushes when you're back online." },
-  { q: "What payment methods do you accept?", a: "M-Pesa, bank transfer, Visa/Mastercard, and corporate invoicing for Clinic Chain plans." },
+  { q: "What payment methods do you accept?", a: "M-Pesa (Paybill/Till), bank transfer, and corporate invoicing for Clinic Chain plans." },
 ];
 
 export default function Pricing() {
@@ -178,7 +179,7 @@ export default function Pricing() {
               className={`px-4 py-1.5 rounded-full transition-all font-medium flex items-center gap-1.5 ${billing === "annual" ? "bg-background shadow text-foreground" : "text-muted-foreground hover:text-foreground"}`}
             >
               Annual
-              <Badge className="bg-emerald-500 text-white text-[10px] h-4 px-1.5">Save 20%</Badge>
+              <Badge className="bg-emerald-500 text-white text-[10px] h-4 px-1.5">2 Months Free</Badge>
             </button>
           </div>
         </div>
@@ -217,11 +218,12 @@ export default function Pricing() {
 
                 <div>
                   <div className="flex items-end gap-1">
-                    <span className="text-4xl font-bold">${price(plan)}</span>
-                    <span className="text-muted-foreground text-sm mb-1">/month</span>
+                    <span className="text-xs font-semibold text-muted-foreground mb-1.5 mr-0.5">KSh</span>
+                    <span className="text-4xl font-bold">{price(plan).toLocaleString("en-KE")}</span>
+                    <span className="text-muted-foreground text-sm mb-1">/mo</span>
                   </div>
                   {billing === "annual" && (
-                    <p className="text-xs text-emerald-600 dark:text-emerald-400">Billed annually — save ${(plan.monthlyPrice - plan.annualPrice) * 12}/yr</p>
+                    <p className="text-xs text-emerald-600 dark:text-emerald-400">KSh {(plan.monthlyPrice * 12).toLocaleString("en-KE")} billed annually — 2 months free</p>
                   )}
                 </div>
 
@@ -300,7 +302,7 @@ export default function Pricing() {
         {/* ── CTA Footer ── */}
         <div className="rounded-2xl border bg-gradient-to-r from-primary/10 to-emerald-500/10 p-10 text-center space-y-4">
           <h2 className="text-2xl font-bold">Ready to modernise your clinic?</h2>
-          <p className="text-muted-foreground">Join 300+ veterinary practices across East Africa using InnoVetPro.</p>
+          <p className="text-muted-foreground">Join veterinary practices across Kenya using InnoVetPro. Get your Access Token today.</p>
           <div className="flex flex-wrap gap-3 justify-center">
             <Button size="lg" onClick={() => navigate("/login")} className="gap-2">
               Start Free Trial <ArrowRight className="h-4 w-4" />

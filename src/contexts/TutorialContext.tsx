@@ -22,86 +22,253 @@ export interface TutorialStep {
 }
 
 export const TUTORIAL_STEPS: TutorialStep[] = [
+  // ── STEP 1: Welcome ────────────────────────────────────────────────────────
   {
     id: 1,
     title: "Welcome to InnoVetPro",
-    description: "Your complete veterinary clinic command center. This 2-minute tour walks through the full patient journey — from check-in to discharge — across every role in your clinic.",
+    description: "This guided tour walks you through the full clinic workflow — from registering a new patient all the way to discharge and billing. We'll step through every role: Receptionist → Attendant → Vet → Pharmacist → back to Receptionist. Let's begin!",
     position: "center",
+    role: "Receptionist",
+    route: "/patients",
+    roleColor: "bg-sky-500",
   },
+
+  // ── STEP 2: Register new patient ──────────────────────────────────────────
   {
     id: 2,
-    title: "Receptionist — Register a Patient",
-    description: "As a Receptionist, start every visit here. Click '+ New Patient' to register a first-time visitor, or use 'Registered Patients' to check in a returning patient and add them to today's queue.",
-    target: "dashboard-new-patient",
-    position: "bottom",
+    title: "Receptionist — Add a New Patient",
+    description: "As Receptionist, your first job is registering the animal. Click the '+ Add Patient' button (highlighted) to open the registration form. You'll capture the pet's name, species, breed, age, and the owner's contact details.",
+    target: "nav-registered-patients",
+    position: "right",
     role: "Receptionist",
-    route: "/dashboard",
+    route: "/patients",
     roleColor: "bg-sky-500",
     requiresAction: true,
-    actionLabel: "Click the highlighted button to continue →",
+    actionLabel: "Click 'Registered Patients' in the sidebar, then click '+ Add Patient' →",
   },
+
+  // ── STEP 3: Fill patient details ──────────────────────────────────────────
   {
     id: 3,
-    title: "Receptionist — Live Queue",
-    description: "Once checked in, the patient appears in the Live Patient Progress board. Each card shows their current workflow step and lets you track progress across all roles in real time.",
+    title: "Receptionist — Fill Patient Details",
+    description: "Complete the patient registration form: Pet Name, Species (Dog/Cat/Other), Breed, Date of Birth, Owner Name, and Owner Phone. Set the Risk Level if this is a known high-risk case. Click 'Save Patient' when done — the record is instantly available clinic-wide.",
+    position: "center",
+    role: "Receptionist",
+    route: "/patients/add",
+    roleColor: "bg-sky-500",
+  },
+
+  // ── STEP 4: Create new visit ──────────────────────────────────────────────
+  {
+    id: 4,
+    title: "Receptionist — Create a New Visit",
+    description: "Once registered, create a visit for today. You can do this two ways: (1) Open the patient's profile in Registered Patients and click 'New Visit', or (2) go to Appointments and book a slot. Either method adds the patient to today's clinic queue.",
+    target: "nav-registered-patients",
+    position: "right",
+    role: "Receptionist",
+    route: "/patients",
+    roleColor: "bg-sky-500",
+    requiresAction: true,
+    actionLabel: "Open patient profile → click 'New Visit' to continue →",
+  },
+
+  // ── STEP 5: Check in patient ──────────────────────────────────────────────
+  {
+    id: 5,
+    title: "Receptionist — Check In the Patient",
+    description: "With the visit created, check the patient in. On the patient profile or in Appointments, click 'Check In'. This moves them to WAITING status and they appear on the Live Queue dashboard. The Attendant can now see them for triage.",
     target: "live-queue",
     position: "bottom",
     role: "Receptionist",
     route: "/dashboard",
     roleColor: "bg-sky-500",
   },
+
+  // ── STEP 6: Attendant sees queue ──────────────────────────────────────────
   {
-    id: 4,
-    title: "Attendant (Nurse) — Vitals & Wellness",
-    description: "Switch to Attendant. In Triage, record temperature, blood pressure, heart rate and respiratory rate. Log wellness checks each shift: eating, drinking and stool output. This data gates the Vet's prescription form.",
+    id: 6,
+    title: "Attendant — Today's Appointments",
+    description: "Role switched to Attendant (Nurse). The dashboard shows all patients checked in today. Scroll down to 'Today's Appointments' — you'll see the patient you just checked in with status WAITING. Click 'Triage' on their card to begin the triage process.",
+    target: "live-queue",
+    position: "bottom",
+    role: "Nurse",
+    route: "/dashboard",
+    roleColor: "bg-amber-500",
+    requiresAction: true,
+    actionLabel: "Scroll to Today's Appointments → click 'Triage' for the patient →",
+  },
+
+  // ── STEP 7: Triage ────────────────────────────────────────────────────────
+  {
+    id: 7,
+    title: "Attendant — Triage the Patient",
+    description: "The Triage page has opened. Record the patient's vitals: Temperature (°C), Heart Rate (bpm), Respiratory Rate (bpm), and Weight (kg). You can also note their chief complaint. Once vitals are saved, click 'Complete Triage' — this triggers a notification to the Vet that the patient is ready for consultation.",
     target: "triage-page",
     position: "right",
     role: "Nurse",
     route: "/triage",
     roleColor: "bg-amber-500",
     requiresAction: true,
-    actionLabel: "Click Triage in the sidebar to continue →",
+    actionLabel: "Record vitals and click 'Complete Triage' →",
   },
+
+  // ── STEP 8: Start consultation ────────────────────────────────────────────
   {
-    id: 5,
-    title: "Veterinarian — Examination & Rx",
-    description: "As a Vet, open the patient's clinical record. Write a daily progress note with vitals — this UNLOCKS the prescription form. Diagnose, add treatments, and prescribe medications that auto-deduct from pharmacy inventory.",
-    target: "nav-records",
+    id: 8,
+    title: "Attendant → Vet — Start Consultation",
+    description: "Triage is complete. You can start the consultation as the Attendant (if working alongside the Vet) or the Vet can take over from their own login. We're switching to Vet role now. In the patient profile, click 'Start Consultation' (or 'New Record') — this opens the full clinical record.",
+    target: "nav-registered-patients",
     position: "right",
     role: "Vet",
-    route: "/records",
-    roleColor: "bg-blue-500",
+    route: "/patients",
+    roleColor: "bg-blue-600",
     requiresAction: true,
-    actionLabel: "Click Records in the sidebar to continue →",
+    actionLabel: "Open patient profile → click 'Start Consultation' →",
   },
+
+  // ── STEP 9: Overview tab ──────────────────────────────────────────────────
   {
-    id: 6,
-    title: "Pharmacist — Dispense & Inventory",
-    description: "Switch to Pharmacist. Medications prescribed by the Vet appear here. Confirm dispensing — the system auto-decrements inventory quantity and triggers a low-stock alert if any drug falls below its reorder level.",
+    id: 9,
+    title: "Vet — Clinical Record: Overview",
+    description: "The clinical record is now open. The Overview tab shows a summary of the current visit: patient info, today's vitals from triage, chief complaint, and active encounter status. Review this before examining the patient — it gives you the full picture at a glance.",
+    position: "center",
+    role: "Vet",
+    route: "/patients",
+    roleColor: "bg-blue-600",
+  },
+
+  // ── STEP 10: History tab ──────────────────────────────────────────────────
+  {
+    id: 10,
+    title: "Vet — Clinical Record: History",
+    description: "Click the 'History' tab. Here you document the patient's medical history: previous diagnoses, surgeries, chronic conditions, allergies, and vaccination history. For returning patients, past visit records appear here automatically. This context is critical for accurate diagnosis.",
+    position: "center",
+    role: "Vet",
+    route: "/patients",
+    roleColor: "bg-blue-600",
+  },
+
+  // ── STEP 11: Physical Exam ────────────────────────────────────────────────
+  {
+    id: 11,
+    title: "Vet — Clinical Record: Physical Exam",
+    description: "On the 'Physical Exam' tab, record your findings system by system: cardiovascular, respiratory, gastrointestinal, musculoskeletal, neurological, skin & coat, eyes, ears, and oral cavity. Use the structured fields or free-text. Abnormal findings are flagged in red for easy review.",
+    position: "center",
+    role: "Vet",
+    route: "/patients",
+    roleColor: "bg-blue-600",
+  },
+
+  // ── STEP 12: Clinical Notes ───────────────────────────────────────────────
+  {
+    id: 12,
+    title: "Vet — Clinical Record: Clinical Notes",
+    description: "The 'Clinical Notes' tab is your SOAP note area — Subjective, Objective, Assessment, Plan. Write your differential diagnoses and working diagnosis here. These notes are time-stamped, form the legal medical record, and are visible to all roles with clinical access.",
+    position: "center",
+    role: "Vet",
+    route: "/patients",
+    roleColor: "bg-blue-600",
+  },
+
+  // ── STEP 13: Diagnostics ──────────────────────────────────────────────────
+  {
+    id: 13,
+    title: "Vet — Clinical Record: Diagnostics",
+    description: "On the 'Diagnostics' tab, order lab tests (CBC, biochemistry, urinalysis, culture & sensitivity, cytology, imaging). Lab orders are sent to the lab queue. When results come back, they attach directly to this record. You can also upload external diagnostic images.",
+    position: "center",
+    role: "Vet",
+    route: "/patients",
+    roleColor: "bg-blue-600",
+  },
+
+  // ── STEP 14: Treatment + Inventory ───────────────────────────────────────
+  {
+    id: 14,
+    title: "Vet — Clinical Record: Treatment + Inventory",
+    description: "The 'Treatment' tab is where you add procedures performed (IV fluid placement, wound suturing, injections). Each treatment line is linked to an inventory item — when you add a treatment, the system checks stock. If an item is low or out of stock, a warning appears. This is how Inventory stays accurate in real time.",
+    target: "nav-inventory",
+    position: "right",
+    role: "Vet",
+    route: "/inventory",
+    roleColor: "bg-blue-600",
+  },
+
+  // ── STEP 15: Medications ──────────────────────────────────────────────────
+  {
+    id: 15,
+    title: "Vet — Clinical Record: Medications",
+    description: "On the 'Medications' tab, add drugs administered in-clinic (IV antibiotics, anti-emetics, pain relief). Each drug entry auto-decrements from pharmacy inventory — no double-entry needed. Dosage, route, and frequency are recorded here and passed to the Pharmacist's dispensing queue.",
+    position: "center",
+    role: "Vet",
+    route: "/patients",
+    roleColor: "bg-blue-600",
+  },
+
+  // ── STEP 16: Vaccinations ─────────────────────────────────────────────────
+  {
+    id: 16,
+    title: "Vet — Clinical Record: Vaccinations",
+    description: "The 'Vaccinations' tab records any vaccines given this visit (Rabies, DA2PP, Bordetella, FELV etc.). The system tracks due dates and automatically schedules a reminder to the owner before the next booster is due — reducing missed vaccination appointments.",
+    position: "center",
+    role: "Vet",
+    route: "/patients",
+    roleColor: "bg-blue-600",
+  },
+
+  // ── STEP 17: Prescriptions ────────────────────────────────────────────────
+  {
+    id: 17,
+    title: "Vet — Clinical Record: Prescriptions",
+    description: "Finally, the 'Prescriptions' tab lets you write take-home medication scripts. Add drug name, dose, frequency, duration, and dispensing instructions. These are handed to the Pharmacist for dispensing. A PDF prescription can be generated and sent to the owner. Click 'Complete Consultation' when all tabs are done.",
+    position: "center",
+    role: "Vet",
+    route: "/patients",
+    roleColor: "bg-blue-600",
+  },
+
+  // ── STEP 18: Pharmacist ───────────────────────────────────────────────────
+  {
+    id: 18,
+    title: "Pharmacist — Dispense Medications",
+    description: "Role switched to Pharmacist. The prescribed medications from the Vet now appear in the dispensing queue. Verify each item: check the drug, dose, and patient name. Click 'Dispense' to confirm — this auto-decrements stock from Inventory. If any item is out of stock, you'll be alerted to source an alternative.",
     target: "nav-inventory",
     position: "right",
     role: "Pharmacist",
     route: "/inventory",
     roleColor: "bg-purple-500",
     requiresAction: true,
-    actionLabel: "Click Inventory in the sidebar to continue →",
+    actionLabel: "Click Inventory in the sidebar to see stock levels →",
   },
+
+  // ── STEP 19: Billing (disabled note) ─────────────────────────────────────
   {
-    id: 7,
-    title: "Billing — Collect Payment & Discharge",
-    description: "Back as Receptionist, navigate to Billing. Review the invoice (consultation, procedures, medications). Collect payment via M-Pesa or cash. Discharge is LOCKED until payment is confirmed or pre-authorized.",
+    id: 19,
+    title: "Receptionist — Billing (Preview)",
+    description: "Role switched back to Receptionist. The Billing module is currently being set up for your clinic — it will show the full invoice: consultation fee, procedures, medications, and any applicable taxes. Payment can be collected via M-Pesa STK Push, cash, or insurance. Billing will be enabled in your plan once activated.",
     target: "nav-billing",
     position: "right",
     role: "Receptionist",
     route: "/billing",
     roleColor: "bg-sky-500",
-    requiresAction: true,
-    actionLabel: "Click Billing in the sidebar to continue →",
   },
+
+  // ── STEP 20: Discharge ────────────────────────────────────────────────────
   {
-    id: 8,
-    title: "You're Ready to Go!",
-    description: "That's the complete InnoVetPro workflow. Use 'Generate Mock Data' on the dashboard to explore with sample patients across all stages. Your team can switch roles anytime from the profile menu.",
+    id: 20,
+    title: "Receptionist — Discharge the Patient",
+    description: "Once payment is confirmed (or pre-authorized), the Receptionist clicks 'Discharge'. The patient's encounter is closed, a discharge summary is generated, and the owner receives a copy via SMS or email. The patient's record is archived and available for future visits. That's the full workflow!",
+    target: "live-queue",
+    position: "bottom",
+    role: "Receptionist",
+    route: "/dashboard",
+    roleColor: "bg-sky-500",
+  },
+
+  // ── STEP 21: Complete ─────────────────────────────────────────────────────
+  {
+    id: 21,
+    title: "Tour Complete — You're Ready!",
+    description: "You've completed the full InnoVetPro clinic workflow. Your team can switch roles anytime from the profile menu (top right). Use 'Generate Demo Data' on the dashboard to populate the system with sample patients and explore all features. Welcome aboard!",
     position: "center",
     role: "SuperAdmin",
     route: "/dashboard",

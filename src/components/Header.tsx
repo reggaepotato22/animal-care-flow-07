@@ -1,4 +1,4 @@
-import { Bell, Search as SearchIcon, User, LogOut, Sun, Moon, Leaf, SunMoon, Shield, CheckCheck, Trash2, Settings, Menu } from "lucide-react";
+import { Bell, Search as SearchIcon, User, LogOut, Sun, Moon, Leaf, SunMoon, Shield, CheckCheck, Trash2, Settings, Menu, ExternalLink } from "lucide-react";
 import { AppLogo } from "@/components/AppLogo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -228,6 +228,11 @@ export function Header({ onMobileMenuOpen }: HeaderProps) {
                 <DropdownMenuItem onClick={() => navigate("/workflow-settings")} className="gap-2">
                   <Settings className="h-4 w-4" />
                   Settings
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => navigate("/admin")} className="gap-2 text-muted-foreground">
+                  <ExternalLink className="h-4 w-4" />
+                  Admin Portal
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleLogout}>
