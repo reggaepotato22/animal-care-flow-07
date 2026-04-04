@@ -64,6 +64,7 @@ import Landing from "./pages/Landing";
 import FieldMode from "./pages/FieldMode";
 import Pricing from "./pages/Pricing";
 import { FeedbackProvider } from "@/contexts/FeedbackContext";
+import { MobileClinicPrompt } from "@/components/MobileClinicPrompt";
 
 const queryClient = new QueryClient();
 
@@ -77,6 +78,7 @@ function ProtectedRoutes() {
   return (
     <FeedbackProvider>
     <TutorialProvider>
+    <MobileClinicPrompt />
     <Layout>
       <Routes>
         <Route path="/dashboard" element={<Index />} />
