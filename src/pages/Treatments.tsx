@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, Plus, Edit, Copy, Power, DollarSign, Clock, FileText, Package, Stethoscope } from "lucide-react";
+import { Search, Plus, Edit, Copy, Power, Banknote, Clock, FileText, Package, Stethoscope } from "lucide-react";
 import { treatmentCategories, type TreatmentItem } from "@/data/treatments";
 import { TreatmentItemDialog } from "@/components/TreatmentItemDialog";
 import { loadTreatments, saveTreatmentItem, TREATMENTS_CHANNEL } from "@/lib/treatmentStore";
@@ -151,7 +151,7 @@ export default function Treatments() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Categories</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
+            <Banknote className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats.categories}</div>
@@ -241,14 +241,14 @@ export default function Treatments() {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end space-x-1">
-                          <DollarSign className="h-3 w-3 text-muted-foreground" />
-                          <span className="font-medium">{treatment.price.toFixed(2)}</span>
+                          <span className="text-[10px] font-semibold text-muted-foreground">KSh</span>
+                          <span className="font-medium">{treatment.price.toLocaleString("en-KE")}</span>
                         </div>
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end space-x-1">
-                          <DollarSign className="h-3 w-3 text-muted-foreground" />
-                          <span className="text-sm text-muted-foreground">{treatment.cost.toFixed(2)}</span>
+                          <span className="text-[10px] font-semibold text-muted-foreground">KSh</span>
+                          <span className="text-sm text-muted-foreground">{treatment.cost.toLocaleString("en-KE")}</span>
                         </div>
                       </TableCell>
                       <TableCell className="text-center">

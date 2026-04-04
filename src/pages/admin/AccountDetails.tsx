@@ -245,7 +245,7 @@ export default function AccountDetails() {
               </Select>
             </div>
             <div className="text-xs text-muted-foreground">
-              {plan ? `${plan.currency} ${(plan.priceCentsMonthly / 100).toFixed(2)}/mo` : "—"}
+              {plan ? (plan.priceCentsMonthly === 0 ? "Free" : `KSh ${(plan.priceCentsMonthly / 100).toLocaleString("en-KE")}/mo`) : "—"}
             </div>
           </CardContent>
         </Card>

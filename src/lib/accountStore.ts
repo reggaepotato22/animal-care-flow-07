@@ -104,7 +104,7 @@ export const PLANS: Plan[] = [
       storage_mb: 250,
     },
     priceCentsMonthly: 0,
-    currency: "USD",
+    currency: "KES",
   },
   {
     id: LIVE_STARTER_PLAN_ID,
@@ -129,8 +129,8 @@ export const PLANS: Plan[] = [
       appointments_month: 2500,
       storage_mb: 2000,
     },
-    priceCentsMonthly: 7900,
-    currency: "USD",
+    priceCentsMonthly: 450000,
+    currency: "KES",
   },
   {
     id: LIVE_PRO_PLAN_ID,
@@ -155,8 +155,8 @@ export const PLANS: Plan[] = [
       appointments_month: 25000,
       storage_mb: 25000,
     },
-    priceCentsMonthly: 19900,
-    currency: "USD",
+    priceCentsMonthly: 1200000,
+    currency: "KES",
   },
 ];
 
