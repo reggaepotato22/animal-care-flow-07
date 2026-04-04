@@ -5,7 +5,7 @@ import { useTutorial } from "@/contexts/TutorialContext";
 import { useRole } from "@/contexts/RoleContext";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { X, ChevronRight, ChevronLeft, BookOpen, CheckSquare } from "lucide-react";
+import { X, ChevronRight, ChevronLeft, BookOpen, CheckSquare, Minimize2 } from "lucide-react";
 import type { Role } from "@/lib/rbac";
 
 // ── Spotlight helpers ────────────────────────────────────────────────────────
@@ -186,6 +186,7 @@ export function TutorialOverlay() {
   const navigate = useNavigate();
   const [targetRect, setTargetRect] = useState<TargetRect | null>(null);
   const [stepDone, setStepDone] = useState(false);
+  const [isMinimized, setIsMinimized] = useState(false);
   const [isMobile, setIsMobile] = useState(() =>
     typeof window !== "undefined" ? window.innerWidth < 640 : false
   );
@@ -196,8 +197,8 @@ export function TutorialOverlay() {
     return () => window.removeEventListener("resize", onResize);
   }, []);
 
-  // Reset action-gate whenever step changes
-  useEffect(() => { setStepDone(false); }, [step]);
+  // Reset action-gate + minimized state whenever step changes
+  useEffect(() => { setStepDone(false); setIsMinimized(false); }, [step]);
 
   // Auto-switch role + navigate whenever the active step changes
   useEffect(() => {
@@ -242,16 +243,44 @@ export function TutorialOverlay() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isActive, step]);
 
-  // ── Step 3: marks done when patient form is saved; user must click 'Mark Complete' ──
+  // ── Step 3: minimize when btn-add-patient is clicked ─────────────────────────────────
   useEffect(() => {
     if (!isActive || step !== 3) return;
-    const handler = () => { setStepDone(true); };
+    let el: HTMLElement | null = null;
+    const handleBtnClick = () => { setIsMinimized(true); };
+    const id = window.setTimeout(() => {
+      el = document.querySelector<HTMLElement>('[data-tutorial="btn-add-patient"]');
+      if (el) el.addEventListener("click", handleBtnClick);
+    }, 200);
+    return () => { window.clearTimeout(id); if (el) el.removeEventListener("click", handleBtnClick); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isActive, step]);
+
+  // ── Step 3: restore + mark done when patient form is saved ─────────────────────
+  useEffect(() => {
+    if (!isActive || step !== 3) return;
+    const handler = () => { setIsMinimized(false); setStepDone(true); };
     window.addEventListener("tutorial:patient-saved", handler);
     return () => window.removeEventListener("tutorial:patient-saved", handler);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isActive, step]);
 
   if (!isActive || !currentStep) return null;
+
+  // ── Minimized pill (shown while user fills the Add Patient form) ──────────────
+  if (isMinimized) {
+    return (
+      <button
+        onClick={() => setIsMinimized(false)}
+        className="fixed bottom-6 right-6 z-[9999] flex items-center gap-2 px-4 py-2.5 rounded-full bg-primary text-primary-foreground shadow-xl text-xs font-semibold animate-in slide-in-from-bottom duration-300 hover:bg-primary/90 transition-colors"
+        title="Click to reopen tutorial"
+      >
+        <BookOpen className="h-3.5 w-3.5 shrink-0" />
+        <span>Tutorial paused — fill the patient form</span>
+        <Minimize2 className="h-3 w-3 opacity-60" />
+      </button>
+    );
+  }
 
   const isFirst    = step === 1;
   const isLast     = step === totalSteps;
@@ -333,7 +362,7 @@ export function TutorialOverlay() {
           </p>
 
           {/* Action prompt */}
-          {(needsAction || step === 3) && (
+          {(needsAction || step === 3 || stepDone) && (
             <div className={cn(
               "flex items-start gap-2.5 px-3 py-2.5 rounded-lg border text-xs font-medium leading-snug transition-all duration-300",
               stepDone
@@ -347,7 +376,7 @@ export function TutorialOverlay() {
                 {stepDone
                   ? "Patient saved! Click 'Mark Complete' below to continue to the next step."
                   : step === 3
-                    ? "Fill in all patient details, then click 'Save Patient'. Once saved, click 'Mark Complete' to continue."
+                    ? "Click the highlighted 'Register Patient' button — the tutorial will minimise while you fill the form."
                     : (currentStep.actionLabel ?? "Click the highlighted element to continue →")}
               </span>
             </div>

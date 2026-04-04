@@ -185,6 +185,7 @@ export default function Patients() {
         <div className="flex items-center gap-2">
           {has("can_register_patients") && (
             <Button 
+              data-tutorial="btn-add-patient"
               className="bg-primary hover:bg-primary/90"
               onClick={() => navigate("/patients/add")}
             >
