@@ -7,8 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AlertCircle, LogIn, FlaskConical, KeyRound, Mail } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { AlertCircle, LogIn, KeyRound, Mail, FlaskConical } from "lucide-react";
 import { validateToken, setActiveToken } from "@/lib/tokenStore";
 import { logActivity } from "@/lib/activityStore";
 
@@ -90,15 +89,23 @@ export default function Login() {
           </p>
         </div>
 
-        {/* Sign in card */}
-        <Card className="shadow-lg border-border/60">
-          <CardHeader className="pb-3">
+        {/* Sign in card — amber/yellow demo highlight */}
+        <Card className="shadow-lg border-amber-300 dark:border-amber-700/60 bg-amber-50/40 dark:bg-amber-900/10">
+          {/* Demo badge strip */}
+          <div className="flex items-center gap-2 px-5 py-2.5 bg-amber-400 dark:bg-amber-600 rounded-t-lg">
+            <FlaskConical className="h-4 w-4 text-amber-900 dark:text-amber-100 shrink-0" />
+            <span className="text-xs font-bold tracking-wide text-amber-900 dark:text-amber-100 uppercase">
+              Demo Access — InnoVetPro Demo Environment
+            </span>
+          </div>
+
+          <CardHeader className="pb-3 pt-4">
             <CardTitle className="text-lg flex items-center gap-2">
               <LogIn className="h-4 w-4" />
               Sign In
             </CardTitle>
             <CardDescription className="text-xs">
-              Enter your Access Token and email to access the <span className="font-semibold text-amber-600 dark:text-amber-400">InnoVetPro Demo</span>. All accounts use the shared demo environment.
+              Enter your Access Token and email. All logins access the shared demo environment.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -122,14 +129,11 @@ export default function Login() {
                   value={token}
                   onChange={(e) => setToken(e.target.value.toUpperCase())}
                   autoComplete="off"
-                  className="h-9 font-mono tracking-wider uppercase"
+                  className="h-9 font-mono tracking-wider uppercase bg-white dark:bg-background"
                   required
                 />
                 <p className="text-[10px] text-muted-foreground leading-relaxed">
-                  Your token is provided when you subscribe.{" "}
-                  <span className="font-semibold text-amber-600 dark:text-amber-400">
-                    Demo token:
-                  </span>{" "}
+                  <span className="font-semibold text-amber-700 dark:text-amber-400">Demo token: </span>
                   <button
                     type="button"
                     className="font-mono font-semibold text-primary hover:underline"
@@ -152,11 +156,11 @@ export default function Login() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   autoComplete="email"
-                  className="h-9"
+                  className="h-9 bg-white dark:bg-background"
                   required
                 />
                 <p className="text-[10px] text-muted-foreground">
-                  Demo email:{" "}
+                  <span className="font-semibold text-amber-700 dark:text-amber-400">Demo email: </span>
                   <button
                     type="button"
                     className="font-mono font-semibold text-primary hover:underline"
@@ -167,9 +171,9 @@ export default function Login() {
                 </p>
               </div>
 
-              <Button type="submit" className="w-full h-9 gap-2">
+              <Button type="submit" className="w-full h-9 gap-2 bg-amber-500 hover:bg-amber-600 text-white border-0">
                 <LogIn className="h-4 w-4" />
-                Sign In
+                Sign In to Demo
               </Button>
             </form>
 
@@ -179,37 +183,6 @@ export default function Login() {
                 Create your clinic account
               </Link>
             </p>
-          </CardContent>
-        </Card>
-
-        {/* Demo shortcut */}
-        <div className="relative">
-          <div className="absolute inset-0 flex items-center">
-            <span className="w-full border-t border-dashed border-muted-foreground/30" />
-          </div>
-          <div className="relative flex justify-center text-[11px] uppercase tracking-wider">
-            <span className="bg-background px-3 text-muted-foreground">or try the demo</span>
-          </div>
-        </div>
-
-        <Card className={cn("border-amber-200 bg-amber-50/60 dark:bg-amber-900/10 dark:border-amber-800/40 shadow-sm")}>
-          <CardContent className="pt-4 pb-4 space-y-3">
-            <div className="flex items-start gap-3">
-              <div className="h-8 w-8 rounded-lg bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center shrink-0">
-                <FlaskConical className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-amber-900 dark:text-amber-300">Demo Clinic</p>
-                <p className="text-xs text-amber-700 dark:text-amber-400 mt-0.5">
-                  One-click access with full sample data. No token needed.
-                </p>
-              </div>
-            </div>
-            <Link to="/login/demo" className="block">
-              <Button variant="outline" className="w-full h-9 border-amber-300 text-amber-800 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/30 font-medium">
-                Enter Demo Clinic
-              </Button>
-            </Link>
           </CardContent>
         </Card>
 
