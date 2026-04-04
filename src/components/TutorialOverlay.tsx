@@ -242,13 +242,10 @@ export function TutorialOverlay() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isActive, step]);
 
-  // ── Step 3 auto-advance: fires when AddPatient form is submitted ──────────
+  // ── Step 3: marks done when patient form is saved; user must click 'Mark Complete' ──
   useEffect(() => {
     if (!isActive || step !== 3) return;
-    const handler = () => {
-      setStepDone(true);
-      window.setTimeout(() => nextStep(), 800);
-    };
+    const handler = () => { setStepDone(true); };
     window.addEventListener("tutorial:patient-saved", handler);
     return () => window.removeEventListener("tutorial:patient-saved", handler);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -261,8 +258,8 @@ export function TutorialOverlay() {
   const hasTarget  = !!targetRect;
   const pos        = currentStep.position ?? "center";
   const needsAction = !!currentStep.requiresAction;
-  // Step 3 can also be completed via the patient-saved event (no requiresAction flag needed)
-  const canProceed = step === 3 ? (!needsAction || stepDone) : (!needsAction || stepDone);
+  // Step 3: must save the patient form first (stepDone=true), then user clicks Mark Complete
+  const canProceed = step === 3 ? stepDone : (!needsAction || stepDone);
 
   const mobileModalStyle: React.CSSProperties = isMobile
     ? { position: "fixed", bottom: 0, left: 0, right: 0, top: "auto", transform: "none" }
@@ -348,9 +345,9 @@ export function TutorialOverlay() {
                 : <ChevronRight className="h-4 w-4 shrink-0 mt-0.5 animate-pulse" />}
               <span>
                 {stepDone
-                  ? "Done! Moving to next step…"
+                  ? "Patient saved! Click 'Mark Complete' below to continue to the next step."
                   : step === 3
-                    ? "Fill in the patient form and click 'Save Patient' — the tutorial will advance automatically."
+                    ? "Fill in all patient details, then click 'Save Patient'. Once saved, click 'Mark Complete' to continue."
                     : (currentStep.actionLabel ?? "Click the highlighted element to continue →")}
               </span>
             </div>
@@ -368,10 +365,10 @@ export function TutorialOverlay() {
             )}
             <Button
               size="sm"
-              disabled={!isLast && !canProceed && step !== 3}
+              disabled={!isLast && !canProceed}
               className={cn(
                 "flex-1 h-9 font-semibold",
-                canProceed || isLast || step === 3
+                canProceed || isLast
                   ? "bg-primary hover:bg-primary/90 text-primary-foreground"
                   : "bg-muted text-muted-foreground cursor-not-allowed opacity-60"
               )}
@@ -379,6 +376,8 @@ export function TutorialOverlay() {
             >
               {isLast ? "Get Started" : isFirst ? (
                 <>Start Tour <ChevronRight className="h-4 w-4 ml-1" /></>
+              ) : step === 3 ? (
+                <><CheckSquare className="h-4 w-4 mr-1" />Mark Complete</>
               ) : (
                 <>Next <ChevronRight className="h-4 w-4 ml-1" /></>
               )}
