@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, Plus, DollarSign, Clock, AlertTriangle, Package } from "lucide-react";
+import { Search, Plus, Clock, AlertTriangle, Package } from "lucide-react";
 import { treatmentItems, treatmentCategories, TreatmentItem } from "@/data/treatments";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { canApplyTreatment, deductInventoryForTreatment } from "@/utils/inventory";
@@ -174,8 +174,8 @@ export function TreatmentSelector({ onTreatmentAdded, linkedSection, performedBy
                       <div className="text-xs text-muted-foreground font-mono">{treatment.code}</div>
                     </div>
                     <div className="flex items-center space-x-1 font-semibold text-sm">
-                      <DollarSign className="h-3 w-3 text-muted-foreground" />
-                      <span>{treatment.price.toFixed(2)}</span>
+                      <span className="text-[10px] text-muted-foreground">KSh</span>
+                      <span>{treatment.price.toLocaleString("en-KE")}</span>
                     </div>
                   </div>
                   

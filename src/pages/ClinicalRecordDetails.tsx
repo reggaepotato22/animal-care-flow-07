@@ -6,7 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ArrowLeft, Calendar, User, Stethoscope, Paperclip, FileText, Pill, Heart, FlaskConical, TestTube, Clock, Image, FileImage, FileScan, Syringe, ChevronDown, ChevronUp, Shield, DollarSign } from "lucide-react";
+import { ArrowLeft, Calendar, User, Stethoscope, Paperclip, FileText, Pill, Heart, FlaskConical, TestTube, Clock, Image, FileImage, FileScan, Syringe, ChevronDown, ChevronUp, Shield, Banknote } from "lucide-react";
 import { LabOrderDialog } from "@/components/LabOrderDialog";
 import { format } from "date-fns";
 import { useEffect, useMemo, useState } from "react";
@@ -1637,7 +1637,7 @@ export default function ClinicalRecordDetails() {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <DollarSign className="h-5 w-5" />
+                <Banknote className="h-5 w-5" />
                 Encounter Summary & Billing
               </CardTitle>
               <CardDescription>
@@ -1676,14 +1676,14 @@ export default function ClinicalRecordDetails() {
                             </TableCell>
                             <TableCell className="text-right">
                               <div className="flex items-center justify-end space-x-1">
-                                <DollarSign className="h-3 w-3 text-muted-foreground" />
-                                <span className="text-sm">{item.price.toFixed(2)}</span>
+                                <span className="text-[10px] text-muted-foreground font-semibold">KSh</span>
+                                <span className="text-sm">{item.price.toLocaleString("en-KE")}</span>
                               </div>
                             </TableCell>
                             <TableCell className="text-right">
                               <div className="flex items-center justify-end space-x-1">
-                                <DollarSign className="h-3 w-3 text-muted-foreground" />
-                                <span className="font-semibold">{item.total.toFixed(2)}</span>
+                                <span className="text-[10px] text-muted-foreground font-semibold">KSh</span>
+                                <span className="font-semibold">{item.total.toLocaleString("en-KE")}</span>
                               </div>
                             </TableCell>
                             <TableCell>
@@ -1707,8 +1707,8 @@ export default function ClinicalRecordDetails() {
                           <TableCell colSpan={5} className="text-right">Subtotal:</TableCell>
                           <TableCell className="text-right">
                             <div className="flex items-center justify-end space-x-1">
-                              <DollarSign className="h-3 w-3" />
-                              <span>{patientData.encounterItems.reduce((sum: number, item: any) => sum + item.total, 0).toFixed(2)}</span>
+                              <span className="text-[10px] font-semibold">KSh</span>
+                              <span>{patientData.encounterItems.reduce((sum: number, item: any) => sum + item.total, 0).toLocaleString("en-KE")}</span>
                             </div>
                           </TableCell>
                           <TableCell></TableCell>
@@ -1717,8 +1717,8 @@ export default function ClinicalRecordDetails() {
                           <TableCell colSpan={5} className="text-right font-medium">Tax (0%):</TableCell>
                           <TableCell className="text-right">
                             <div className="flex items-center justify-end space-x-1">
-                              <DollarSign className="h-3 w-3 text-muted-foreground" />
-                              <span className="text-sm">0.00</span>
+                              <span className="text-[10px] text-muted-foreground font-semibold">KSh</span>
+                              <span className="text-sm">0</span>
                             </div>
                           </TableCell>
                           <TableCell></TableCell>
@@ -1727,8 +1727,8 @@ export default function ClinicalRecordDetails() {
                           <TableCell colSpan={5} className="text-right">Total:</TableCell>
                           <TableCell className="text-right">
                             <div className="flex items-center justify-end space-x-1">
-                              <DollarSign className="h-4 w-4" />
-                              <span>{patientData.encounterItems.reduce((sum: number, item: any) => sum + item.total, 0).toFixed(2)}</span>
+                              <span className="text-[10px] font-semibold">KSh</span>
+                              <span>{patientData.encounterItems.reduce((sum: number, item: any) => sum + item.total, 0).toLocaleString("en-KE")}</span>
                             </div>
                           </TableCell>
                           <TableCell></TableCell>

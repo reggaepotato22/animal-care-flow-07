@@ -180,7 +180,7 @@ export default function Accounts() {
                           </SelectContent>
                         </Select>
                         <div className="text-xs text-muted-foreground mt-1">
-                          {plan ? `${plan.currency} ${(plan.priceCentsMonthly / 100).toFixed(2)}/mo` : "—"}
+                          {plan ? (plan.priceCentsMonthly === 0 ? "Free" : `KSh ${(plan.priceCentsMonthly / 100).toLocaleString("en-KE")}/mo`) : "—"}
                         </div>
                       </TableCell>
                       <TableCell>

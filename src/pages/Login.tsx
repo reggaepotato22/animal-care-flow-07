@@ -7,19 +7,18 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AlertCircle, Eye, EyeOff, LogIn, FlaskConical, KeyRound } from "lucide-react";
+import { AlertCircle, LogIn, FlaskConical, KeyRound, Mail } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { validateToken, setActiveToken } from "@/lib/tokenStore";
+import { logActivity } from "@/lib/activityStore";
 
 export default function Login() {
-  const [email, setEmail]       = useState("");
-  const [password, setPassword] = useState("");
-  const [token, setToken]       = useState("");
-  const [showPw, setShowPw]     = useState(false);
-  const [error, setError]       = useState("");
-  const { login, isAuthenticated } = useAuth();
-  const navigate  = useNavigate();
-  const location  = useLocation();
+  const [email, setEmail] = useState("");
+  const [token, setToken] = useState("");
+  const [error, setError] = useState("");
+  const { loginWithToken, isAuthenticated } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
 
   const from = (location.state as { from?: { pathname: string } })?.from?.pathname;
   const redirectTo = (from && from !== "/") ? from : "/dashboard";
@@ -31,16 +30,46 @@ export default function Login() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+
     const accessToken = validateToken(token);
     if (!accessToken) {
-      setError("Invalid or expired Access Token. Check your token and try again. Demo token: DEMO-INNOVETPRO-2024");
+      logActivity({
+        type: "token_invalid",
+        title: "Invalid access token entered",
+        detail: `Token: ${token.slice(0, 8)}… · Email: ${email}`,
+        email,
+        tokenCode: token,
+      });
+      setError("Invalid or expired Access Token. Check your token and try again.");
       return;
     }
-    if (login(email, password)) {
+
+    logActivity({
+      type: "token_validated",
+      title: "Access token validated",
+      detail: `Plan: ${accessToken.plan} · Clinic: ${accessToken.clinicName}`,
+      email,
+      tokenCode: accessToken.code,
+      tokenPlan: accessToken.plan,
+      clinicName: accessToken.clinicName,
+    });
+
+    const ok = loginWithToken(email);
+    if (ok) {
       setActiveToken(accessToken);
+      logActivity({
+        type: "login",
+        title: "User signed in",
+        detail: `${accessToken.clinicName} · ${accessToken.plan} plan`,
+        email,
+        tokenCode: accessToken.code,
+        tokenPlan: accessToken.plan,
+        clinicName: accessToken.clinicName,
+      });
       navigate(redirectTo, { replace: true });
     } else {
-      setError("Invalid email or password. If using the demo clinic, click \"Enter Demo Clinic\" below.");
+      logActivity({ type: "login_failed", title: "Sign in failed", email });
+      setError("Sign in failed. Please try again.");
     }
   };
 
@@ -48,7 +77,7 @@ export default function Login() {
     <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-muted/30 flex items-center justify-center p-4">
       <div className="w-full max-w-md space-y-4">
 
-        {/* InnoVetPro Header */}
+        {/* Header */}
         <div className="text-center space-y-2">
           <div className="flex items-center justify-center mb-1">
             <AppLogo imgHeight={56} />
@@ -61,7 +90,7 @@ export default function Login() {
           </p>
         </div>
 
-        {/* Real account sign in */}
+        {/* Sign in card */}
         <Card className="shadow-lg border-border/60">
           <CardHeader className="pb-3">
             <CardTitle className="text-lg flex items-center gap-2">
@@ -69,7 +98,7 @@ export default function Login() {
               Sign In
             </CardTitle>
             <CardDescription className="text-xs">
-              Use your registered clinic account credentials.
+              Enter your Access Token and clinic email address to sign in.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -80,8 +109,10 @@ export default function Login() {
                   <AlertDescription className="text-xs">{error}</AlertDescription>
                 </Alert>
               )}
+
+              {/* Access Token */}
               <div className="space-y-1.5">
-                <Label htmlFor="token" className="text-xs font-medium flex items-center gap-1">
+                <Label htmlFor="token" className="text-xs font-medium flex items-center gap-1.5">
                   <KeyRound className="h-3 w-3" /> Access Token
                 </Label>
                 <Input
@@ -91,13 +122,29 @@ export default function Login() {
                   value={token}
                   onChange={(e) => setToken(e.target.value.toUpperCase())}
                   autoComplete="off"
-                  className="h-9 font-mono tracking-wider"
+                  className="h-9 font-mono tracking-wider uppercase"
                   required
                 />
-                <p className="text-[10px] text-muted-foreground">Provided when you subscribe. Demo: <span className="font-mono font-medium">DEMO-INNOVETPRO-2024</span></p>
+                <p className="text-[10px] text-muted-foreground leading-relaxed">
+                  Your token is provided when you subscribe.{" "}
+                  <span className="font-semibold text-amber-600 dark:text-amber-400">
+                    Demo token:
+                  </span>{" "}
+                  <button
+                    type="button"
+                    className="font-mono font-semibold text-primary hover:underline"
+                    onClick={() => setToken("DEMO-INNOVETPRO-2024")}
+                  >
+                    DEMO-INNOVETPRO-2024
+                  </button>
+                </p>
               </div>
+
+              {/* Email */}
               <div className="space-y-1.5">
-                <Label htmlFor="email" className="text-xs font-medium">Email</Label>
+                <Label htmlFor="email" className="text-xs font-medium flex items-center gap-1.5">
+                  <Mail className="h-3 w-3" /> Email Address
+                </Label>
                 <Input
                   id="email"
                   type="email"
@@ -108,30 +155,20 @@ export default function Login() {
                   className="h-9"
                   required
                 />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="password" className="text-xs font-medium">Password</Label>
-                <div className="relative">
-                  <Input
-                    id="password"
-                    type={showPw ? "text" : "password"}
-                    placeholder="••••••••"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    autoComplete="current-password"
-                    className="h-9 pr-9"
-                    required
-                  />
+                <p className="text-[10px] text-muted-foreground">
+                  Demo email:{" "}
                   <button
                     type="button"
-                    onClick={() => setShowPw(s => !s)}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    className="font-mono font-semibold text-primary hover:underline"
+                    onClick={() => setEmail("demo@vetcare.demo")}
                   >
-                    {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    demo@vetcare.demo
                   </button>
-                </div>
+                </p>
               </div>
-              <Button type="submit" className="w-full h-9">
+
+              <Button type="submit" className="w-full h-9 gap-2">
+                <LogIn className="h-4 w-4" />
                 Sign In
               </Button>
             </form>
@@ -145,7 +182,7 @@ export default function Login() {
           </CardContent>
         </Card>
 
-        {/* Demo account — clearly separate */}
+        {/* Demo shortcut */}
         <div className="relative">
           <div className="absolute inset-0 flex items-center">
             <span className="w-full border-t border-dashed border-muted-foreground/30" />
@@ -164,7 +201,7 @@ export default function Login() {
               <div>
                 <p className="text-sm font-semibold text-amber-900 dark:text-amber-300">Demo Clinic</p>
                 <p className="text-xs text-amber-700 dark:text-amber-400 mt-0.5">
-                  Explore all features with pre-loaded sample data. No sign-up needed.
+                  One-click access with full sample data. No token needed.
                 </p>
               </div>
             </div>
