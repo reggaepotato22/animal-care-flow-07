@@ -10,8 +10,8 @@ import type { Role } from "@/lib/rbac";
 
 // ── Spotlight helpers ────────────────────────────────────────────────────────
 interface TargetRect { top: number; left: number; width: number; height: number }
-const MODAL_W = 352;
-const MODAL_H = 420;
+const MODAL_W = 420;
+const MODAL_H = 500;
 const GAP     = 14;
 const PAD     = 8;
 
@@ -95,22 +95,44 @@ function InnoVetProMark() {
   return <AppLogo imgHeight={36} showText textClassName="text-lg font-bold" className="mb-4" />;
 }
 
-function StepDots({ total, current }: { total: number; current: number }) {
+// Section labels for progress display (maps step → section name)
+const STEP_SECTIONS: Record<number, string> = {
+  1: "Welcome", 2: "Register", 3: "Register", 4: "Register", 5: "Register",
+  6: "Triage", 7: "Triage",
+  8: "Consultation", 9: "Consultation", 10: "Consultation", 11: "Consultation",
+  12: "Consultation", 13: "Consultation", 14: "Consultation", 15: "Consultation",
+  16: "Consultation", 17: "Consultation",
+  18: "Pharmacy", 19: "Billing", 20: "Discharge", 21: "Complete",
+};
+
+const SECTIONS = ["Welcome","Register","Triage","Consultation","Pharmacy","Billing","Discharge","Complete"];
+
+function SectionProgress({ total, current }: { total: number; current: number }) {
+  const currentSection = STEP_SECTIONS[current] ?? "";
+  const sectionIdx = SECTIONS.indexOf(currentSection);
   return (
-    <div className="flex items-center gap-1.5">
-      {Array.from({ length: total }).map((_, i) => (
-        <div
-          key={i}
-          className={cn(
-            "rounded-full transition-all duration-300",
-            i + 1 === current
-              ? "w-5 h-2 bg-primary"
-              : i + 1 < current
-              ? "w-2 h-2 bg-primary/40"
-              : "w-2 h-2 bg-muted-foreground/25"
-          )}
-        />
-      ))}
+    <div className="space-y-1.5">
+      <div className="flex gap-1">
+        {SECTIONS.map((s, i) => (
+          <div
+            key={s}
+            className={cn(
+              "flex-1 h-1.5 rounded-full transition-all duration-300",
+              i < sectionIdx ? "bg-primary" :
+              i === sectionIdx ? "bg-primary/70" :
+              "bg-muted-foreground/20"
+            )}
+          />
+        ))}
+      </div>
+      <div className="flex items-center justify-between">
+        <span className="text-[10px] font-semibold text-primary uppercase tracking-wider">
+          {currentSection}
+        </span>
+        <span className="text-[10px] text-muted-foreground">
+          {current} / {total}
+        </span>
+      </div>
     </div>
   );
 }
@@ -163,12 +185,11 @@ export function TutorialOverlay() {
   const { setRole } = useRole();
   const navigate = useNavigate();
   const [targetRect, setTargetRect] = useState<TargetRect | null>(null);
-  // Completion gate: resets to false each time the step changes
   const [stepDone, setStepDone] = useState(false);
-  // Track mobile breakpoint for bottom-sheet positioning
   const [isMobile, setIsMobile] = useState(() =>
     typeof window !== "undefined" ? window.innerWidth < 640 : false
   );
+
   useEffect(() => {
     const onResize = () => setIsMobile(window.innerWidth < 640);
     window.addEventListener("resize", onResize);
@@ -181,22 +202,14 @@ export function TutorialOverlay() {
   // Auto-switch role + navigate whenever the active step changes
   useEffect(() => {
     if (!isActive || !currentStep) return;
-    if (currentStep.role) {
-      setRole(currentStep.role as Role, "Tutorial");
-    }
-    if (currentStep.route) {
-      navigate(currentStep.route, { replace: false });
-    }
+    if (currentStep.role) setRole(currentStep.role as Role, "Tutorial");
+    if (currentStep.route) navigate(currentStep.route, { replace: false });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isActive, step]);
 
   // Find + measure target element on each step change
   useEffect(() => {
-    if (!isActive || !currentStep?.target) {
-      setTargetRect(null);
-      return;
-    }
-    // Wait two ticks so navigation + DOM paint completes
+    if (!isActive || !currentStep?.target) { setTargetRect(null); return; }
     const id = window.setTimeout(() => {
       const rect = findTarget(currentStep.target);
       if (rect) {
@@ -210,8 +223,7 @@ export function TutorialOverlay() {
     return () => window.clearTimeout(id);
   }, [isActive, step, currentStep]);
 
-  // Auto-detect click on the spotlighted element for action-required steps.
-  // Waits 200 ms (same as target-finder) so the DOM has painted after navigation.
+  // Auto-detect click on spotlighted element for action-required steps
   useEffect(() => {
     if (!isActive || !currentStep?.requiresAction || !currentStep?.target) return;
     let el: HTMLElement | null = null;
@@ -220,55 +232,61 @@ export function TutorialOverlay() {
       if (fired) return;
       fired = true;
       setStepDone(true);
-      // Brief pause so user sees the green badge before step advances
       window.setTimeout(() => nextStep(), 650);
     };
     const id = window.setTimeout(() => {
       el = document.querySelector<HTMLElement>(`[data-tutorial="${currentStep.target}"]`);
       if (el) el.addEventListener("click", handleClick);
     }, 200);
-    return () => {
-      window.clearTimeout(id);
-      if (el) el.removeEventListener("click", handleClick);
+    return () => { window.clearTimeout(id); if (el) el.removeEventListener("click", handleClick); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isActive, step]);
+
+  // ── Step 3 auto-advance: fires when AddPatient form is submitted ──────────
+  useEffect(() => {
+    if (!isActive || step !== 3) return;
+    const handler = () => {
+      setStepDone(true);
+      window.setTimeout(() => nextStep(), 800);
     };
+    window.addEventListener("tutorial:patient-saved", handler);
+    return () => window.removeEventListener("tutorial:patient-saved", handler);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isActive, step]);
 
   if (!isActive || !currentStep) return null;
 
-  const isFirst = step === 1;
-  const isLast  = step === totalSteps;
-  const hasTarget = !!targetRect;
-  const pos = currentStep.position ?? "center";
+  const isFirst    = step === 1;
+  const isLast     = step === totalSteps;
+  const hasTarget  = !!targetRect;
+  const pos        = currentStep.position ?? "center";
   const needsAction = !!currentStep.requiresAction;
-  const canProceed  = !needsAction || stepDone;
+  // Step 3 can also be completed via the patient-saved event (no requiresAction flag needed)
+  const canProceed = step === 3 ? (!needsAction || stepDone) : (!needsAction || stepDone);
 
-  // On mobile: bottom sheet covers full width, ignore target positioning
   const mobileModalStyle: React.CSSProperties = isMobile
     ? { position: "fixed", bottom: 0, left: 0, right: 0, top: "auto", transform: "none" }
     : {};
 
   return (
     <>
-      {/* Backdrop — no spotlight ring on centered steps */}
+      {/* Backdrop */}
       {!hasTarget && (
-        <div
-          className="fixed inset-0 z-[9997] bg-black/50 backdrop-blur-[2px]"
-          aria-hidden="true"
-        />
+        <div className="fixed inset-0 z-[9997] bg-black/50 backdrop-blur-[2px]" aria-hidden="true" />
       )}
 
-      {/* Spotlight ring — its box-shadow IS the dark overlay */}
+      {/* Spotlight ring */}
       {!isMobile && hasTarget && targetRect && <SpotlightRing rect={targetRect} />}
 
-      {/* Modal card */}
+      {/* ── Modal card ─────────────────────────────────────────────────────── */}
       <div
         className={cn(
-          "fixed z-[9999] bg-background border border-border shadow-2xl",
-          // Mobile: full-width bottom sheet
+          "fixed z-[9999] bg-background border border-border shadow-2xl flex flex-col",
+          // Mobile: full-width bottom sheet, capped height
           "max-sm:w-full max-sm:rounded-t-2xl max-sm:rounded-b-none max-sm:border-b-0 max-sm:border-x-0",
-          // sm+: floating card
-          "sm:w-[352px] sm:rounded-2xl sm:border",
+          "max-sm:max-h-[85vh]",
+          // sm+: floating card, fixed width, scrollable
+          "sm:w-[420px] sm:rounded-2xl sm:max-h-[90vh]",
           !hasTarget && !isMobile && "animate-in fade-in zoom-in-95 duration-200",
           isMobile && "animate-in slide-in-from-bottom duration-300"
         )}
@@ -277,119 +295,99 @@ export function TutorialOverlay() {
         aria-modal="true"
         aria-label={`Tutorial step ${step} of ${totalSteps}`}
       >
-        {/* Close button */}
-        <button
-          onClick={skipTutorial}
-          className="absolute top-3 right-3 h-7 w-7 rounded-full flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-          aria-label="Skip tutorial"
-        >
-          <X className="h-4 w-4" />
-        </button>
-
-        <div className="p-6">
-          {/* Logo on step 1 only */}
+        {/* ── Sticky header ── */}
+        <div className="flex-none px-5 pt-5 pb-3 border-b border-border/60">
+          {/* Logo on step 1 */}
           {isFirst && <InnoVetProMark />}
 
-          {/* Step indicator + role badge */}
+          {/* Role badge + close */}
           <div className="flex items-center justify-between mb-3">
-            <span className="text-[11px] font-semibold text-primary uppercase tracking-wider">
-              Step {step} of {totalSteps}
-            </span>
-            <div className="flex items-center gap-2">
-              {currentStep.role && (
-                <span className={cn(
-                  "text-[10px] font-bold text-white px-2 py-0.5 rounded-full",
-                  currentStep.roleColor ?? "bg-primary"
-                )}>
-                  {currentStep.role}
-                </span>
-              )}
-              <StepDots total={totalSteps} current={step} />
-            </div>
+            {currentStep.role ? (
+              <span className={cn(
+                "text-[10px] font-bold text-white px-2.5 py-1 rounded-full",
+                currentStep.roleColor ?? "bg-primary"
+              )}>
+                {currentStep.role === "Nurse" ? "Attendant" : currentStep.role}
+              </span>
+            ) : <span />}
+            <button
+              onClick={skipTutorial}
+              className="h-7 w-7 rounded-full flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              aria-label="Skip tutorial"
+            >
+              <X className="h-4 w-4" />
+            </button>
           </div>
 
-          {/* Step illustration */}
+          {/* Section progress strip */}
+          <SectionProgress total={totalSteps} current={step} />
+        </div>
+
+        {/* ── Scrollable body ── */}
+        <div className="flex-1 overflow-y-auto overscroll-contain px-5 py-4 space-y-3">
+          {/* Step illustration (steps 1 & 8 only) */}
           <StepIllustration stepId={step} />
 
-          {/* Content */}
-          <h2 className="text-lg font-bold text-foreground mb-2 leading-snug">
+          <h2 className="text-base font-bold text-foreground leading-snug">
             {currentStep.title}
           </h2>
           <p className="text-sm text-muted-foreground leading-relaxed">
             {currentStep.description}
           </p>
 
-          {/* Progress bar */}
-          <div className="mt-5 mb-4 h-1 bg-muted rounded-full overflow-hidden">
-            <div
-              className="h-full bg-primary rounded-full transition-all duration-500"
-              style={{ width: `${(step / totalSteps) * 100}%` }}
-            />
-          </div>
-
-          {/* Click-prompt indicator (auto-detects click on highlighted element) */}
-          {needsAction && (
-            <div
-              className={cn(
-                "w-full flex items-center gap-2.5 mb-4 px-3 py-2.5 rounded-lg border transition-all duration-300",
-                stepDone
-                  ? "border-primary/50 bg-primary/10 text-primary"
-                  : "border-amber-400/60 bg-amber-50/60 dark:bg-amber-950/30 dark:border-amber-500/40 text-amber-700 dark:text-amber-300"
-              )}
-            >
-              {stepDone ? (
-                <CheckSquare className="h-4 w-4 shrink-0 text-primary" />
-              ) : (
-                <ChevronRight className="h-4 w-4 shrink-0 animate-pulse" />
-              )}
-              <span className="text-xs font-medium leading-snug">
+          {/* Action prompt */}
+          {(needsAction || step === 3) && (
+            <div className={cn(
+              "flex items-start gap-2.5 px-3 py-2.5 rounded-lg border text-xs font-medium leading-snug transition-all duration-300",
+              stepDone
+                ? "border-primary/50 bg-primary/10 text-primary"
+                : "border-amber-400/60 bg-amber-50/60 dark:bg-amber-950/30 dark:border-amber-500/40 text-amber-700 dark:text-amber-300"
+            )}>
+              {stepDone
+                ? <CheckSquare className="h-4 w-4 shrink-0 mt-0.5 text-primary" />
+                : <ChevronRight className="h-4 w-4 shrink-0 mt-0.5 animate-pulse" />}
+              <span>
                 {stepDone
-                  ? "Got it! Moving to next step…"
-                  : (currentStep.actionLabel ?? "Click the highlighted element to continue →")}
+                  ? "Done! Moving to next step…"
+                  : step === 3
+                    ? "Fill in the patient form and click 'Save Patient' — the tutorial will advance automatically."
+                    : (currentStep.actionLabel ?? "Click the highlighted element to continue →")}
               </span>
             </div>
           )}
+        </div>
 
-          {/* Navigation */}
+        {/* ── Sticky footer: navigation ── */}
+        <div className="flex-none px-5 pb-5 pt-3 border-t border-border/60 space-y-2">
           <div className="flex items-center gap-2">
             {!isFirst && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="flex-1 h-9"
-                onClick={prevStep}
-              >
+              <Button variant="outline" size="sm" className="h-9 px-4" onClick={prevStep}>
                 <ChevronLeft className="h-4 w-4 mr-1" />
                 Back
               </Button>
             )}
             <Button
               size="sm"
-              disabled={!isLast && !canProceed}
+              disabled={!isLast && !canProceed && step !== 3}
               className={cn(
                 "flex-1 h-9 font-semibold",
-                canProceed || isLast
+                canProceed || isLast || step === 3
                   ? "bg-primary hover:bg-primary/90 text-primary-foreground"
                   : "bg-muted text-muted-foreground cursor-not-allowed opacity-60"
               )}
               onClick={isLast ? skipTutorial : nextStep}
             >
-              {isLast ? (
-                <>Get Started</>
+              {isLast ? "Get Started" : isFirst ? (
+                <>Start Tour <ChevronRight className="h-4 w-4 ml-1" /></>
               ) : (
-                <>
-                  {isFirst ? "Start Tour" : "Next"}
-                  <ChevronRight className="h-4 w-4 ml-1" />
-                </>
+                <>Next <ChevronRight className="h-4 w-4 ml-1" /></>
               )}
             </Button>
           </div>
-
-          {/* Skip */}
           {!isLast && (
             <button
               onClick={skipTutorial}
-              className="w-full mt-3 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+              className="w-full text-[11px] text-muted-foreground hover:text-foreground transition-colors"
             >
               Skip tutorial
             </button>
