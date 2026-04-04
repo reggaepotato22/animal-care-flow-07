@@ -96,51 +96,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return false;
   }, []);
 
-  /** Token-only login: token has already been validated — just match the email. */
-  const loginWithToken = useCallback((email: string): boolean => {
-    const normalizedEmail = email.trim().toLowerCase();
-
-    // Demo account
-    const demoCreds = getDemoCredentials();
-    if (normalizedEmail === demoCreds.email.toLowerCase()) {
-      setUser(DEMO_USER);
-      saveUser(DEMO_USER);
-      setActiveAccountId(DEMO_ACCOUNT_ID);
-      const demoRoleKey = getAccountScopedKey("acf_role", DEMO_ACCOUNT_ID);
-      if (!localStorage.getItem(demoRoleKey)) {
-        try { localStorage.setItem(demoRoleKey, JSON.stringify("SuperAdmin")); } catch {}
-      }
-      return true;
-    }
-
-    // Registered users — match by email only (token is the auth factor)
-    const registeredUsers = getRegisteredUsers();
-    const found = registeredUsers.find(
-      (u) => u.email.trim().toLowerCase() === normalizedEmail
-    );
-    if (found) {
-      const { password: _, ...userWithoutPassword } = found;
-      setUser(userWithoutPassword);
-      saveUser(userWithoutPassword);
-      if (found.accountId) {
-        setActiveAccountId(found.accountId);
-        const roleKey = getAccountScopedKey("acf_role", found.accountId);
-        if (!localStorage.getItem(roleKey)) {
-          const roleToSet: Role = found.role ?? "SuperAdmin";
-          try { localStorage.setItem(roleKey, JSON.stringify(roleToSet)); } catch {}
-        }
-      }
-      return true;
-    }
-
-    // No registered user yet — create a provisional session so new clinics can enter
-    const provisionalUser: User = {
-      id: `usr_${Date.now()}`,
-      email: normalizedEmail,
-      name: normalizedEmail.split("@")[0],
-    };
-    setUser(provisionalUser);
-    saveUser(provisionalUser);
+  /**
+   * Token-gated demo login.
+   * The token is validated before this is called; the email is recorded for
+   * activity tracking only. Every successful login enters the shared demo
+   * environment — there are no separate live accounts.
+   */
+  const loginWithToken = useCallback((_email: string): boolean => {
+    setUser(DEMO_USER);
+    saveUser(DEMO_USER);
     setActiveAccountId(DEMO_ACCOUNT_ID);
     const roleKey = getAccountScopedKey("acf_role", DEMO_ACCOUNT_ID);
     if (!localStorage.getItem(roleKey)) {

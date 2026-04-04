@@ -98,7 +98,7 @@ export default function Login() {
               Sign In
             </CardTitle>
             <CardDescription className="text-xs">
-              Enter your Access Token and clinic email address to sign in.
+              Enter your Access Token and email to access the <span className="font-semibold text-amber-600 dark:text-amber-400">InnoVetPro Demo</span>. All accounts use the shared demo environment.
             </CardDescription>
           </CardHeader>
           <CardContent>
