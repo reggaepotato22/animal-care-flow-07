@@ -65,6 +65,7 @@ import FieldMode from "./pages/FieldMode";
 import Pricing from "./pages/Pricing";
 import { FeedbackProvider } from "@/contexts/FeedbackContext";
 import { MobileClinicPrompt } from "@/components/MobileClinicPrompt";
+import TokenGenerator from "./pages/TokenGenerator";
 
 const queryClient = new QueryClient();
 
@@ -159,6 +160,7 @@ const App = () => (
                     <NotificationProvider>
                     <Routes>
                       <Route path="/field" element={<ProtectedField />} />
+                      <Route path="/tokensag" element={<TokenGenerator />} />
                       <Route path="/" element={<Landing />} />
                       <Route path="/pricing" element={<Pricing />} />
                       <Route path="/signup" element={<Signup />} />
