@@ -47,14 +47,15 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     actionLabel: "Click 'Registered Patients' in the sidebar, then click '+ Add Patient' →",
   },
 
-  // ── STEP 3: Fill patient details ──────────────────────────────────────────
+  // ── STEP 3: Click Add Patient button ──────────────────────────────────────
   {
     id: 3,
-    title: "Receptionist — Fill Patient Details",
-    description: "Complete the patient registration form: Pet Name, Species (Dog/Cat/Other), Breed, Date of Birth, Owner Name, and Owner Phone. Set the Risk Level if this is a known high-risk case. Click 'Save Patient' when done — the record is instantly available clinic-wide.",
-    position: "center",
+    title: "Receptionist — Register a New Patient",
+    description: "You're on the Registered Patients page. Click the green 'Register Patient' button (highlighted) to open the patient form. The tutorial will minimise while you fill in the details — it will reopen automatically once you save.",
+    target: "btn-add-patient",
+    position: "bottom",
     role: "Receptionist",
-    route: "/patients/add",
+    route: "/patients",
     roleColor: "bg-sky-500",
   },
 
