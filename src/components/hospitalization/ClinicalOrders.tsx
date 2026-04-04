@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -8,14 +8,11 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Pill, Droplets, Utensils, Scissors, FlaskConical } from "lucide-react";
+import { Plus, Pill, Droplets, Utensils, Scissors, FlaskConical, AlertTriangle, Lock, PackageX } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-
-interface HospitalizationRecord {
-  id: string;
-  patientName: string;
-  petName: string;
-}
+import { hasTodayProgressNote, type HospRecord } from "@/lib/hospitalizationStore";
+import { loadInventory, deductInventoryItem } from "@/lib/inventoryStore";
+import type { InventoryItem } from "@/data/inventory";
 
 interface Medication {
   id: string;
@@ -60,11 +57,19 @@ interface LabTest {
 }
 
 interface ClinicalOrdersProps {
-  record: HospitalizationRecord;
+  record: HospRecord;
 }
 
 export function ClinicalOrders({ record }: ClinicalOrdersProps) {
   const { toast } = useToast();
+  const prescribingAllowed = hasTodayProgressNote(record.id);
+  const inventoryDrugs = useMemo(
+    () => loadInventory().filter(i => i.category === "drugs" || i.category === "vaccines"),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []
+  );
+  const [selectedInventoryId, setSelectedInventoryId] = useState("");
+  const [dispenseQty, setDispenseQty] = useState(1);
   const [medications, setMedications] = useState<Medication[]>([
     {
       id: "M001",
@@ -164,6 +169,14 @@ export function ClinicalOrders({ record }: ClinicalOrdersProps) {
   });
 
   const handleAddMedication = () => {
+    if (!prescribingAllowed) {
+      toast({
+        title: "Progress note required",
+        description: "A daily progress note with vitals must be recorded before prescribing medications.",
+        variant: "destructive",
+      });
+      return;
+    }
     if (!newMedication.name || !newMedication.dose || !newMedication.frequency || !newMedication.route) {
       toast({
         title: "Missing information",
@@ -173,6 +186,26 @@ export function ClinicalOrders({ record }: ClinicalOrdersProps) {
       return;
     }
 
+    // Auto-decrement inventory if linked
+    if (selectedInventoryId) {
+      const item = inventoryDrugs.find(i => i.id === selectedInventoryId);
+      if (item) {
+        if (item.quantity < dispenseQty) {
+          toast({ title: "Insufficient stock", description: `Only ${item.quantity} units of ${item.name} available.`, variant: "destructive" });
+          return;
+        }
+        deductInventoryItem(selectedInventoryId, dispenseQty);
+        const remaining = item.quantity - dispenseQty;
+        if (remaining <= item.reorderLevel) {
+          toast({
+            title: `⚠ Low Stock: ${item.name}`,
+            description: `Only ${remaining} units remaining — reorder level is ${item.reorderLevel}.`,
+            variant: "destructive",
+          });
+        }
+      }
+    }
+
     const medication: Medication = {
       id: `M${String(medications.length + 1).padStart(3, '0')}`,
       ...newMedication,
@@ -180,6 +213,8 @@ export function ClinicalOrders({ record }: ClinicalOrdersProps) {
     };
 
     setMedications([...medications, medication]);
+    setSelectedInventoryId("");
+    setDispenseQty(1);
     setNewMedication({
       name: "",
       dose: "",
@@ -190,8 +225,8 @@ export function ClinicalOrders({ record }: ClinicalOrdersProps) {
     });
     setIsAddMedicationOpen(false);
     toast({
-      title: "Medication added",
-      description: `${medication.name} has been added successfully.`
+      title: "Medication prescribed",
+      description: `${medication.name} has been added and inventory decremented.`
     });
   };
 
@@ -325,6 +360,17 @@ export function ClinicalOrders({ record }: ClinicalOrdersProps) {
 
   return (
     <Tabs defaultValue="medications" className="space-y-4">
+      {/* Gate banner */}
+      {!prescribingAllowed && (
+        <div className="flex items-center gap-3 rounded-xl border border-amber-300 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800/50 px-4 py-3">
+          <Lock className="h-5 w-5 text-amber-600 dark:text-amber-400 shrink-0" />
+          <div>
+            <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">Medications locked — progress note required</p>
+            <p className="text-xs text-amber-700 dark:text-amber-400">Add today's progress note with vitals in the <strong>Progress Notes</strong> tab to unlock prescribing.</p>
+          </div>
+        </div>
+      )}
+
       <TabsList className="grid w-full grid-cols-4">
         <TabsTrigger value="medications">Medications</TabsTrigger>
         <TabsTrigger value="iv-fluids">IV Fluids</TabsTrigger>
@@ -342,64 +388,80 @@ export function ClinicalOrders({ record }: ClinicalOrdersProps) {
               </CardTitle>
               <Dialog open={isAddMedicationOpen} onOpenChange={setIsAddMedicationOpen}>
                 <DialogTrigger asChild>
-                  <Button size="sm">
+                  <Button size="sm" disabled={!prescribingAllowed}>
                     <Plus className="h-4 w-4 mr-2" />
-                    Add Medication
+                    {prescribingAllowed ? "Add Medication" : "Locked"}
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="sm:max-w-[500px]">
+                <DialogContent className="sm:max-w-[540px]">
                   <DialogHeader>
-                    <DialogTitle>Add Medication</DialogTitle>
+                    <DialogTitle>Add Medication — {record.petName}</DialogTitle>
                     <DialogDescription>
-                      Add a new medication order for {record.petName}
+                      Inventory-linked: selecting a drug auto-decrements stock.
                     </DialogDescription>
                   </DialogHeader>
-                  <div className="grid gap-4 py-4">
+                  <div className="grid gap-4 py-4 max-h-[65vh] overflow-y-auto pr-1">
+                    {/* Inventory drug selector */}
+                    {inventoryDrugs.length > 0 && (
+                      <div className="rounded-xl border bg-muted/30 p-3 space-y-2">
+                        <Label className="text-xs font-semibold uppercase tracking-wide">Link to Inventory (auto-deducts stock)</Label>
+                        <Select value={selectedInventoryId} onValueChange={v => {
+                          setSelectedInventoryId(v);
+                          const item = inventoryDrugs.find(i => i.id === v);
+                          if (item) setNewMedication(m => ({ ...m, name: item.name }));
+                        }}>
+                          <SelectTrigger className="h-8 text-xs">
+                            <SelectValue placeholder="Select from inventory…" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {inventoryDrugs.map(item => (
+                              <SelectItem key={item.id} value={item.id} className="text-xs">
+                                {item.name} <span className="text-muted-foreground ml-1">(stock: {item.quantity})</span>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {selectedInventoryId && (
+                          <div className="flex items-center gap-2">
+                            <Label className="text-xs whitespace-nowrap">Dispense qty</Label>
+                            <Input type="number" min={1} value={dispenseQty}
+                              onChange={e => setDispenseQty(Number(e.target.value))}
+                              className="h-7 w-20 text-xs" />
+                          </div>
+                        )}
+                      </div>
+                    )}
                     <div className="grid gap-2">
                       <Label htmlFor="med-name">Medication Name *</Label>
-                      <Input
-                        id="med-name"
-                        value={newMedication.name}
+                      <Input id="med-name" value={newMedication.name}
                         onChange={(e) => setNewMedication({...newMedication, name: e.target.value})}
-                        placeholder="e.g., Amoxicillin"
-                      />
+                        placeholder="e.g., Amoxicillin" />
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div className="grid gap-2">
                         <Label htmlFor="dose">Dose *</Label>
-                        <Input
-                          id="dose"
-                          value={newMedication.dose}
+                        <Input id="dose" value={newMedication.dose}
                           onChange={(e) => setNewMedication({...newMedication, dose: e.target.value})}
-                          placeholder="e.g., 10mg/kg"
-                        />
+                          placeholder="e.g., 10mg/kg" />
                       </div>
                       <div className="grid gap-2">
                         <Label htmlFor="frequency">Frequency *</Label>
-                        <Input
-                          id="frequency"
-                          value={newMedication.frequency}
+                        <Input id="frequency" value={newMedication.frequency}
                           onChange={(e) => setNewMedication({...newMedication, frequency: e.target.value})}
-                          placeholder="e.g., Q8H, BID"
-                        />
+                          placeholder="e.g., Q8H, BID" />
                       </div>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div className="grid gap-2">
                         <Label htmlFor="route">Route *</Label>
-                        <Input
-                          id="route"
-                          value={newMedication.route}
+                        <Input id="route" value={newMedication.route}
                           onChange={(e) => setNewMedication({...newMedication, route: e.target.value})}
-                          placeholder="e.g., PO, IV, IM"
-                        />
+                          placeholder="e.g., PO, IV, IM" />
                       </div>
                       <div className="grid gap-2">
                         <Label htmlFor="type">Type</Label>
                         <Select value={newMedication.type} onValueChange={(value: "scheduled" | "prn") => setNewMedication({...newMedication, type: value})}>
-                          <SelectTrigger id="type">
-                            <SelectValue />
-                          </SelectTrigger>
+                          <SelectTrigger id="type"><SelectValue /></SelectTrigger>
                           <SelectContent>
                             <SelectItem value="scheduled">Scheduled</SelectItem>
                             <SelectItem value="prn">PRN</SelectItem>
@@ -409,10 +471,8 @@ export function ClinicalOrders({ record }: ClinicalOrdersProps) {
                     </div>
                   </div>
                   <DialogFooter>
-                    <Button variant="outline" onClick={() => setIsAddMedicationOpen(false)}>
-                      Cancel
-                    </Button>
-                    <Button onClick={handleAddMedication}>Add Medication</Button>
+                    <Button variant="outline" onClick={() => setIsAddMedicationOpen(false)}>Cancel</Button>
+                    <Button onClick={handleAddMedication}>Prescribe Medication</Button>
                   </DialogFooter>
                 </DialogContent>
               </Dialog>
@@ -438,14 +498,10 @@ export function ClinicalOrders({ record }: ClinicalOrdersProps) {
                     <TableCell>{med.frequency}</TableCell>
                     <TableCell>{med.route}</TableCell>
                     <TableCell>
-                      <Badge variant={med.type === "scheduled" ? "default" : "outline"}>
-                        {med.type}
-                      </Badge>
+                      <Badge variant={med.type === "scheduled" ? "default" : "outline"}>{med.type}</Badge>
                     </TableCell>
                     <TableCell>
-                      <Badge className={getStatusColor(med.status)}>
-                        {med.status}
-                      </Badge>
+                      <Badge className={getStatusColor(med.status)}>{med.status}</Badge>
                     </TableCell>
                   </TableRow>
                 ))}

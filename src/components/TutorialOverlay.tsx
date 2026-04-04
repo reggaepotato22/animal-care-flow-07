@@ -1,14 +1,17 @@
 import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { AppLogo } from "@/components/AppLogo";
 import { useTutorial } from "@/contexts/TutorialContext";
+import { useRole } from "@/contexts/RoleContext";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { X, ChevronRight, ChevronLeft, BookOpen } from "lucide-react";
+import { X, ChevronRight, ChevronLeft, BookOpen, CheckSquare } from "lucide-react";
+import type { Role } from "@/lib/rbac";
 
 // ── Spotlight helpers ────────────────────────────────────────────────────────
 interface TargetRect { top: number; left: number; width: number; height: number }
 const MODAL_W = 352;
-const MODAL_H = 340;
+const MODAL_H = 420;
 const GAP     = 14;
 const PAD     = 8;
 
@@ -21,26 +24,44 @@ function findTarget(target?: string): TargetRect | null {
 }
 
 function modalStyle(rect: TargetRect | null, pos: string): React.CSSProperties {
-  if (!rect || pos === "center") {
+  // No target → true screen-center
+  if (!rect) {
     return { position: "fixed", top: "50%", left: "50%", transform: "translate(-50%,-50%)" };
   }
+  // Has a target — ALWAYS position near it, never overlay it.
+  // "center" is treated as "bottom" when a target exists.
+  const effectivePos = pos === "center" ? "bottom" : pos;
   const vw = window.innerWidth;
   const vh = window.innerHeight;
   let top = 0, left = 0;
 
-  if (pos === "right") {
+  if (effectivePos === "right") {
     left = rect.left + rect.width + GAP;
     top  = rect.top + rect.height / 2 - MODAL_H / 2;
+    // Not enough room on right? try left
     if (left + MODAL_W > vw - GAP) left = rect.left - MODAL_W - GAP;
-    if (left < GAP) left = GAP;
-  } else if (pos === "bottom") {
+    // Still off-screen (narrow sidebar)? fall below
+    if (left < GAP) {
+      left = Math.max(GAP, rect.left + rect.width / 2 - MODAL_W / 2);
+      top  = rect.top + rect.height + GAP;
+    }
+  } else if (effectivePos === "bottom") {
     top  = rect.top + rect.height + GAP;
     left = rect.left + rect.width / 2 - MODAL_W / 2;
+    // Not enough room below? try above
     if (top + MODAL_H > vh - GAP) top = rect.top - MODAL_H - GAP;
     left = Math.max(GAP, Math.min(left, vw - MODAL_W - GAP));
+  } else if (effectivePos === "top") {
+    top  = rect.top - MODAL_H - GAP;
+    left = rect.left + rect.width / 2 - MODAL_W / 2;
+    if (top < GAP) top = rect.top + rect.height + GAP;
+    left = Math.max(GAP, Math.min(left, vw - MODAL_W - GAP));
   } else {
-    return { position: "fixed", top: "50%", left: "50%", transform: "translate(-50%,-50%)" };
+    // fallback: below
+    top  = rect.top + rect.height + GAP;
+    left = Math.max(GAP, Math.min(rect.left + rect.width / 2 - MODAL_W / 2, vw - MODAL_W - GAP));
   }
+
   top = Math.max(GAP, Math.min(top, vh - MODAL_H - GAP));
   return { position: "fixed", top, left };
 }
@@ -139,7 +160,35 @@ function StepIllustration({ stepId }: { stepId: number }) {
 
 export function TutorialOverlay() {
   const { isActive, step, currentStep, totalSteps, nextStep, prevStep, skipTutorial } = useTutorial();
+  const { setRole } = useRole();
+  const navigate = useNavigate();
   const [targetRect, setTargetRect] = useState<TargetRect | null>(null);
+  // Completion gate: resets to false each time the step changes
+  const [stepDone, setStepDone] = useState(false);
+  // Track mobile breakpoint for bottom-sheet positioning
+  const [isMobile, setIsMobile] = useState(() =>
+    typeof window !== "undefined" ? window.innerWidth < 640 : false
+  );
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth < 640);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
+  // Reset action-gate whenever step changes
+  useEffect(() => { setStepDone(false); }, [step]);
+
+  // Auto-switch role + navigate whenever the active step changes
+  useEffect(() => {
+    if (!isActive || !currentStep) return;
+    if (currentStep.role) {
+      setRole(currentStep.role as Role, "Tutorial");
+    }
+    if (currentStep.route) {
+      navigate(currentStep.route, { replace: false });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isActive, step]);
 
   // Find + measure target element on each step change
   useEffect(() => {
@@ -147,7 +196,7 @@ export function TutorialOverlay() {
       setTargetRect(null);
       return;
     }
-    // Wait one tick so the DOM is fully painted
+    // Wait two ticks so navigation + DOM paint completes
     const id = window.setTimeout(() => {
       const rect = findTarget(currentStep.target);
       if (rect) {
@@ -157,48 +206,73 @@ export function TutorialOverlay() {
       } else {
         setTargetRect(null);
       }
-    }, 80);
+    }, 200);
     return () => window.clearTimeout(id);
   }, [isActive, step, currentStep]);
+
+  // Auto-detect click on the spotlighted element for action-required steps.
+  // Waits 200 ms (same as target-finder) so the DOM has painted after navigation.
+  useEffect(() => {
+    if (!isActive || !currentStep?.requiresAction || !currentStep?.target) return;
+    let el: HTMLElement | null = null;
+    let fired = false;
+    const handleClick = () => {
+      if (fired) return;
+      fired = true;
+      setStepDone(true);
+      // Brief pause so user sees the green badge before step advances
+      window.setTimeout(() => nextStep(), 650);
+    };
+    const id = window.setTimeout(() => {
+      el = document.querySelector<HTMLElement>(`[data-tutorial="${currentStep.target}"]`);
+      if (el) el.addEventListener("click", handleClick);
+    }, 200);
+    return () => {
+      window.clearTimeout(id);
+      if (el) el.removeEventListener("click", handleClick);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isActive, step]);
 
   if (!isActive || !currentStep) return null;
 
   const isFirst = step === 1;
-  const isLast = step === totalSteps;
+  const isLast  = step === totalSteps;
   const hasTarget = !!targetRect;
   const pos = currentStep.position ?? "center";
+  const needsAction = !!currentStep.requiresAction;
+  const canProceed  = !needsAction || stepDone;
+
+  // On mobile: bottom sheet covers full width, ignore target positioning
+  const mobileModalStyle: React.CSSProperties = isMobile
+    ? { position: "fixed", bottom: 0, left: 0, right: 0, top: "auto", transform: "none" }
+    : {};
 
   return (
     <>
-      {/* Backdrop (only when no spotlight ring — ring provides its own via box-shadow) */}
+      {/* Backdrop — no spotlight ring on centered steps */}
       {!hasTarget && (
         <div
           className="fixed inset-0 z-[9997] bg-black/50 backdrop-blur-[2px]"
-          onClick={skipTutorial}
-          aria-hidden="true"
-        />
-      )}
-
-      {/* Click-capture layer when spotlight is active */}
-      {hasTarget && (
-        <div
-          className="fixed inset-0 z-[9997]"
-          onClick={skipTutorial}
           aria-hidden="true"
         />
       )}
 
       {/* Spotlight ring — its box-shadow IS the dark overlay */}
-      {hasTarget && targetRect && <SpotlightRing rect={targetRect} />}
+      {!isMobile && hasTarget && targetRect && <SpotlightRing rect={targetRect} />}
 
       {/* Modal card */}
       <div
         className={cn(
-          "fixed z-[9999] bg-background border border-border rounded-2xl shadow-2xl",
-          "w-[352px]",
-          !hasTarget && "animate-in fade-in zoom-in-95 duration-200"
+          "fixed z-[9999] bg-background border border-border shadow-2xl",
+          // Mobile: full-width bottom sheet
+          "max-sm:w-full max-sm:rounded-t-2xl max-sm:rounded-b-none max-sm:border-b-0 max-sm:border-x-0",
+          // sm+: floating card
+          "sm:w-[352px] sm:rounded-2xl sm:border",
+          !hasTarget && !isMobile && "animate-in fade-in zoom-in-95 duration-200",
+          isMobile && "animate-in slide-in-from-bottom duration-300"
         )}
-        style={modalStyle(targetRect, pos)}
+        style={isMobile ? mobileModalStyle : modalStyle(targetRect, pos)}
         role="dialog"
         aria-modal="true"
         aria-label={`Tutorial step ${step} of ${totalSteps}`}
@@ -216,12 +290,22 @@ export function TutorialOverlay() {
           {/* Logo on step 1 only */}
           {isFirst && <InnoVetProMark />}
 
-          {/* Step indicator */}
+          {/* Step indicator + role badge */}
           <div className="flex items-center justify-between mb-3">
             <span className="text-[11px] font-semibold text-primary uppercase tracking-wider">
               Step {step} of {totalSteps}
             </span>
-            <StepDots total={totalSteps} current={step} />
+            <div className="flex items-center gap-2">
+              {currentStep.role && (
+                <span className={cn(
+                  "text-[10px] font-bold text-white px-2 py-0.5 rounded-full",
+                  currentStep.roleColor ?? "bg-primary"
+                )}>
+                  {currentStep.role}
+                </span>
+              )}
+              <StepDots total={totalSteps} current={step} />
+            </div>
           </div>
 
           {/* Step illustration */}
@@ -243,6 +327,29 @@ export function TutorialOverlay() {
             />
           </div>
 
+          {/* Click-prompt indicator (auto-detects click on highlighted element) */}
+          {needsAction && (
+            <div
+              className={cn(
+                "w-full flex items-center gap-2.5 mb-4 px-3 py-2.5 rounded-lg border transition-all duration-300",
+                stepDone
+                  ? "border-primary/50 bg-primary/10 text-primary"
+                  : "border-amber-400/60 bg-amber-50/60 dark:bg-amber-950/30 dark:border-amber-500/40 text-amber-700 dark:text-amber-300"
+              )}
+            >
+              {stepDone ? (
+                <CheckSquare className="h-4 w-4 shrink-0 text-primary" />
+              ) : (
+                <ChevronRight className="h-4 w-4 shrink-0 animate-pulse" />
+              )}
+              <span className="text-xs font-medium leading-snug">
+                {stepDone
+                  ? "Got it! Moving to next step…"
+                  : (currentStep.actionLabel ?? "Click the highlighted element to continue →")}
+              </span>
+            </div>
+          )}
+
           {/* Navigation */}
           <div className="flex items-center gap-2">
             {!isFirst && (
@@ -258,7 +365,13 @@ export function TutorialOverlay() {
             )}
             <Button
               size="sm"
-              className="flex-1 h-9 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold"
+              disabled={!isLast && !canProceed}
+              className={cn(
+                "flex-1 h-9 font-semibold",
+                canProceed || isLast
+                  ? "bg-primary hover:bg-primary/90 text-primary-foreground"
+                  : "bg-muted text-muted-foreground cursor-not-allowed opacity-60"
+              )}
               onClick={isLast ? skipTutorial : nextStep}
             >
               {isLast ? (

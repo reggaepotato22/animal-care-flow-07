@@ -12,6 +12,7 @@ import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { useWorkflowContext } from "@/contexts/WorkflowContext";
 import { useFeedback } from "@/contexts/FeedbackContext";
+import { useNotifications } from "@/contexts/NotificationContext";
 
 const BILLING_KEY = "acf_billing_records";
 
@@ -52,6 +53,7 @@ export default function Billing() {
   const { toast } = useToast();
   const { setStep } = useWorkflowContext();
   const { triggerSurvey } = useFeedback();
+  const { addNotification } = useNotifications();
   const [records, setRecords] = useState<BillingRecord[]>(() => loadBilling());
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | BillingRecord["status"]>("all");
@@ -96,6 +98,15 @@ export default function Billing() {
     // Move patient workflow to COMPLETED
     if (bill.patientId) setStep(bill.patientId, "COMPLETED");
     toast({ title: "✓ Payment Recorded", description: `${bill.petName}'s invoice marked as paid.` });
+    // Cross-role notification — Receptionist + SuperAdmin see payment confirmed
+    addNotification({
+      type: "success",
+      message: `Payment confirmed — ${bill.petName} (${bill.ownerName}) · ${formatKES(bill.total)}. Ready for discharge.`,
+      patientId: bill.patientId,
+      patientName: bill.petName,
+      step: "COMPLETED",
+      targetRoles: ["Receptionist", "SuperAdmin"],
+    });
     triggerSurvey("invoice_finalized");
   };
 

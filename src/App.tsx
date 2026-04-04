@@ -21,6 +21,7 @@ import AddPatient from "./pages/AddPatient";
 import PatientDetails from "./pages/PatientDetails";
 import Appointments from "./pages/Appointments";
 import AppointmentDetails from "./pages/AppointmentDetails";
+import Records from "./pages/Records";
 import NewRecord from "./pages/NewRecord";
 import ClinicalRecordDetails from "./pages/ClinicalRecordDetails";
 import Staff from "./pages/Staff";
@@ -60,6 +61,8 @@ import { AppearanceProvider } from "@/contexts/AppearanceContext";
 import { AccountProvider } from "@/contexts/AccountContext";
 import { TutorialProvider } from "@/contexts/TutorialContext";
 import Landing from "./pages/Landing";
+import FieldMode from "./pages/FieldMode";
+import Pricing from "./pages/Pricing";
 import { FeedbackProvider } from "@/contexts/FeedbackContext";
 
 const queryClient = new QueryClient();
@@ -91,6 +94,7 @@ function ProtectedRoutes() {
         <Route path="/treatments" element={<Treatments />} />
         <Route path="/inventory" element={<Inventory />} />
         <Route path="/triage" element={<Triage />} />
+        <Route path="/records" element={<Records />} />
         <Route path="/audit" element={<Audit />} />
         <Route path="/billing" element={<Billing />} />
         <Route path="/staff" element={<Staff />} />
@@ -114,6 +118,13 @@ function ProtectedRoutes() {
     </TutorialProvider>
     </FeedbackProvider>
   );
+}
+
+function ProtectedField() {
+  const { isAuthenticated } = useAuth();
+  const location = useLocation();
+  if (!isAuthenticated) return <Navigate to="/login" state={{ from: location }} replace />;
+  return <FieldMode />;
 }
 
 function ProtectedAdminLayout() {
@@ -145,7 +156,9 @@ const App = () => (
                   <EncounterProvider>
                     <NotificationProvider>
                     <Routes>
+                      <Route path="/field" element={<ProtectedField />} />
                       <Route path="/" element={<Landing />} />
+                      <Route path="/pricing" element={<Pricing />} />
                       <Route path="/signup" element={<Signup />} />
                       <Route path="/login" element={<Login />} />
                       <Route path="/login/demo" element={<DemoLogin />} />

@@ -24,6 +24,7 @@ import { EditPatientDialog } from "@/components/EditPatientDialog";
 import { ArrowLeft, Calendar, MapPin, Phone, Heart, Edit, Trash2, FileText, Pill, Stethoscope, Activity, MoreVertical, FileSearch, ChevronDown, AlertTriangle, Clock, TestTube, Mail, MessageSquare, User, Building2, MapPinIcon, DollarSign, CheckCircle, Circle, AlertCircle, XCircle, Hospital, ArrowUpRight, Plus, BarChart2, Scissors, RefreshCw, PlayCircle } from "lucide-react";
 import type { EncounterType } from "@/lib/types";
 import { getHospChannelName } from "@/lib/hospitalizationStore";
+import { upsertClinicalRecord, broadcastClinicalRecordUpdate } from "@/lib/clinicalRecordStore";
 
 export default function PatientDetails() {
   const { id } = useParams();
@@ -103,9 +104,14 @@ export default function PatientDetails() {
     setPatientStatus(id, "Deceased");
     setStep(id, "COMPLETED");
     try {
-      const stored: any[] = JSON.parse(localStorage.getItem("acf_clinical_records") ?? "[]");
-      stored.unshift({ type: "deceased", patientId: id, petName: patient?.name, createdAt: new Date().toISOString(), status: "Deceased" });
-      localStorage.setItem("acf_clinical_records", JSON.stringify(stored));
+      const entryId = `deceased-${id}-${Date.now()}`;
+      upsertClinicalRecord({
+        id: entryId, encounterId: entryId,
+        patientId: id, petName: patient?.name,
+        status: "Deceased", savedAt: new Date().toISOString(),
+        data: { type: "deceased" },
+      });
+      broadcastClinicalRecordUpdate();
       new BroadcastChannel(getHospChannelName()).postMessage({ type: "patient_deceased", patientId: id });
     } catch {}
     window.dispatchEvent(new CustomEvent("acf:notification", {

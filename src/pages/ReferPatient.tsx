@@ -14,6 +14,7 @@ import { getPatients } from "@/lib/patientStore";
 import { useEncounter } from "@/contexts/EncounterContext";
 import { useWorkflowContext } from "@/contexts/WorkflowContext";
 import { getHospChannelName } from "@/lib/hospitalizationStore";
+import { upsertClinicalRecord, broadcastClinicalRecordUpdate } from "@/lib/clinicalRecordStore";
 
 const SPECIALTIES = [
   "General Practice",
@@ -85,9 +86,14 @@ export default function ReferPatient() {
     };
 
     try {
-      const stored: any[] = JSON.parse(localStorage.getItem("acf_clinical_records") ?? "[]");
-      stored.unshift(referral);
-      localStorage.setItem("acf_clinical_records", JSON.stringify(stored));
+      upsertClinicalRecord({
+        ...referral,
+        id: referral.id,
+        encounterId: referral.id,
+        savedAt: new Date().toISOString(),
+        data: referral,
+      });
+      broadcastClinicalRecordUpdate();
       new BroadcastChannel(getHospChannelName()).postMessage({ type: "patient_referred", patientId: id });
     } catch {}
 

@@ -339,7 +339,7 @@ export default function Patients() {
             })}
           </div>
         ) : (
-          <div className="rounded-lg border shadow-sm overflow-hidden bg-white">
+          <div className="rounded-lg border shadow-sm overflow-x-auto bg-card">
             <Table>
               <TableHeader className="bg-muted/50">
                 <TableRow>
