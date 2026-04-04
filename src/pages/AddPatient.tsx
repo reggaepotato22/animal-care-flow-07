@@ -171,6 +171,9 @@ export default function AddPatient() {
       }`,
     });
 
+    // Notify tutorial overlay to advance from step 3
+    window.dispatchEvent(new CustomEvent("tutorial:patient-saved"));
+
     // Set workflow to TRIAGE (Check-in)
     wf.goTo("TRIAGE");
 
