@@ -219,7 +219,7 @@ export default function SettingsCommunications() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4">
           <TabsTrigger value="templates">Email Templates</TabsTrigger>
           <TabsTrigger value="smtp">SMTP Configuration</TabsTrigger>
           <TabsTrigger value="branding">Branding</TabsTrigger>

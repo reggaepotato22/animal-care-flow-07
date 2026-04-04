@@ -623,9 +623,9 @@ export default function AddPatient() {
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="low">🔵 Low</SelectItem>
-                            <SelectItem value="medium">🟠 Medium</SelectItem>
-                            <SelectItem value="high">🔴 High</SelectItem>
+                            <SelectItem value="low">Low</SelectItem>
+                            <SelectItem value="medium">Medium</SelectItem>
+                            <SelectItem value="high">High</SelectItem>
                           </SelectContent>
                         </Select>
                         <Button

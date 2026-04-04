@@ -38,14 +38,11 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { useNotifications } from "@/contexts/NotificationContext";
 import { loadStoredAppointments, subscribeToAppointments, isToday, isoToTimeLabel } from "@/lib/appointmentStore";
-import { getPatients, clearPatientData, generateMockPatients } from "@/lib/patientStore";
-import { generateMockInventory } from "@/lib/inventoryStore";
+import { getPatients } from "@/lib/patientStore";
+import { seedMockData, clearAllData } from "@/lib/dataSeed";
 import { useAccount } from "@/contexts/AccountContext";
 import { getAccountScopedKey } from "@/lib/accountStore";
 import { getHospChannelName } from "@/lib/hospitalizationStore";
-
-// ─── Seed appointment data (removed as requested) ──────────────
-const SEED_APPOINTMENTS: any[] = [];
 
 type DashAppt = { id: string; patient: string; owner: string; time: string; type: string; patientId: string };
 
@@ -80,9 +77,12 @@ const ENC_STATUS_CONFIG: Record<EncounterStatus, { label: string; cls: string; p
   IN_TRIAGE:       { label: "Triage in Progress", cls: "bg-orange-100 text-orange-800 dark:bg-orange-950 dark:text-orange-200 border border-orange-400 font-semibold", pulse: true  },
   TRIAGED:         { label: "Triage Complete",    cls: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200 border border-emerald-500 font-semibold" },
   IN_CONSULTATION: { label: "In Consultation",    cls: "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-200 border border-blue-500 font-semibold",           pulse: true  },
-  IN_SURGERY:      { label: "In Surgery",         cls: "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-200 border border-red-500 font-semibold",                 pulse: true  },
-  RECOVERY:        { label: "In Recovery",        cls: "bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-200 border border-purple-400 font-semibold" },
-  DISCHARGED:      { label: "Discharged",         cls: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400 border border-gray-300" },
+  IN_SURGERY:       { label: "In Surgery",         cls: "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-200 border border-red-500 font-semibold",                 pulse: true  },
+  RECOVERY:         { label: "In Recovery",        cls: "bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-200 border border-purple-400 font-semibold" },
+  DISCHARGED:       { label: "Discharged",         cls: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400 border border-gray-300" },
+  IN_PROCEDURE:     { label: "In Procedure",       cls: "bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-200 border border-rose-400 font-semibold",           pulse: true  },
+  IN_FOLLOW_UP:     { label: "Follow-Up",          cls: "bg-teal-100 text-teal-800 dark:bg-teal-950 dark:text-teal-200 border border-teal-400 font-semibold" },
+  IN_HOSPITAL_ROUND:{ label: "Hospital Round",     cls: "bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-200 border border-indigo-400 font-semibold" },
 };
 
 // ─── Role-specific static alerts (removed as requested) ──────────────
@@ -260,7 +260,7 @@ const Index = () => {
       {/* ══════════════════════════════════════════════════════════════════════ */}
       {/* LIVE PATIENT PROGRESS — TOP (primary feature)                         */}
       {/* ══════════════════════════════════════════════════════════════════════ */}
-      <Card className="border-primary/30 shadow-sm">
+      <Card className="border-primary/30 shadow-sm" data-tutorial="live-queue">
         <CardHeader className="py-3 px-4">
           <CardTitle className="flex items-center justify-between text-sm">
             <span className="flex items-center gap-2">
@@ -403,10 +403,8 @@ const Index = () => {
             variant="outline"
             className="h-8 text-xs gap-1.5"
             onClick={() => {
-              const patients = generateMockPatients(5);
-              const items = generateMockInventory();
-              toast({ title: "Mock data generated", description: `${patients.length} patients + ${items.length} inventory items added.` });
-              window.location.reload();
+              toast({ title: "Generating demo data…", description: "5 patients · 20 drugs · treatments · hospitalization records" });
+              seedMockData();
             }}
           >
             <Database className="h-3.5 w-3.5" />
@@ -417,9 +415,8 @@ const Index = () => {
             variant="outline"
             className="h-8 text-xs gap-1.5 border-destructive/40 text-destructive hover:bg-destructive/10"
             onClick={() => {
-              clearPatientData();
-              toast({ title: "Patient data cleared", description: "All patient and clinical data reset. Inventory untouched." });
-              window.location.reload();
+              toast({ title: "Clearing all data…", description: "All clinical data, patients and inventory removed." });
+              clearAllData();
             }}
           >
             <Trash2 className="h-3.5 w-3.5" />

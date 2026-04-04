@@ -178,7 +178,25 @@ export default function Inventory() {
         </div>
       </div>
 
-      {/* Stats */}
+      {/* ── Zero-state ─────────────────────────────────────────────────────── */}
+      {items.length === 0 && (
+        <div className="flex flex-col items-center justify-center py-24 text-center rounded-xl border-2 border-dashed border-border bg-muted/20">
+          <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+            <Package className="h-8 w-8 text-primary/60" />
+          </div>
+          <h3 className="text-lg font-semibold mb-1">No Inventory Yet</h3>
+          <p className="text-sm text-muted-foreground max-w-xs mb-6">
+            Your pharmacy and supply inventory is empty. Generate mock data from the dashboard to load 20 clinical drugs, or add items manually.
+          </p>
+          <Button onClick={handleAddNew} size="sm">
+            <Plus className="h-4 w-4 mr-2" />
+            Add First Item
+          </Button>
+        </div>
+      )}
+
+      {/* Stats + Filters + Table (only shown when data exists) */}
+      {items.length > 0 && (<>
       <div className="grid gap-4 md:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -268,7 +286,7 @@ export default function Inventory() {
       {/* Inventory List Table */}
       <Card>
         <CardContent className="p-0">
-          <div className="rounded-md border">
+          <div className="rounded-md border overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -396,6 +414,8 @@ export default function Inventory() {
           </div>
         </CardContent>
       </Card>
+
+      </>)}
 
       {/* Inventory Item Dialog */}
       <InventoryItemDialog

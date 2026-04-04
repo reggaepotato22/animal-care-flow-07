@@ -83,9 +83,12 @@ const STEP_MSGS: Record<string, { msg: string; targetRoles: NotifRole[] }> = {
   IN_TRIAGE:       { msg: "triage in progress",                 targetRoles: ["Nurse", "Vet", "SuperAdmin"]   },
   TRIAGED:         { msg: "triage complete — ready for vet",    targetRoles: ["Vet", "SuperAdmin"]             },
   IN_CONSULTATION: { msg: "in consultation",                    targetRoles: ["Vet", "SuperAdmin"]             },
-  IN_SURGERY:      { msg: "in surgery",                         targetRoles: ["Vet", "Nurse", "SuperAdmin"]   },
-  RECOVERY:        { msg: "in recovery",                        targetRoles: ["Vet", "Nurse", "SuperAdmin"]   },
-  DISCHARGED:      { msg: "discharged",                         targetRoles: ["Receptionist", "SuperAdmin"]   },
+  IN_SURGERY:        { msg: "in surgery",                          targetRoles: ["Vet", "Nurse", "SuperAdmin"]        },
+  RECOVERY:          { msg: "in recovery",                         targetRoles: ["Vet", "Nurse", "SuperAdmin"]        },
+  DISCHARGED:        { msg: "discharged",                          targetRoles: ["Receptionist", "SuperAdmin"]        },
+  IN_PROCEDURE:      { msg: "in procedure",                        targetRoles: ["Vet", "Nurse", "SuperAdmin"]        },
+  IN_FOLLOW_UP:      { msg: "follow-up visit in progress",         targetRoles: ["Vet", "SuperAdmin"]                 },
+  IN_HOSPITAL_ROUND: { msg: "hospital round — wellness check due", targetRoles: ["Nurse", "SuperAdmin"]               },
 };
 
 function buildPayload(name?: string, step?: string): {

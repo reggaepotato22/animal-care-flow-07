@@ -10,6 +10,7 @@ import {
   Pill, ReceiptText, BarChart3, Shield,
   Star, Activity, Stethoscope, Menu, X,
   Heart, Syringe, Quote, Clock, Lock,
+  Smartphone, Wifi, MapPin, HeadphonesIcon,
 } from "lucide-react";
 
 // ── Lead capture ─────────────────────────────────────────────────────────────
@@ -185,7 +186,7 @@ function MockAppWindow() {
           <div key={p.name} className="flex items-center justify-between bg-white/[0.03] hover:bg-white/[0.05] rounded-lg px-3 py-2 transition-colors">
             <div className="flex items-center gap-2">
               <div className="h-6 w-6 rounded-full bg-white/[0.07] flex items-center justify-center">
-                <span className="text-[9px] text-white/40">🐾</span>
+                <PawPrint className="h-3 w-3 text-white/30" />
               </div>
               <span className="text-[11px] text-white/80">{p.name}</span>
             </div>
@@ -282,11 +283,16 @@ export default function Landing() {
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           <AppLogo imgHeight={36} showText textClassName="text-base font-bold text-white" />
           <div className="hidden md:flex items-center gap-8 text-sm text-white/50">
-            {([["features","Features"],["workflow","How It Works"],["testimonials","Reviews"],["access","Get Access"]] as [string,string][]).map(([id,label]) => (
+            {([["features","Features"],["workflow","How It Works"],["mobility","Field Vet"],["testimonials","Reviews"],["access","Get Access"]] as [string,string][]).map(([id,label]) => (
               <button key={id} onClick={() => goTo(id)} className="hover:text-white transition-colors">{label}</button>
             ))}
           </div>
           <div className="hidden md:flex items-center gap-3">
+            <Button variant="ghost" size="sm"
+              className="text-white/60 hover:text-white hover:bg-white/10 gap-1.5"
+              onClick={() => navigate("/pricing")}>
+              Pricing
+            </Button>
             <Button variant="ghost" size="sm"
               className="text-white/60 hover:text-white hover:bg-white/10 gap-1.5"
               onClick={() => navigate("/login/demo")}>
@@ -303,7 +309,7 @@ export default function Landing() {
         </div>
         {mobileOpen && (
           <div className="md:hidden border-t border-white/[0.06] bg-[#0b1517] px-6 py-4 space-y-3 text-sm">
-            {([["features","Features"],["workflow","How It Works"],["access","Get Access"]] as [string,string][]).map(([id,label]) => (
+            {([["features","Features"],["workflow","How It Works"],["mobility","Field Vet"],["access","Get Access"]] as [string,string][]).map(([id,label]) => (
               <button key={id} onClick={() => goTo(id)} className="block text-left text-white/60 hover:text-white">{label}</button>
             ))}
             <div className="flex gap-2 pt-2 border-t border-white/[0.06]">
@@ -362,10 +368,17 @@ export default function Landing() {
             <div className="mb-5">
               <AccessForm />
             </div>
-            <p className="text-xs text-white/25">Credentials sent within 24 hrs · No credit card required</p>
+            <div className="flex items-center gap-4 mt-3">
+              <p className="text-xs text-white/25">Credentials sent within 24 hrs · No credit card required</p>
+              <button
+                onClick={() => navigate("/pricing")}
+                className="text-xs text-[#56B246] hover:text-[#56B246]/80 font-semibold underline underline-offset-2 shrink-0 transition-colors">
+                View Pricing Plans →
+              </button>
+            </div>
 
             {/* Trust badges */}
-            <div className="flex flex-wrap gap-4 mt-8">
+            <div className="flex flex-wrap gap-3 mt-8">
               <div className="flex items-center gap-2 bg-white/[0.05] border border-white/[0.07] rounded-xl px-4 py-2.5">
                 <div className="flex">{[0,1,2,3,4].map(i => <Star key={i} className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />)}</div>
                 <span className="text-xs text-white font-semibold">4.9 / 5</span>
@@ -378,6 +391,10 @@ export default function Landing() {
               <div className="flex items-center gap-2 bg-white/[0.05] border border-white/[0.07] rounded-xl px-4 py-2.5">
                 <Shield className="h-4 w-4 text-blue-400" />
                 <span className="text-xs text-white/70">99.9% uptime</span>
+              </div>
+              <div className="flex items-center gap-2 bg-white/[0.05] border border-white/[0.07] rounded-xl px-4 py-2.5">
+                <HeadphonesIcon className="h-4 w-4 text-purple-400" />
+                <span className="text-xs text-white/70"><span className="text-white font-bold">24/7</span> support</span>
               </div>
             </div>
           </div>
@@ -479,11 +496,95 @@ export default function Landing() {
               </div>
             ))}
           </div>
-          <div className="mt-12 text-center">
+          <div className="mt-12 text-center flex flex-col sm:flex-row items-center justify-center gap-4">
             <Button size="lg" className="bg-[#56B246] hover:bg-[#56B246]/90 text-white font-bold px-12 gap-2"
               onClick={() => goTo("access")}>
               Request Access to Explore <ArrowRight className="h-4 w-4" />
             </Button>
+            <Button size="lg" variant="outline"
+              className="border-white/20 text-white/70 hover:text-white hover:bg-white/[0.06] gap-2 bg-transparent"
+              onClick={() => navigate("/pricing")}>
+              See Pricing Plans
+            </Button>
+          </div>
+        </div>
+      </section>
+
+      {/* ── FIELD-VET MOBILITY ── */}
+      <section id="mobility" className="py-28 px-6">
+        <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
+          {/* Left — content */}
+          <div className="space-y-6">
+            <p className="text-[#56B246] text-[11px] uppercase tracking-[0.2em] font-semibold">Field Veterinary Mobility</p>
+            <h2 className="text-3xl md:text-4xl font-black leading-tight">
+              Works Wherever <br />
+              <span className="text-[#56B246]">You Practise</span>
+            </h2>
+            <p className="text-white/45 text-sm leading-relaxed max-w-lg">
+              Whether you're doing farm rounds, wildlife conservation work, or running a mobile clinic —
+              InnoVetPro's local-first architecture keeps you functional even in low-connectivity environments.
+              Data syncs automatically the moment you're back online.
+            </p>
+            <div className="space-y-4">
+              {[
+                { icon: Smartphone, title: "Mobile-Optimised Interface",   desc: "Responsive layout designed for tablets and phones. Record vitals and notes in the field." },
+                { icon: Wifi,       title: "Offline-First Data Sync",       desc: "Continue working without internet. All actions queue locally and sync when reconnected." },
+                { icon: MapPin,     title: "Multi-Location Support",        desc: "Manage satellite branches and outreach sites from a single centralised dashboard." },
+                { icon: HeadphonesIcon, title: "24/7 Technical Support",    desc: "Our East Africa support team is available around the clock — phone, chat, or email." },
+              ].map(({ icon: Icon, title, desc }) => (
+                <div key={title} className="flex gap-4">
+                  <div className="h-10 w-10 rounded-xl bg-[#56B246]/12 flex items-center justify-center shrink-0">
+                    <Icon className="h-5 w-5 text-[#56B246]" />
+                  </div>
+                  <div>
+                    <div className="font-semibold text-white text-sm mb-0.5">{title}</div>
+                    <div className="text-xs text-white/38 leading-relaxed">{desc}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+          {/* Right — illustration card */}
+          <div className="relative">
+            <div className="absolute -inset-6 bg-[#56B246]/[0.04] rounded-3xl blur-3xl" />
+            <div className="relative rounded-2xl border border-white/[0.08] bg-[#0d1a1c] overflow-hidden">
+              <div className="px-5 py-4 border-b border-white/[0.06] flex items-center gap-3">
+                <div className="h-8 w-8 rounded-full bg-[#56B246]/20 flex items-center justify-center shrink-0">
+                  <MapPin className="h-4 w-4 text-[#56B246]" />
+                </div>
+                <div>
+                  <div className="text-xs font-bold text-white">Field Visit — Naivasha Farm</div>
+                  <div className="text-[10px] text-white/30">Offline mode · 3 records pending sync</div>
+                </div>
+                <div className="ml-auto flex items-center gap-1.5">
+                  <div className="h-2 w-2 rounded-full bg-amber-400 animate-pulse" />
+                  <span className="text-[10px] text-amber-400 font-semibold">Offline</span>
+                </div>
+              </div>
+              <div className="p-4 space-y-2">
+                {[
+                  { pet: "Daisy — Holstein Cow",   action: "Vitals recorded",     saved: true },
+                  { pet: "Herd B — 12 Cattle",     action: "Vaccination logged",  saved: true },
+                  { pet: "Rufus — Farm Dog",        action: "Wound assessment",    saved: false },
+                ].map(r => (
+                  <div key={r.pet} className="flex items-center justify-between bg-white/[0.03] rounded-lg px-3 py-2.5">
+                    <div>
+                      <div className="text-xs text-white/80 font-medium">{r.pet}</div>
+                      <div className="text-[10px] text-white/30">{r.action}</div>
+                    </div>
+                    <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${
+                      r.saved ? "bg-[#56B246]/20 text-[#56B246]" : "bg-amber-500/20 text-amber-400"
+                    }`}>{r.saved ? "Saved" : "Queued"}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="px-4 pb-4">
+                <div className="rounded-xl border border-[#56B246]/20 bg-[#56B246]/[0.06] px-3 py-2.5 flex items-center gap-2">
+                  <Wifi className="h-4 w-4 text-[#56B246]" />
+                  <span className="text-xs text-white/60"><span className="text-[#56B246] font-semibold">Auto-sync ready</span> · Will upload when connected</span>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -513,17 +614,24 @@ export default function Landing() {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {TESTIMONIALS.map(({ name, role, clinic, quote, stars }) => (
-              <div key={name} className="bg-white/[0.04] border border-white/[0.07] rounded-2xl p-7 flex flex-col gap-5">
-                <Quote className="h-6 w-6 text-[#56B246]/40" />
-                <p className="text-sm text-white/60 leading-relaxed flex-1 italic">“{quote}”</p>
-                <div>
-                  <div className="flex gap-0.5 mb-3">
+              <div key={name} className="group bg-white/[0.04] hover:bg-white/[0.07] border border-white/[0.07] hover:border-[#56B246]/20 rounded-2xl p-7 flex flex-col gap-5 transition-all duration-300">
+                <div className="flex items-start justify-between">
+                  <Quote className="h-7 w-7 text-[#56B246]/40 group-hover:text-[#56B246]/60 transition-colors" />
+                  <div className="flex gap-0.5">
                     {Array.from({ length: stars }).map((_,i) => (
-                      <Star key={i} className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
+                      <Star key={i} className="h-3 w-3 fill-amber-400 text-amber-400" />
                     ))}
                   </div>
-                  <div className="font-bold text-white text-sm">{name}</div>
-                  <div className="text-xs text-white/35 mt-0.5">{role} · {clinic}</div>
+                </div>
+                <p className="text-sm text-white/55 leading-relaxed flex-1 italic">"{quote}"</p>
+                <div className="flex items-center gap-3 border-t border-white/[0.06] pt-4">
+                  <div className="h-9 w-9 rounded-full bg-[#56B246]/20 flex items-center justify-center shrink-0">
+                    <span className="text-xs font-bold text-[#56B246]">{name.split(" ").map(n => n[0]).join("").slice(0,2)}</span>
+                  </div>
+                  <div>
+                    <div className="font-bold text-white text-sm">{name}</div>
+                    <div className="text-xs text-white/35">{role} · {clinic}</div>
+                  </div>
                 </div>
               </div>
             ))}
@@ -550,8 +658,17 @@ export default function Landing() {
             Login credentials are available upon request. Submit your details and our team
             will personally review and send you access within 24 hours.
           </p>
-          <AccessForm center />
-          <div className="flex items-center justify-center gap-6 mt-6 text-xs text-white/25">
+          <div className="flex flex-col sm:flex-row gap-4 justify-center mb-6">
+            <AccessForm center />
+          </div>
+          <div className="flex items-center justify-center gap-3 mb-6">
+            <Button variant="outline"
+              className="border-white/20 text-white/70 hover:text-white hover:bg-white/[0.06] bg-transparent gap-2"
+              onClick={() => navigate("/pricing")}>
+              Compare Subscription Plans <ArrowRight className="h-4 w-4" />
+            </Button>
+          </div>
+          <div className="flex items-center justify-center gap-6 mt-2 text-xs text-white/25">
             <span className="flex items-center gap-1.5"><CheckCircle2 className="h-3.5 w-3.5 text-[#56B246]" />No credit card</span>
             <span className="flex items-center gap-1.5"><CheckCircle2 className="h-3.5 w-3.5 text-[#56B246]" />Private & secure</span>
             <span className="flex items-center gap-1.5"><CheckCircle2 className="h-3.5 w-3.5 text-[#56B246]" />24-hr response</span>
@@ -570,9 +687,10 @@ export default function Landing() {
             <div className="grid grid-cols-2 gap-10 text-sm">
               <div>
                 <div className="text-white/50 font-semibold mb-3 text-xs uppercase tracking-wider">Product</div>
-                {[["features","Features"],["workflow","How It Works"],["access","Request Access"]].map(([id,label]) => (
+                {[["features","Features"],["workflow","How It Works"],["mobility","Field Vet"],["access","Request Access"]].map(([id,label]) => (
                   <button key={id} onClick={() => goTo(id)} className="block text-white/30 hover:text-white/60 mb-2 text-xs transition-colors">{label}</button>
                 ))}
+                <button onClick={() => navigate("/pricing")} className="block text-white/30 hover:text-white/60 mb-2 text-xs transition-colors">Pricing</button>
               </div>
               <div>
                 <div className="text-white/50 font-semibold mb-3 text-xs uppercase tracking-wider">Access</div>

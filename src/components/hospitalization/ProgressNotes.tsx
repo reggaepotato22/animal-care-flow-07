@@ -7,326 +7,317 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, User, Calendar, TrendingUp } from "lucide-react";
+import { Plus, User, Calendar, TrendingUp, Thermometer, Heart, Activity, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-
-interface HospitalizationRecord {
-  id: string;
-  patientName: string;
-  petName: string;
-}
-
-interface ProgressNote {
-  id: string;
-  date: string;
-  time: string;
-  veterinarian: string;
-  assessment: string;
-  plan: string;
-  modifications: string[];
-  nextReview: string;
-  condition: "improving" | "stable" | "declining";
-}
+import { useNotifications } from "@/contexts/NotificationContext";
+import {
+  addProgressNote, hasTodayProgressNote,
+  type HospRecord, type ProgressNote,
+} from "@/lib/hospitalizationStore";
 
 interface ProgressNotesProps {
-  record: HospitalizationRecord;
+  record: HospRecord;
+  onNoteAdded?: () => void;
 }
 
-export function ProgressNotes({ record }: ProgressNotesProps) {
-  const { toast } = useToast();
-  const [progressNotes, setProgressNotes] = useState<ProgressNote[]>([
-    {
-      id: "PN001",
-      date: "2024-01-21",
-      time: "08:30",
-      veterinarian: "Dr. Smith",
-      assessment: "Patient continues to recover well from surgery. Incision site appears clean with no signs of infection. Pain appears well controlled with current medication regimen. Appetite has improved significantly since yesterday.",
-      plan: "Continue current pain management protocol. Monitor incision site q8h. Encourage mobility and appetite. Consider discharge planning if continues to improve.",
-      modifications: [
-        "Reduced Tramadol frequency from q6h to q8h",
-        "Added physical therapy exercises"
-      ],
-      nextReview: "2024-01-21 20:00",
-      condition: "improving"
-    },
-    {
-      id: "PN002",
-      date: "2024-01-20",
-      time: "16:45",
-      veterinarian: "Dr. Smith",
-      assessment: "Post-operative day 1. Patient alert and responsive. Some discomfort noted, responding well to pain medication. Incision site clean and dry. No complications observed during initial recovery period.",
-      plan: "Continue monitoring q4h overnight. Maintain current pain management. Start oral intake trial if patient shows interest in food.",
-      modifications: [],
-      nextReview: "2024-01-21 08:00",
-      condition: "stable"
-    }
-  ]);
+const EMPTY_NOTE = {
+  veterinarian: "",
+  temperature: "",
+  bloodPressure: "",
+  heartRate: "",
+  respiratoryRate: "",
+  weight: "",
+  painScore: 0,
+  assessment: "",
+  plan: "",
+  modifications: "",
+  nextReview: "",
+  condition: "stable" as "improving" | "stable" | "declining",
+};
 
+export function ProgressNotes({ record, onNoteAdded }: ProgressNotesProps) {
+  const { toast } = useToast();
+  const { addNotification } = useNotifications();
+  const notes: ProgressNote[] = record.progressNotes ?? [];
+  const todayHasNote = hasTodayProgressNote(record.id);
   const [isAddNoteOpen, setIsAddNoteOpen] = useState(false);
-  const [newNote, setNewNote] = useState({
-    veterinarian: "",
-    assessment: "",
-    plan: "",
-    modifications: "",
-    nextReview: "",
-    condition: "stable" as "improving" | "stable" | "declining"
-  });
+  const [newNote, setNewNote] = useState(EMPTY_NOTE);
 
   const handleAddNote = () => {
-    if (!newNote.veterinarian || !newNote.assessment || !newNote.plan || !newNote.nextReview) {
+    const { veterinarian, temperature, bloodPressure, heartRate, respiratoryRate, assessment, plan, nextReview } = newNote;
+    if (!veterinarian || !temperature || !bloodPressure || !heartRate || !respiratoryRate || !assessment || !plan || !nextReview) {
       toast({
-        title: "Missing information",
-        description: "Please fill in all required fields.",
-        variant: "destructive"
+        title: "Missing required vitals",
+        description: "Temperature, BP, Heart Rate, Respiratory Rate, Assessment, Plan and Next Review are all required.",
+        variant: "destructive",
       });
       return;
     }
-
     const now = new Date();
-    const progressNote: ProgressNote = {
-      id: `PN${String(progressNotes.length + 1).padStart(3, '0')}`,
-      date: now.toISOString().split('T')[0],
+    const note: ProgressNote = {
+      id: `PN-${Date.now()}`,
+      date: now.toISOString().slice(0, 10),
       time: now.toTimeString().slice(0, 5),
-      veterinarian: newNote.veterinarian,
-      assessment: newNote.assessment,
-      plan: newNote.plan,
-      modifications: newNote.modifications ? newNote.modifications.split('\n').filter(m => m.trim()) : [],
-      nextReview: newNote.nextReview,
-      condition: newNote.condition
+      veterinarian,
+      temperature,
+      bloodPressure,
+      heartRate,
+      respiratoryRate,
+      weight: newNote.weight || undefined,
+      painScore: newNote.painScore,
+      assessment,
+      plan,
+      modifications: newNote.modifications ? newNote.modifications.split("\n").filter(m => m.trim()) : [],
+      nextReview,
+      condition: newNote.condition,
     };
-
-    setProgressNotes([progressNote, ...progressNotes]);
-    setNewNote({
-      veterinarian: "",
-      assessment: "",
-      plan: "",
-      modifications: "",
-      nextReview: "",
-      condition: "stable"
-    });
+    addProgressNote(record.id, note);
+    setNewNote(EMPTY_NOTE);
     setIsAddNoteOpen(false);
-    toast({
-      title: "Progress note added",
-      description: "The progress note has been added successfully."
+    onNoteAdded?.();
+    toast({ title: "Progress note saved", description: `Vitals recorded — prescriptions now unlocked for today.` });
+    // Notify Nurse/Attendant that a progress note has been submitted
+    addNotification({
+      type: "info",
+      message: `Progress note added for ${record.petName} (${record.patientName}) by ${note.veterinarian} — wellness check due.`,
+      patientId: record.patientId,
+      patientName: record.petName,
+      step: "IN_HOSPITAL_ROUND",
+      targetRoles: ["Nurse", "SuperAdmin"],
     });
   };
 
-  const getConditionColor = (condition: string) => {
-    switch (condition) {
-      case "improving": return "bg-success/10 text-success border-success/20";
-      case "stable": return "bg-info/10 text-info border-info/20";
-      case "declining": return "bg-destructive/10 text-destructive border-destructive/20";
-      default: return "bg-muted/10 text-muted-foreground border-muted/20";
-    }
+  const conditionCls = (c: string) => {
+    if (c === "improving") return "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300 border-emerald-200";
+    if (c === "declining") return "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300 border-red-200";
+    return "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300 border-blue-200";
   };
 
-  const getConditionIcon = (condition: string) => {
-    switch (condition) {
-      case "improving": return <TrendingUp className="h-4 w-4" />;
-      case "stable": return <div className="h-4 w-4 bg-current rounded-full" />;
-      case "declining": return <TrendingUp className="h-4 w-4 rotate-180" />;
-      default: return null;
-    }
-  };
+  const conditionIcon = (c: string) => c === "improving"
+    ? <TrendingUp className="h-3.5 w-3.5" />
+    : c === "declining"
+    ? <TrendingUp className="h-3.5 w-3.5 rotate-180" />
+    : <Activity className="h-3.5 w-3.5" />;
+
+  const painColor = (p: number) =>
+    p <= 2 ? "text-emerald-600" : p <= 5 ? "text-amber-600" : "text-red-600";
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h3 className="text-lg font-semibold">Daily Progress Notes</h3>
+    <div className="space-y-5">
+      {/* Header row */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <h3 className="text-lg font-bold">Daily Progress Notes</h3>
+          {todayHasNote ? (
+            <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300 border-emerald-200 gap-1">
+              <CheckCircle2 className="h-3 w-3" /> Today complete
+            </Badge>
+          ) : (
+            <Badge variant="outline" className="border-amber-400 text-amber-700 dark:text-amber-400 gap-1">
+              <AlertTriangle className="h-3 w-3" /> Note required today
+            </Badge>
+          )}
+        </div>
+
         <Dialog open={isAddNoteOpen} onOpenChange={setIsAddNoteOpen}>
           <DialogTrigger asChild>
-            <Button size="sm">
+            <Button size="sm" className="touch-btn">
               <Plus className="h-4 w-4 mr-2" />
               Add Progress Note
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-[600px]">
+          <DialogContent className="sm:max-w-[640px]">
             <DialogHeader>
-              <DialogTitle>Add Progress Note</DialogTitle>
+              <DialogTitle>Daily Progress Note — {record.petName}</DialogTitle>
               <DialogDescription>
-                Add a new progress note for {record.petName}
+                Mandatory vitals must be recorded before medications can be prescribed today.
               </DialogDescription>
             </DialogHeader>
-            <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto">
-              <div className="grid gap-2">
-                <Label htmlFor="veterinarian">Veterinarian *</Label>
-                <Input
-                  id="veterinarian"
-                  value={newNote.veterinarian}
-                  onChange={(e) => setNewNote({...newNote, veterinarian: e.target.value})}
-                  placeholder="e.g., Dr. Smith"
-                />
+
+            <div className="space-y-4 py-2 max-h-[68vh] overflow-y-auto pr-1">
+              {/* Vitals section */}
+              <div className="rounded-xl border bg-muted/30 p-4 space-y-3">
+                <p className="text-sm font-semibold flex items-center gap-2">
+                  <Thermometer className="h-4 w-4 text-primary" /> Vital Signs <span className="text-destructive">*</span>
+                </p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label htmlFor="temperature">Temperature (°C) *</Label>
+                    <Input id="temperature" placeholder="e.g. 38.5" value={newNote.temperature}
+                      onChange={e => setNewNote({ ...newNote, temperature: e.target.value })} />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="bp">Blood Pressure (mmHg) *</Label>
+                    <Input id="bp" placeholder="e.g. 120/80" value={newNote.bloodPressure}
+                      onChange={e => setNewNote({ ...newNote, bloodPressure: e.target.value })} />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="hr">Heart Rate (bpm) *</Label>
+                    <Input id="hr" placeholder="e.g. 78" value={newNote.heartRate}
+                      onChange={e => setNewNote({ ...newNote, heartRate: e.target.value })} />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="rr">Respiratory Rate (rpm) *</Label>
+                    <Input id="rr" placeholder="e.g. 20" value={newNote.respiratoryRate}
+                      onChange={e => setNewNote({ ...newNote, respiratoryRate: e.target.value })} />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="weight">Weight (kg)</Label>
+                    <Input id="weight" placeholder="optional" value={newNote.weight}
+                      onChange={e => setNewNote({ ...newNote, weight: e.target.value })} />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Pain Score (0–10)</Label>
+                    <div className="flex items-center gap-2">
+                      <Input type="range" min={0} max={10} value={newNote.painScore}
+                        onChange={e => setNewNote({ ...newNote, painScore: Number(e.target.value) })}
+                        className="flex-1 h-2" />
+                      <span className={`text-lg font-bold w-6 text-center ${painColor(newNote.painScore)}`}>{newNote.painScore}</span>
+                    </div>
+                  </div>
+                </div>
               </div>
-              <div className="grid gap-2">
-                <Label htmlFor="condition">Patient Condition *</Label>
-                <Select value={newNote.condition} onValueChange={(value: "improving" | "stable" | "declining") => setNewNote({...newNote, condition: value})}>
-                  <SelectTrigger id="condition">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="improving">Improving</SelectItem>
-                    <SelectItem value="stable">Stable</SelectItem>
-                    <SelectItem value="declining">Declining</SelectItem>
-                  </SelectContent>
-                </Select>
+
+              {/* Clinician & condition */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label htmlFor="vet">Veterinarian *</Label>
+                  <Input id="vet" placeholder="Dr. Smith" value={newNote.veterinarian}
+                    onChange={e => setNewNote({ ...newNote, veterinarian: e.target.value })} />
+                </div>
+                <div className="space-y-1">
+                  <Label>Overall Condition *</Label>
+                  <Select value={newNote.condition}
+                    onValueChange={v => setNewNote({ ...newNote, condition: v as "improving" | "stable" | "declining" })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="improving">Improving</SelectItem>
+                      <SelectItem value="stable">Stable</SelectItem>
+                      <SelectItem value="declining">Declining</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
-              <div className="grid gap-2">
+
+              <div className="space-y-1">
                 <Label htmlFor="assessment">Assessment *</Label>
-                <Textarea
-                  id="assessment"
-                  value={newNote.assessment}
-                  onChange={(e) => setNewNote({...newNote, assessment: e.target.value})}
-                  placeholder="Describe the patient's current condition, symptoms, and observations..."
-                  className="min-h-[100px]"
-                />
+                <Textarea id="assessment" placeholder="Clinical observations, response to treatment..."
+                  className="min-h-[80px]" value={newNote.assessment}
+                  onChange={e => setNewNote({ ...newNote, assessment: e.target.value })} />
               </div>
-              <div className="grid gap-2">
+              <div className="space-y-1">
                 <Label htmlFor="plan">Plan *</Label>
-                <Textarea
-                  id="plan"
-                  value={newNote.plan}
-                  onChange={(e) => setNewNote({...newNote, plan: e.target.value})}
-                  placeholder="Outline the treatment plan and next steps..."
-                  className="min-h-[100px]"
-                />
+                <Textarea id="plan" placeholder="Treatment plan, next steps..."
+                  className="min-h-[80px]" value={newNote.plan}
+                  onChange={e => setNewNote({ ...newNote, plan: e.target.value })} />
               </div>
-              <div className="grid gap-2">
-                <Label htmlFor="modifications">Treatment Modifications (optional)</Label>
-                <Textarea
-                  id="modifications"
-                  value={newNote.modifications}
-                  onChange={(e) => setNewNote({...newNote, modifications: e.target.value})}
-                  placeholder="List any changes to treatment (one per line)..."
-                  className="min-h-[80px]"
-                />
-                <p className="text-xs text-muted-foreground">Enter each modification on a new line</p>
+              <div className="space-y-1">
+                <Label htmlFor="mods">Treatment Modifications (one per line)</Label>
+                <Textarea id="mods" placeholder="e.g. Reduced Tramadol q6h → q8h"
+                  className="min-h-[60px]" value={newNote.modifications}
+                  onChange={e => setNewNote({ ...newNote, modifications: e.target.value })} />
               </div>
-              <div className="grid gap-2">
-                <Label htmlFor="nextReview">Next Review Date & Time *</Label>
-                <Input
-                  id="nextReview"
-                  type="datetime-local"
-                  value={newNote.nextReview}
-                  onChange={(e) => setNewNote({...newNote, nextReview: e.target.value})}
-                />
+              <div className="space-y-1">
+                <Label htmlFor="nextReview">Next Review *</Label>
+                <Input id="nextReview" type="datetime-local" value={newNote.nextReview}
+                  onChange={e => setNewNote({ ...newNote, nextReview: e.target.value })} />
               </div>
             </div>
+
             <DialogFooter>
-              <Button variant="outline" onClick={() => setIsAddNoteOpen(false)}>
-                Cancel
-              </Button>
-              <Button onClick={handleAddNote}>Add Progress Note</Button>
+              <Button variant="outline" onClick={() => setIsAddNoteOpen(false)}>Cancel</Button>
+              <Button onClick={handleAddNote}>Save Progress Note</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
       </div>
 
-      <div className="space-y-6">
-        {progressNotes.map((note, index) => (
-          <Card key={note.id} className={index === 0 ? "ring-2 ring-primary/20" : ""}>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="flex items-center gap-2">
-                    <Calendar className="h-5 w-5 text-muted-foreground" />
-                    <span className="font-semibold">
-                      {new Date(note.date).toLocaleDateString()}
-                    </span>
-                    <span className="text-muted-foreground">at {note.time}</span>
+      {/* Note list */}
+      {notes.length === 0 ? (
+        <Card className="border-dashed">
+          <CardContent className="py-10 text-center text-muted-foreground">
+            <Thermometer className="h-10 w-10 mx-auto mb-3 opacity-20" />
+            <p className="text-sm font-medium">No progress notes yet</p>
+            <p className="text-xs mt-1">Add today's progress note to unlock prescription capability</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-4">
+          {notes.map((note, i) => (
+            <Card key={note.id} className={i === 0 ? "ring-2 ring-primary/20 shadow-md" : "shadow-sm"}>
+              <CardHeader className="pb-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Calendar className="h-4 w-4 text-muted-foreground" />
+                      <span className="font-semibold text-sm">{new Date(note.date).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</span>
+                      <span className="text-muted-foreground text-sm">at {note.time}</span>
+                      {i === 0 && <Badge variant="outline" className="text-[10px]">Latest</Badge>}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <User className="h-3.5 w-3.5 text-muted-foreground" />
+                      <span className="text-sm font-medium">{note.veterinarian}</span>
+                    </div>
                   </div>
-                  {index === 0 && (
-                    <Badge variant="outline" className="text-xs">
-                      Latest
-                    </Badge>
-                  )}
-                </div>
-                  <Badge className={getConditionColor(note.condition)}>
-                    <span className="flex items-center gap-1">
-                      {getConditionIcon(note.condition)}
-                      {note.condition}
-                    </span>
+                  <Badge className={`${conditionCls(note.condition)} gap-1`}>
+                    {conditionIcon(note.condition)}
+                    {note.condition.charAt(0).toUpperCase() + note.condition.slice(1)}
                   </Badge>
-              </div>
-              <div className="flex items-center gap-2">
-                <User className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm font-medium">{note.veterinarian}</span>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {/* Assessment */}
-              <div>
-                <h4 className="font-medium mb-2 text-foreground">Assessment</h4>
-                <p className="text-sm text-muted-foreground leading-relaxed">
-                  {note.assessment}
-                </p>
-              </div>
-
-              {/* Plan */}
-              <div>
-                <h4 className="font-medium mb-2 text-foreground">Plan</h4>
-                <p className="text-sm text-muted-foreground leading-relaxed">
-                  {note.plan}
-                </p>
-              </div>
-
-              {/* Treatment Modifications */}
-              {note.modifications.length > 0 && (
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4 pt-0">
+                {/* Vitals strip */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {[
+                    { icon: Thermometer, label: "Temp", value: `${note.temperature} °C`, color: "text-orange-600" },
+                    { icon: Heart, label: "HR", value: `${note.heartRate} bpm`, color: "text-red-500" },
+                    { icon: Activity, label: "BP", value: note.bloodPressure, color: "text-blue-600" },
+                    { icon: Activity, label: "RR", value: `${note.respiratoryRate} rpm`, color: "text-teal-600" },
+                  ].map(v => (
+                    <div key={v.label} className="rounded-lg bg-muted/40 px-3 py-2 flex items-center gap-2">
+                      <v.icon className={`h-4 w-4 shrink-0 ${v.color}`} />
+                      <div className="min-w-0">
+                        <p className="text-[10px] text-muted-foreground uppercase tracking-wide">{v.label}</p>
+                        <p className="text-sm font-semibold truncate">{v.value}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {note.painScore !== undefined && (
+                  <div className="flex items-center gap-2 text-sm">
+                    <span className="text-muted-foreground">Pain Score:</span>
+                    <span className={`font-bold text-base ${painColor(note.painScore)}`}>{note.painScore}/10</span>
+                  </div>
+                )}
                 <div>
-                  <h4 className="font-medium mb-2 text-foreground">Treatment Modifications</h4>
-                  <ul className="space-y-1">
-                    {note.modifications.map((modification, idx) => (
-                      <li key={idx} className="text-sm text-muted-foreground flex items-start gap-2">
-                        <span className="text-primary mt-1">•</span>
-                        {modification}
-                      </li>
-                    ))}
-                  </ul>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">Assessment</p>
+                  <p className="text-sm leading-relaxed">{note.assessment}</p>
                 </div>
-              )}
-
-              {/* Next Review */}
-              <div className="border-t pt-4">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">Next review scheduled:</span>
-                  <span className="font-medium">
-                    {new Date(note.nextReview).toLocaleString()}
-                  </span>
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">Plan</p>
+                  <p className="text-sm leading-relaxed">{note.plan}</p>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      {/* Summary Card */}
-      <Card className="bg-muted/20">
-        <CardHeader>
-          <CardTitle className="text-base">Hospitalization Summary</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-            <div>
-              <span className="font-medium text-foreground">Total Days:</span>
-              <p className="text-muted-foreground">2 days</p>
-            </div>
-            <div>
-              <span className="font-medium text-foreground">Overall Trend:</span>
-              <div className="flex items-center gap-1">
-                <Badge className={getConditionColor("improving")}>
-                  <span className="flex items-center gap-1">
-                    {getConditionIcon("improving")}
-                    Improving
-                  </span>
-                </Badge>
-              </div>
-            </div>
-            <div>
-              <span className="font-medium text-foreground">Discharge Planning:</span>
-              <p className="text-muted-foreground">Under consideration</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+                {note.modifications.length > 0 && (
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">Modifications</p>
+                    <ul className="space-y-1">
+                      {note.modifications.map((m, idx) => (
+                        <li key={idx} className="text-sm flex items-start gap-2">
+                          <span className="text-primary mt-1">•</span>{m}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                <div className="border-t pt-3 flex items-center justify-between text-xs text-muted-foreground">
+                  <span>Next review:</span>
+                  <span className="font-medium">{new Date(note.nextReview).toLocaleString()}</span>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
