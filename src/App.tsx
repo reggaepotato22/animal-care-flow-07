@@ -77,8 +77,8 @@ function ProtectedRoutes() {
   }
   return (
     <FeedbackProvider>
-    <TutorialProvider>
     <MobileClinicPrompt />
+    <TutorialProvider>
     <Layout>
       <Routes>
         <Route path="/dashboard" element={<Index />} />

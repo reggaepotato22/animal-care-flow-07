@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import {
   MapPin, Navigation2, WifiOff, Sun, ArrowLeft,
   ChevronRight, CheckCircle2, Stethoscope, Receipt,
-  Truck, User, Loader2, RefreshCw, Thermometer, Activity, Mic2, PawPrint,
+  Truck, User, Loader2, RefreshCw, Thermometer, Activity, Mic2, PawPrint, DatabaseZap,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { VitalsPad, VitalsData } from "@/components/field/VitalsPad";
@@ -11,6 +11,7 @@ import { ProcedureChips, FIELD_PROCEDURES } from "@/components/field/ProcedureCh
 import { VoiceNoteInput } from "@/components/field/VoiceNoteInput";
 import { MpesaFlow } from "@/components/field/MpesaFlow";
 import { getPatients } from "@/lib/patientStore";
+import { seedMockData } from "@/lib/dataSeed";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 type Step = "journey" | "patient" | "exam" | "billing" | "success";
@@ -233,9 +234,16 @@ function PatientStep({ selected, onSelect, onContinue }: {
       </div>
 
       {patients.length === 0 && (
-        <p className="text-xs text-center text-muted-foreground">
-          No patients yet — generate mock data from dashboard first
-        </p>
+        <div className="flex flex-col items-center gap-3 py-4">
+          <p className="text-sm text-center text-muted-foreground">No patients yet</p>
+          <button
+            onClick={() => { seedMockData(); }}
+            className="flex items-center gap-2 px-5 py-3 rounded-xl bg-primary text-primary-foreground font-semibold text-sm active:scale-98 shadow-md shadow-primary/30">
+            <DatabaseZap className="h-4 w-4" />
+            Generate Demo Data
+          </button>
+          <p className="text-xs text-muted-foreground/70">Fills the app with sample patients &amp; records</p>
+        </div>
       )}
 
       <button onClick={onContinue} disabled={!selected}
