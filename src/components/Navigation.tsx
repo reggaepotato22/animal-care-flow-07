@@ -35,7 +35,6 @@ const navigationItems = [
   { name: "Registered Patients", href: "/patients",               icon: ClipboardList },
   { name: "Appointments",        href: "/appointments",           icon: Calendar },
   { name: "Triage",              href: "/triage",                 icon: Activity },
-  { name: "Records",             href: "/records",                icon: FileText },
   { name: "Labs",                href: "/labs",                   icon: Beaker },
   { name: "Hospitalization",     href: "/hospitalization",        icon: Hospital },
   { name: "Treatments",          href: "/treatments",             icon: Stethoscope },
