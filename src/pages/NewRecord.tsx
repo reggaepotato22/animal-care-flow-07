@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Search, FileText, Calendar as CalendarIcon, User, Pill, Download, X, ArrowLeft, Plus, Paperclip, Upload, History, AlertTriangle, Syringe, Heart, MoreVertical, Bed, TestTube, ChevronLeft, ChevronRight, DollarSign, Trash2, ChevronDown, Clock, Stethoscope, Check, Scissors, HelpCircle } from "lucide-react";
 import { LabOrderDialog } from "@/components/LabOrderDialog";
 import { AdmissionRequestDialog } from "@/components/AdmissionRequestDialog";
+import { ScheduleSurgeryDialog } from "@/components/ScheduleSurgeryDialog";
 import { FindingsBoard } from "@/components/clinical/FindingsBoard";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { EncounterSidebar } from "@/components/EncounterSidebar";
@@ -2728,9 +2729,25 @@ const applyTemplate = (templateName: string, noteId?: string) => {
                 >
                   <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
                     <Bed className="mr-2 h-4 w-4" />
-                    Request Hospitalization
+                    Admit Patient
                   </DropdownMenuItem>
                 </AdmissionRequestDialog>
+
+                <ScheduleSurgeryDialog
+                  patientData={{
+                    patientId:   selectedPatient,
+                    patientName: mockPatientData.owner.name,
+                    petName:     mockPatientData.name,
+                    species:     mockPatientData.species + " (" + mockPatientData.breed + ")",
+                    veterinarian: selectedVeterinarian,
+                    encounterId: activeEncounter?.id,
+                  }}
+                >
+                  <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                    <Scissors className="mr-2 h-4 w-4" />
+                    Schedule Surgery
+                  </DropdownMenuItem>
+                </ScheduleSurgeryDialog>
 
                 <LabOrderDialog
                   prefillData={{
@@ -3025,25 +3042,22 @@ const applyTemplate = (templateName: string, noteId?: string) => {
               Mark Emergency
             </Button>
 
-            {/* Hospitalization / Surgery request */}
-            <AdmissionRequestDialog
+            {/* Schedule Surgery */}
+            <ScheduleSurgeryDialog
               patientData={{
                 patientId:   selectedPatient,
                 patientName: mockPatientData.owner.name,
                 petName:     mockPatientData.name,
                 species:     mockPatientData.species + " (" + mockPatientData.breed + ")",
                 veterinarian: selectedVeterinarian,
-                diagnosis: (() => {
-                  const soapNote = clinicalNotes.find(n => n.type === "soap" && n.soapData);
-                  return soapNote?.soapData?.primaryDiagnosis || soapNote?.soapData?.assessment || "";
-                })()
+                encounterId: activeEncounter?.id,
               }}
             >
               <Button size="sm" variant="outline" className="h-7 text-xs gap-1.5 border-orange-300 text-orange-700 hover:bg-orange-50 dark:border-orange-700 dark:text-orange-300">
                 <Scissors className="h-3.5 w-3.5" />
-                Request Surgery / Admit
+                Schedule Surgery
               </Button>
-            </AdmissionRequestDialog>
+            </ScheduleSurgeryDialog>
 
             {/* Mark In Surgery */}
             <Button
