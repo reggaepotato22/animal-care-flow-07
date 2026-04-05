@@ -14,8 +14,9 @@ import {
   ArrowLeft, Activity, AlertTriangle, Clock, UserCheck, Stethoscope, Heart,
   Thermometer, Wind, Plus, Check, Play, FileText, Pill, BarChart2, ClipboardList,
   ChevronDown, ChevronRight, LogOut, CheckCircle2, Timer, AlertCircle, Repeat,
-  Bed, PenSquare, Bell, Eye, AlarmClock,
+  Bed, PenSquare, Bell, Eye, AlarmClock, Scissors,
 } from "lucide-react";
+import { ScheduleSurgeryDialog } from "@/components/ScheduleSurgeryDialog";
 import { useToast } from "@/hooks/use-toast";
 import { useRole } from "@/contexts/RoleContext";
 import { cn } from "@/lib/utils";
@@ -270,6 +271,18 @@ export default function HospitalizationWorkspace() {
             <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={()=>setDlgVitals(true)}><Activity className="h-3.5 w-3.5"/>Vitals</Button>
             <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={()=>setDlgNote(true)}><PenSquare className="h-3.5 w-3.5"/>Note</Button>
             <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={()=>setDlgTask(true)}><Plus className="h-3.5 w-3.5"/>Task</Button>
+            {isVet && (
+              <ScheduleSurgeryDialog patientData={{
+                patientId: rec.patientId, patientName: rec.patientName,
+                petName: rec.petName, species: rec.species,
+                veterinarian: rec.attendingVet, allergies: rec.allergies,
+                isAggressive: rec.isAggressive, hospRecordId: rec.id,
+              }}>
+                <Button size="sm" variant="outline" className="h-7 text-xs gap-1">
+                  <Scissors className="h-3.5 w-3.5"/>Surgery
+                </Button>
+              </ScheduleSurgeryDialog>
+            )}
             {isVet && <Button size="sm" variant="destructive" className="h-7 text-xs gap-1" onClick={()=>setDlgDischarge(true)}><LogOut className="h-3.5 w-3.5"/>Discharge</Button>}
           </div>
         </div>

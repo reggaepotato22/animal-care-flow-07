@@ -14,16 +14,19 @@ export function EncounterHeader({ encounter, onStatusChange, onStatusChipClass }
   if (!encounter) return null;
 
   const statusActions: Record<EncounterStatus, { label: string; icon: React.ElementType; next: EncounterStatus }[]> = {
-    WAITING: [{ label: "Start Triage", icon: Stethoscope, next: "IN_TRIAGE" }],
-    IN_TRIAGE: [{ label: "Complete Triage", icon: Check, next: "TRIAGED" }],
-    TRIAGED: [{ label: "Start Consultation", icon: Play, next: "IN_CONSULTATION" }],
+    WAITING:           [{ label: "Start Triage",        icon: Stethoscope, next: "IN_TRIAGE" }],
+    IN_TRIAGE:         [{ label: "Complete Triage",     icon: Check,       next: "TRIAGED" }],
+    TRIAGED:           [{ label: "Start Consultation",  icon: Play,        next: "IN_CONSULTATION" }],
     IN_CONSULTATION: [
-      { label: "Move to Surgery", icon: Stethoscope, next: "IN_SURGERY" },
-      { label: "Discharge", icon: X, next: "DISCHARGED" },
+      { label: "Move to Surgery",      icon: Stethoscope, next: "IN_SURGERY" },
+      { label: "Discharge",            icon: X,           next: "DISCHARGED" },
     ],
-    IN_SURGERY: [{ label: "Move to Recovery", icon: Check, next: "RECOVERY" }],
-    RECOVERY: [{ label: "Discharge", icon: X, next: "DISCHARGED" }],
-    DISCHARGED: [],
+    IN_PROCEDURE:      [{ label: "Complete Procedure",  icon: Check,       next: "DISCHARGED" }],
+    IN_SURGERY:        [{ label: "Move to Recovery",    icon: Check,       next: "RECOVERY" }],
+    RECOVERY:          [{ label: "Discharge",           icon: X,           next: "DISCHARGED" }],
+    IN_FOLLOW_UP:      [{ label: "Complete Follow-Up",  icon: Check,       next: "DISCHARGED" }],
+    IN_HOSPITAL_ROUND: [{ label: "Discharge",           icon: X,           next: "DISCHARGED" }],
+    DISCHARGED:        [],
   };
 
   const primaryAction = statusActions[encounter.status as EncounterStatus]?.[0];
@@ -60,7 +63,7 @@ export function EncounterHeader({ encounter, onStatusChange, onStatusChipClass }
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              {statusActions[encounter.status as EncounterStatus].map((action) => (
+              {(statusActions[encounter.status as EncounterStatus] ?? []).map((action) => (
                 <DropdownMenuItem key={action.label} onClick={() => onStatusChange(action.next)}>
                   <action.icon className="h-4 w-4 mr-2" />
                   {action.label}
