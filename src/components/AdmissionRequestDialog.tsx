@@ -1,15 +1,12 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Calendar } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon, Bed } from "lucide-react";
-import { format } from "date-fns";
-import { cn } from "@/lib/utils";
+import { Bed, AlertTriangle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useWorkflowContext } from "@/contexts/WorkflowContext";
 import { useEncounter } from "@/contexts/EncounterContext";
@@ -27,105 +24,103 @@ interface AdmissionRequestDialogProps {
   };
 }
 
-interface AdmissionRequest {
-  scheduledDate: Date | undefined;
+interface AdmissionForm {
   reason: string;
   attendingVet: string;
   priority: "routine" | "urgent" | "emergency";
-  estimatedStay: number;
-  specialInstructions: string;
-  preferredWard: string;
+  ward: string;
+  notes: string;
+  allergies: string;
+  isAggressive: boolean;
 }
 
 export function AdmissionRequestDialog({ children, patientData }: AdmissionRequestDialogProps) {
   const [open, setOpen] = useState(false);
+  const navigate = useNavigate();
   const { toast } = useToast();
   const { setPatientStatus, setStep } = useWorkflowContext();
   const { getActiveEncounterForPatient, updateEncounterStatus } = useEncounter();
-  
-  const [admissionRequest, setAdmissionRequest] = useState<AdmissionRequest>({
-    scheduledDate: new Date(),
+
+  const [form, setForm] = useState<AdmissionForm>({
     reason: patientData?.diagnosis || "",
     attendingVet: patientData?.veterinarian || "",
     priority: "routine",
-    estimatedStay: 1,
-    specialInstructions: "",
-    preferredWard: "General Ward"
+    ward: "General Ward",
+    notes: "",
+    allergies: "",
+    isAggressive: false,
   });
 
   const handleSubmit = () => {
-    if (!admissionRequest.scheduledDate || !admissionRequest.reason || !admissionRequest.attendingVet) {
-      toast({
-        title: "Missing Information",
-        description: "Please fill in all required fields.",
-        variant: "destructive"
-      });
+    if (!form.reason.trim() || !form.attendingVet.trim()) {
+      toast({ title: "Missing Information", description: "Reason and attending vet are required.", variant: "destructive" });
       return;
     }
 
     const now = new Date();
     const pid = patientData?.patientId ?? `hosp-${Date.now()}`;
+    const recordId = `HOSP-${Date.now()}`;
 
-    // ── 1. Save to hospitalization store ─────────────────────────────────────
+    // ── 1. Build & save record ────────────────────────────────────────────────
     const record: HospRecord = {
-      id:            `HOSP-${Date.now()}`,
+      id:            recordId,
       patientId:     pid,
       patientName:   patientData?.patientName ?? "",
       petName:       patientData?.petName ?? "",
       species:       patientData?.species ?? "",
       admissionDate: now.toISOString().split("T")[0],
       admissionTime: now.toTimeString().slice(0, 5),
-      reason:        admissionRequest.reason,
-      attendingVet:  admissionRequest.attendingVet,
-      ward:          admissionRequest.preferredWard,
-      status:        admissionRequest.priority === "emergency" ? "critical" : "admitted",
+      reason:        form.reason,
+      attendingVet:  form.attendingVet,
+      ward:          form.ward,
+      status:        form.priority === "emergency" ? "critical" : "admitted",
+      workspaceStatus: form.priority === "emergency" ? "CRITICAL" : "ADMITTED",
       surgeryStage:  undefined,
-      daysStay:      admissionRequest.estimatedStay,
-      notes:         admissionRequest.specialInstructions,
-      priority:      admissionRequest.priority,
-      stageHistory:  [{ stage: "admitted", timestamp: now.toISOString(), by: admissionRequest.attendingVet }],
+      daysStay:      0,
+      notes:         form.notes,
+      priority:      form.priority,
+      allergies:     form.allergies ? form.allergies.split(",").map(s => s.trim()).filter(Boolean) : [],
+      isAggressive:  form.isAggressive,
+      stageHistory:  [{ stage: "admitted", timestamp: now.toISOString(), by: form.attendingVet }],
+      eventLog: [{
+        id: `evt-${Date.now()}`,
+        hospId: recordId,
+        timestamp: now.toISOString(),
+        actor: form.attendingVet,
+        type: "admission",
+        title: `Admitted to ${form.ward}`,
+        detail: form.reason,
+      }],
       feedingSchedule: [],
       createdAt:     now.toISOString(),
       updatedAt:     now.toISOString(),
     };
     saveHospRecord(record);
 
-    // ── 2. Broadcast to all tabs ──────────────────────────────────────────────
+    // ── 2. Broadcast ──────────────────────────────────────────────────────────
     try {
-      new BroadcastChannel(getHospChannelName()).postMessage({ type: "hosp_admitted", recordId: record.id, patientId: pid });
+      new BroadcastChannel(getHospChannelName()).postMessage({ type: "hosp_admitted", recordId, patientId: pid });
     } catch {}
 
-    // ── 3. Update encounter status + workflow ─────────────────────────────────
+    // ── 3. Update encounter + workflow ────────────────────────────────────────
     if (pid) {
       const enc = getActiveEncounterForPatient(pid);
-      if (enc) updateEncounterStatus(enc.id, "IN_SURGERY");
+      if (enc) updateEncounterStatus(enc.id, "IN_HOSPITAL_ROUND");
       setPatientStatus(pid, "Hospitalized");
       setStep(pid, "CONSULTATION");
     }
 
-    // ── 4. Notify same tab ────────────────────────────────────────────────────
+    // ── 4. Notify ─────────────────────────────────────────────────────────────
     window.dispatchEvent(new CustomEvent("acf:notification", {
-      detail: {
-        type: "info",
-        message: `${patientData?.petName || "Patient"} admitted to ${admissionRequest.preferredWard}`,
-        targetRoles: ["SuperAdmin", "Vet", "Nurse"],
-      },
+      detail: { type: "info", message: `${record.petName || "Patient"} admitted to ${form.ward}`, targetRoles: ["SuperAdmin", "Vet", "Nurse"] },
     }));
 
-    toast({
-      title: "Patient Admitted",
-      description: `${patientData?.petName || "Patient"} admitted to ${admissionRequest.preferredWard}.`
-    });
+    toast({ title: "Patient Admitted", description: `${record.petName || "Patient"} admitted to ${form.ward}.` });
     setOpen(false);
-    setAdmissionRequest({
-      scheduledDate: new Date(),
-      reason: patientData?.diagnosis || "",
-      attendingVet: patientData?.veterinarian || "",
-      priority: "routine",
-      estimatedStay: 1,
-      specialInstructions: "",
-      preferredWard: "General Ward",
-    });
+    setForm({ reason: patientData?.diagnosis || "", attendingVet: patientData?.veterinarian || "", priority: "routine", ward: "General Ward", notes: "", allergies: "", isAggressive: false });
+
+    // ── 5. Open workspace ─────────────────────────────────────────────────────
+    navigate(`/hospitalizations/${recordId}`);
   };
 
   return (
@@ -133,76 +128,33 @@ export function AdmissionRequestDialog({ children, patientData }: AdmissionReque
       <DialogTrigger asChild>
         {children}
       </DialogTrigger>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Bed className="h-5 w-5" />
-            Create Admission Request
+            <Bed className="h-5 w-5 text-primary" />
+            Admit Patient
           </DialogTitle>
           <DialogDescription>
-            Schedule hospitalization for {patientData?.petName || 'this patient'}
+            {patientData?.petName ? `Admitting ${patientData.petName} — this will open the Hospitalization Workspace immediately.` : "Complete the details below to admit a patient."}
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid gap-4 py-4">
-          {/* Patient Information Summary */}
-          {patientData && (
-            <div className="rounded-lg border p-3 bg-muted/20">
-              <h4 className="font-medium mb-2">Patient Information</h4>
-              <div className="grid grid-cols-2 gap-2 text-sm">
-                <span><strong>Pet:</strong> {patientData.petName}</span>
-                <span><strong>Owner:</strong> {patientData.patientName}</span>
-                <span><strong>Species:</strong> {patientData.species}</span>
-                <span><strong>Veterinarian:</strong> {patientData.veterinarian}</span>
-              </div>
+        <div className="space-y-4 py-1">
+          {/* Patient summary */}
+          {(patientData?.petName || patientData?.patientName) && (
+            <div className="rounded-lg border bg-muted/30 px-4 py-3 grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+              {patientData.petName     && <div><span className="text-muted-foreground text-xs">Pet</span><p className="font-medium">{patientData.petName}</p></div>}
+              {patientData.patientName && <div><span className="text-muted-foreground text-xs">Owner</span><p className="font-medium">{patientData.patientName}</p></div>}
+              {patientData.species     && <div><span className="text-muted-foreground text-xs">Species</span><p>{patientData.species}</p></div>}
+              {patientData.veterinarian && <div><span className="text-muted-foreground text-xs">Vet</span><p>{patientData.veterinarian}</p></div>}
             </div>
           )}
 
           <div className="grid grid-cols-2 gap-4">
-            {/* Scheduled Date */}
-            <div className="space-y-2">
-              <Label htmlFor="scheduledDate">Scheduled Admission Date *</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className={cn(
-                      "justify-start text-left font-normal",
-                      !admissionRequest.scheduledDate && "text-muted-foreground"
-                    )}
-                  >
-                    {admissionRequest.scheduledDate ? (
-                      format(admissionRequest.scheduledDate, "PPP")
-                    ) : (
-                      <span>Pick a date</span>
-                    )}
-                    <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={admissionRequest.scheduledDate}
-                    onSelect={(date) => setAdmissionRequest(prev => ({ ...prev, scheduledDate: date }))}
-                    disabled={(date) => date < new Date()}
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
-            </div>
-
-            {/* Priority */}
-            <div className="space-y-2">
-              <Label htmlFor="priority">Priority *</Label>
-              <Select
-                value={admissionRequest.priority}
-                onValueChange={(value: "routine" | "urgent" | "emergency") => 
-                  setAdmissionRequest(prev => ({ ...prev, priority: value }))
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Priority *</Label>
+              <Select value={form.priority} onValueChange={(v: AdmissionForm["priority"]) => setForm(p => ({ ...p, priority: v }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="routine">Routine</SelectItem>
                   <SelectItem value="urgent">Urgent</SelectItem>
@@ -210,83 +162,53 @@ export function AdmissionRequestDialog({ children, patientData }: AdmissionReque
                 </SelectContent>
               </Select>
             </div>
-
-            {/* Attending Veterinarian */}
-            <div className="space-y-2">
-              <Label htmlFor="attendingVet">Attending Veterinarian *</Label>
-              <Input
-                id="attendingVet"
-                value={admissionRequest.attendingVet}
-                onChange={(e) => setAdmissionRequest(prev => ({ ...prev, attendingVet: e.target.value }))}
-                placeholder="Dr. Smith"
-              />
-            </div>
-
-            {/* Estimated Stay */}
-            <div className="space-y-2">
-              <Label htmlFor="estimatedStay">Estimated Stay (days)</Label>
-              <Input
-                id="estimatedStay"
-                type="number"
-                min="1"
-                max="30"
-                value={admissionRequest.estimatedStay}
-                onChange={(e) => setAdmissionRequest(prev => ({ ...prev, estimatedStay: parseInt(e.target.value) || 1 }))}
-              />
-            </div>
-
-            {/* Preferred Ward */}
-            <div className="space-y-2 col-span-2">
-              <Label htmlFor="preferredWard">Preferred Ward</Label>
-              <Select
-                value={admissionRequest.preferredWard}
-                onValueChange={(value) => setAdmissionRequest(prev => ({ ...prev, preferredWard: value }))}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Ward *</Label>
+              <Select value={form.ward} onValueChange={v => setForm(p => ({ ...p, ward: v }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="General Ward">General Ward</SelectItem>
                   <SelectItem value="ICU">ICU</SelectItem>
                   <SelectItem value="Surgery Recovery">Surgery Recovery</SelectItem>
-                  <SelectItem value="General Ward">General Ward</SelectItem>
                   <SelectItem value="Isolation">Isolation</SelectItem>
                   <SelectItem value="Emergency">Emergency</SelectItem>
                 </SelectContent>
               </Select>
             </div>
+            <div className="space-y-1.5 col-span-2">
+              <Label className="text-xs">Attending Veterinarian *</Label>
+              <Input placeholder="Dr. Smith" value={form.attendingVet} onChange={e => setForm(p => ({ ...p, attendingVet: e.target.value }))} />
+            </div>
           </div>
 
-          {/* Reason for Hospitalization */}
-          <div className="space-y-2">
-            <Label htmlFor="reason">Reason for Hospitalization *</Label>
-            <Textarea
-              id="reason"
-              value={admissionRequest.reason}
-              onChange={(e) => setAdmissionRequest(prev => ({ ...prev, reason: e.target.value }))}
-              placeholder="Post-surgical monitoring, treatment for..."
-              className="min-h-[80px]"
-            />
+          <div className="space-y-1.5">
+            <Label className="text-xs">Reason for Admission *</Label>
+            <Textarea placeholder="e.g. Post-surgical monitoring, IV fluid therapy, observation…" value={form.reason} onChange={e => setForm(p => ({ ...p, reason: e.target.value }))} className="min-h-[70px] text-sm" />
           </div>
 
-          {/* Special Instructions */}
-          <div className="space-y-2">
-            <Label htmlFor="specialInstructions">Special Instructions / Notes</Label>
-            <Textarea
-              id="specialInstructions"
-              value={admissionRequest.specialInstructions}
-              onChange={(e) => setAdmissionRequest(prev => ({ ...prev, specialInstructions: e.target.value }))}
-              placeholder="Special care requirements, dietary restrictions, medications..."
-              className="min-h-[60px]"
-            />
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label className="text-xs">Known Allergies</Label>
+              <Input placeholder="e.g. Penicillin, NSAIDs" value={form.allergies} onChange={e => setForm(p => ({ ...p, allergies: e.target.value }))} className="text-sm" />
+            </div>
+            <div className="flex items-center gap-3 pt-5">
+              <input type="checkbox" id="aggressive" checked={form.isAggressive} onChange={e => setForm(p => ({ ...p, isAggressive: e.target.checked }))} className="h-4 w-4 rounded" />
+              <Label htmlFor="aggressive" className="text-sm flex items-center gap-1.5 cursor-pointer">
+                <AlertTriangle className="h-3.5 w-3.5 text-amber-500" /> Mark as Aggressive
+              </Label>
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs">Notes / Special Instructions</Label>
+            <Textarea placeholder="Dietary restrictions, medications, care notes…" value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} className="min-h-[55px] text-sm" />
           </div>
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => setOpen(false)}>
-            Cancel
-          </Button>
-          <Button onClick={handleSubmit}>
-            Create Admission Request
+          <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+          <Button onClick={handleSubmit} className="gap-2">
+            <Bed className="h-4 w-4" /> Admit Patient
           </Button>
         </DialogFooter>
       </DialogContent>
