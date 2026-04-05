@@ -75,6 +75,17 @@ export interface HospRecord {
   paymentStatus?: "pending" | "paid" | "pre_authorized";
   createdAt: string;
   updatedAt: string;
+  // ── Workspace fields ──────────────────────────────────────────────────────
+  workspaceStatus?: HospWorkspaceStatus;
+  allergies?: string[];
+  isAggressive?: boolean;
+  criticalAlerts?: string[];
+  tasks?: HospTask[];
+  vitalsLog?: VitalsEntry[];
+  eventLog?: HospEvent[];
+  flowsheet?: FlowsheetRow[];
+  carePlan?: HospCarePlan;
+  hospNotes?: HospNote[];
 }
 
 export interface FeedingEntry {
@@ -414,6 +425,259 @@ export function getRoleLabel(role: string): string {
   } catch {}
   return role;
 }
+// ── Workspace Types ───────────────────────────────────────────────────────────
+
+export type HospWorkspaceStatus =
+  | "ADMITTED" | "ACTIVE" | "CRITICAL" | "READY_FOR_DISCHARGE" | "DISCHARGED";
+
+export type HospTaskStatus   = "TODO" | "IN_PROGRESS" | "DONE";
+export type HospTaskType     = "medication" | "monitoring" | "procedure" | "feeding" | "custom";
+export type HospTaskPriority = "low" | "normal" | "high" | "urgent";
+
+export interface HospTask {
+  id: string;
+  hospId: string;
+  type: HospTaskType;
+  title: string;
+  scheduledAt: string;
+  status: HospTaskStatus;
+  assignee?: string;
+  priority: HospTaskPriority;
+  executionNotes?: string;
+  completedAt?: string;
+  completedBy?: string;
+  recurring?: boolean;
+  recurEveryHours?: number;
+  recurDurationDays?: number;
+}
+
+export interface VitalsEntry {
+  id: string;
+  hospId: string;
+  timestamp: string;
+  recordedBy: string;
+  temperature?: string;
+  heartRate?: string;
+  respiratoryRate?: string;
+  weight?: string;
+  painScore?: number;
+  notes?: string;
+}
+
+export interface HospEvent {
+  id: string;
+  hospId: string;
+  timestamp: string;
+  actor: string;
+  actorRole?: string;
+  type:
+    | "vitals" | "task_completed" | "task_started"
+    | "medication" | "note" | "incident"
+    | "status_change" | "order" | "admission" | "feeding";
+  title: string;
+  detail?: string;
+  linkedId?: string;
+}
+
+export interface FlowsheetRow {
+  id: string;
+  hospId: string;
+  timestamp: string;
+  temperature: string;
+  heartRate: string;
+  respiratoryRate: string;
+  weight: string;
+  notes: string;
+  recordedBy: string;
+}
+
+export interface HospCarePlan {
+  goals: string;
+  instructions: string;
+  dietaryRestrictions: string;
+  activityLevel: string;
+  monitoringFrequency: string;
+  updatedAt: string;
+  updatedBy: string;
+}
+
+export interface HospNote {
+  id: string;
+  hospId: string;
+  type: "soap" | "progress" | "procedure" | "general";
+  title: string;
+  content: string;
+  author: string;
+  createdAt: string;
+}
+
+// ── Workspace CRUD ─────────────────────────────────────────────────────────────
+
+export function getHospRecord(id: string): HospRecord | null {
+  return loadHospRecords().find(r => r.id === id) ?? null;
+}
+
+export function patchHospRecord(id: string, patch: Partial<HospRecord>): HospRecord | null {
+  const all = loadHospRecords();
+  const idx = all.findIndex(r => r.id === id);
+  if (idx < 0) return null;
+  all[idx] = { ...all[idx], ...patch, updatedAt: new Date().toISOString() };
+  try { localStorage.setItem(hospKey(), JSON.stringify(all)); } catch {}
+  broadcastHospUpdate();
+  return all[idx];
+}
+
+// ── Tasks ──────────────────────────────────────────────────────────────────────
+
+export function addHospTask(hospId: string, task: HospTask): void {
+  const rec = getHospRecord(hospId);
+  if (!rec) return;
+  patchHospRecord(hospId, { tasks: [...(rec.tasks ?? []), task] });
+}
+
+export function updateHospTask(hospId: string, taskId: string, updates: Partial<HospTask>): void {
+  const rec = getHospRecord(hospId);
+  if (!rec) return;
+  const tasks = (rec.tasks ?? []).map(t => t.id === taskId ? { ...t, ...updates } : t);
+  patchHospRecord(hospId, { tasks });
+}
+
+export function completeHospTask(
+  hospId: string, taskId: string, by: string, notes?: string
+): HospRecord | null {
+  const rec = getHospRecord(hospId);
+  if (!rec) return null;
+  const task = (rec.tasks ?? []).find(t => t.id === taskId);
+  const tasks = (rec.tasks ?? []).map(t =>
+    t.id === taskId
+      ? { ...t, status: "DONE" as HospTaskStatus, completedAt: new Date().toISOString(), completedBy: by, executionNotes: notes ?? t.executionNotes }
+      : t
+  );
+  const event: HospEvent = {
+    id: `evt-${Date.now()}`,
+    hospId,
+    timestamp: new Date().toISOString(),
+    actor: by,
+    type: task?.type === "medication" ? "medication" : "task_completed",
+    title: `${task?.title ?? "Task"} completed`,
+    detail: notes,
+    linkedId: taskId,
+  };
+  // If recurring, generate next occurrence
+  const nextTasks: HospTask[] = [];
+  if (task?.recurring && task.recurEveryHours) {
+    const nextAt = new Date(new Date().getTime() + task.recurEveryHours * 3_600_000);
+    nextTasks.push({
+      ...task,
+      id: `task-${Date.now()}-next`,
+      status: "TODO",
+      completedAt: undefined,
+      completedBy: undefined,
+      executionNotes: undefined,
+      scheduledAt: nextAt.toISOString(),
+      parentTaskId: taskId,
+    });
+  }
+  return patchHospRecord(hospId, { tasks: [...tasks, ...nextTasks], eventLog: [...(rec.eventLog ?? []), event] });
+}
+
+// ── Vitals ─────────────────────────────────────────────────────────────────────
+
+export function addVitalsEntry(hospId: string, entry: VitalsEntry): void {
+  const rec = getHospRecord(hospId);
+  if (!rec) return;
+  const event: HospEvent = {
+    id: `evt-${Date.now()}`,
+    hospId,
+    timestamp: entry.timestamp,
+    actor: entry.recordedBy,
+    type: "vitals",
+    title: "Vitals recorded",
+    detail: [
+      entry.temperature && `Temp: ${entry.temperature}°C`,
+      entry.heartRate   && `HR: ${entry.heartRate} bpm`,
+      entry.respiratoryRate && `RR: ${entry.respiratoryRate} rpm`,
+      entry.weight      && `Wt: ${entry.weight} kg`,
+    ].filter(Boolean).join("  "),
+    linkedId: entry.id,
+  };
+  patchHospRecord(hospId, {
+    vitalsLog: [...(rec.vitalsLog ?? []), entry],
+    eventLog:  [...(rec.eventLog  ?? []), event],
+  });
+}
+
+// ── Flowsheet ─────────────────────────────────────────────────────────────────
+
+export function addFlowsheetRow(hospId: string, row: FlowsheetRow): void {
+  const rec = getHospRecord(hospId);
+  if (!rec) return;
+  patchHospRecord(hospId, { flowsheet: [...(rec.flowsheet ?? []), row] });
+}
+
+// ── Care Plan ─────────────────────────────────────────────────────────────────
+
+export function updateCarePlan(hospId: string, plan: HospCarePlan): void {
+  const rec = getHospRecord(hospId);
+  if (!rec) return;
+  const event: HospEvent = {
+    id: `evt-${Date.now()}`,
+    hospId,
+    timestamp: plan.updatedAt,
+    actor: plan.updatedBy,
+    type: "order",
+    title: "Care plan updated",
+  };
+  patchHospRecord(hospId, { carePlan: plan, eventLog: [...(rec.eventLog ?? []), event] });
+}
+
+// ── Hosp Notes ────────────────────────────────────────────────────────────────
+
+export function addHospNote(hospId: string, note: HospNote): void {
+  const rec = getHospRecord(hospId);
+  if (!rec) return;
+  const event: HospEvent = {
+    id: `evt-${Date.now()}`,
+    hospId,
+    timestamp: note.createdAt,
+    actor: note.author,
+    type: "note",
+    title: `${note.type.charAt(0).toUpperCase() + note.type.slice(1)} note added`,
+    detail: note.title,
+    linkedId: note.id,
+  };
+  patchHospRecord(hospId, {
+    hospNotes: [note, ...(rec.hospNotes ?? [])],
+    eventLog: [...(rec.eventLog ?? []), event],
+  });
+}
+
+// ── Workspace Status ──────────────────────────────────────────────────────────
+
+export function updateHospWorkspaceStatus(
+  hospId: string, status: HospWorkspaceStatus, by?: string
+): void {
+  const rec = getHospRecord(hospId);
+  if (!rec) return;
+  const event: HospEvent = {
+    id: `evt-${Date.now()}`,
+    hospId,
+    timestamp: new Date().toISOString(),
+    actor: by ?? "System",
+    type: "status_change",
+    title: `Status changed to ${status.replace(/_/g, " ")}`,
+  };
+  patchHospRecord(hospId, { workspaceStatus: status, eventLog: [...(rec.eventLog ?? []), event] });
+}
+
+export const WORKSPACE_STATUS_META: Record<HospWorkspaceStatus, { label: string; color: string }> = {
+  ADMITTED:            { label: "Admitted",          color: "bg-blue-100 text-blue-800 border-blue-300" },
+  ACTIVE:              { label: "Active",             color: "bg-green-100 text-green-800 border-green-300" },
+  CRITICAL:            { label: "Critical",           color: "bg-red-100 text-red-800 border-red-300" },
+  READY_FOR_DISCHARGE: { label: "Ready to Discharge", color: "bg-amber-100 text-amber-800 border-amber-300" },
+  DISCHARGED:          { label: "Discharged",         color: "bg-gray-100 text-gray-600 border-gray-300" },
+};
+
 export function saveRoleLabels(map: Record<string, string>): void {
   try { localStorage.setItem(ROLE_LABEL_KEY, JSON.stringify(map)); } catch {}
 }

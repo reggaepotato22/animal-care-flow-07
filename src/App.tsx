@@ -36,6 +36,7 @@ import Postmortem from "./pages/Postmortem";
 import NewPostMortem from "./pages/NewPostMortem";
 import PostmortemDetails from "./pages/PostmortemDetails";
 import Hospitalization from "./pages/Hospitalization";
+import HospitalizationWorkspace from "./pages/HospitalizationWorkspace";
 import Treatments from "./pages/Treatments";
 import Inventory from "./pages/Inventory";
 import ExternalUpload from "./pages/ExternalUpload";
@@ -94,6 +95,7 @@ function ProtectedRoutes() {
         <Route path="/postmortem/new" element={<NewPostMortem />} />
         <Route path="/postmortem/:id" element={<PostmortemDetails />} />
         <Route path="/hospitalization" element={<Hospitalization />} />
+        <Route path="/hospitalizations/:id" element={<HospitalizationWorkspace />} />
         <Route path="/treatments" element={<Treatments />} />
         <Route path="/inventory" element={<Inventory />} />
         <Route path="/triage" element={<Triage />} />
