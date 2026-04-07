@@ -209,19 +209,34 @@ export function TutorialOverlay() {
   }, [isActive, step]);
 
   // Find + measure target element on each step change
+  // Also elevate the target's z-index so it sits above the spotlight overlay and is clickable
   useEffect(() => {
     if (!isActive || !currentStep?.target) { setTargetRect(null); return; }
+    let el: HTMLElement | null = null;
+    let origPosition = "";
+    let origZIndex = "";
     const id = window.setTimeout(() => {
-      const rect = findTarget(currentStep.target);
-      if (rect) {
-        setTargetRect(rect);
-        document.querySelector<HTMLElement>(`[data-tutorial="${currentStep.target}"]`)
-          ?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      el = document.querySelector<HTMLElement>(`[data-tutorial="${currentStep.target}"]`);
+      if (el) {
+        const rect = el.getBoundingClientRect();
+        setTargetRect({ top: rect.top, left: rect.left, width: rect.width, height: rect.height });
+        el.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        // Elevate target above the spotlight overlay so clicks reach it
+        origPosition = el.style.position;
+        origZIndex = el.style.zIndex;
+        el.style.position = "relative";
+        el.style.zIndex = "9998";
       } else {
         setTargetRect(null);
       }
     }, 200);
-    return () => window.clearTimeout(id);
+    return () => {
+      window.clearTimeout(id);
+      if (el) {
+        el.style.position = origPosition;
+        el.style.zIndex = origZIndex;
+      }
+    };
   }, [isActive, step, currentStep]);
 
   // Auto-detect click on spotlighted element for action-required steps
