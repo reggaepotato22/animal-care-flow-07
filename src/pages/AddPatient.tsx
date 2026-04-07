@@ -25,6 +25,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { commonBreedsKE } from "@/lib/kenya";
+import { BreedCombobox } from "@/components/ui/breed-combobox";
 import { addPatient } from "@/lib/patientStore";
 
 const patientSchema = z.object({
@@ -100,6 +101,11 @@ export default function AddPatient() {
   });
   const species = form.watch("species");
   const behavioralWarnings = form.watch("behavioralWarnings");
+
+  // Reset breed when species changes
+  useEffect(() => {
+    form.setValue("breed", "");
+  }, [species, form]);
 
   const onSubmit = async (data: PatientFormData) => {
     setIsSubmitting(true);
@@ -278,19 +284,13 @@ export default function AddPatient() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Breed</FormLabel>
-                      {species === "dog" || species === "cat" ? (
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select breed" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {(commonBreedsKE[species as "dog" | "cat"] || []).map((b) => (
-                              <SelectItem key={b} value={b}>{b}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                      {species && species !== "other" && commonBreedsKE[species] ? (
+                        <BreedCombobox
+                          breeds={commonBreedsKE[species] || []}
+                          value={field.value}
+                          onChange={field.onChange}
+                          placeholder="Search or type a breed…"
+                        />
                       ) : (
                         <FormControl>
                           <Input placeholder="Enter breed" {...field} />

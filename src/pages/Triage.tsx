@@ -257,9 +257,14 @@ export default function Triage() {
     // Ensure workflow status is CONSULTATION
     patientWorkflow.goTo("CONSULTATION");
     
+    // Update encounter status to IN_CONSULTATION
+    if (selectedEncounter.status === "TRIAGED") {
+      updateEncounterStatus(selectedEncounter.id, "IN_CONSULTATION");
+    }
+    
     toast({
-      title: "Creating Clinical Record",
-      description: `Transitioning ${selectedEncounter.petName} to consultation record.`,
+      title: "Starting Consultation",
+      description: `Opening clinical record for ${selectedEncounter.petName}.`,
     });
 
     navigate(`/patients/${selectedEncounter.patientId}/encounters/${selectedEncounter.id}`, {

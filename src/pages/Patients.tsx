@@ -241,7 +241,7 @@ export default function Patients() {
       </div>
 
       <div className="flex flex-col xl:flex-row gap-4">
-        <div className="relative flex-1">
+        <div className="relative flex-1" data-tutorial="search-patients">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
           <Input
             placeholder="Search by name, owner, microchip, phone, or email..."
@@ -315,7 +315,7 @@ export default function Patients() {
       {filteredPatients.length > 0 ? (
         viewMode === "grid" ? (
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {filteredPatients.map((patient) => {
+            {filteredPatients.map((patient, idx) => {
               const hasActiveVisit = encounters.some(
                 (enc) => enc.patientId === patient.id && ["WAITING", "IN_TRIAGE", "TRIAGED"].includes(enc.status)
               );
@@ -326,16 +326,17 @@ export default function Patients() {
               
               const visitBadge = <VisitStatusBadge patientId={patient.id} encounters={encounters} getStep={wf.getStep} />;
               return (
-                <PatientCard
-                  key={patient.id}
-                  patient={patient}
-                  onViewDetails={handleViewDetails}
-                  onTriage={hasActiveVisit ? handleSendToTriage : undefined}
-                  hasAppointmentToday={!!todayAppointment}
-                  appointmentDetails={todayAppointment ? { time: todayAppointment.time, vet: todayAppointment.vet } : undefined}
-                  isCheckedIn={hasActiveVisit}
-                  visitStatusBadge={visitBadge}
-                />
+                <div key={patient.id} {...(idx === 0 ? { "data-tutorial": "patient-card-first" } : {})}>
+                  <PatientCard
+                    patient={patient}
+                    onViewDetails={handleViewDetails}
+                    onTriage={hasActiveVisit ? handleSendToTriage : undefined}
+                    hasAppointmentToday={!!todayAppointment}
+                    appointmentDetails={todayAppointment ? { time: todayAppointment.time, vet: todayAppointment.vet } : undefined}
+                    isCheckedIn={hasActiveVisit}
+                    visitStatusBadge={visitBadge}
+                  />
+                </div>
               );
             })}
           </div>
