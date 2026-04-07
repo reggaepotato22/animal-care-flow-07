@@ -53,29 +53,63 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     title: "Receptionist — Register a New Patient",
     description: "You're on the Registered Patients page. Click the green 'Register Patient' button (highlighted) to open the patient form. The tutorial will minimise while you fill in the details — it will reopen automatically once you save.",
     target: "btn-add-patient",
+    position: "left",
+    role: "Receptionist",
+    route: "/patients",
+    roleColor: "bg-sky-500",
+  },
+
+  // ── STEP 4: Search for your new patient ──────────────────────────────────
+  {
+    id: 4,
+    title: "Receptionist — Find Your Patient",
+    description: "Great, the patient is registered! Now search for them in the search bar below. Type the name of the patient you just added — the list will filter automatically.",
+    target: "search-patients",
     position: "bottom",
     role: "Receptionist",
     route: "/patients",
     roleColor: "bg-sky-500",
   },
 
-  // ── STEP 4: Create new visit ──────────────────────────────────────────────
+  // ── STEP 5: Click the patient card ──────────────────────────────────────
   {
-    id: 4,
-    title: "Receptionist — Create a New Visit",
-    description: "Once registered, create a visit for today. You can do this two ways: (1) Open the patient's profile in Registered Patients and click 'New Visit', or (2) go to Appointments and book a slot. Either method adds the patient to today's clinic queue.",
-    target: "nav-registered-patients",
-    position: "right",
+    id: 5,
+    title: "Receptionist — Open Patient Profile",
+    description: "You can see your patient in the list. Click on their card to open the full patient profile where you can manage visits and view medical history.",
+    target: "patient-card-first",
+    position: "bottom",
     role: "Receptionist",
     route: "/patients",
     roleColor: "bg-sky-500",
     requiresAction: true,
-    actionLabel: "Open patient profile → click 'New Visit' to continue →",
+    actionLabel: "Click the patient card to open their profile →",
   },
 
-  // ── STEP 5: Check in patient ──────────────────────────────────────────────
+  // ── STEP 6: Scroll to Encounters & click New Visit ─────────────────────
   {
-    id: 5,
+    id: 6,
+    title: "Receptionist — Create a New Visit",
+    description: "You're on the patient profile. Scroll down to the 'Encounters & Medical History' section. Click the 'New Visit' button (highlighted) to create a visit for today.",
+    target: "btn-new-visit",
+    position: "left",
+    role: "Receptionist",
+    roleColor: "bg-sky-500",
+  },
+
+  // ── STEP 7: Fill the New Visit form (tutorial minimises) ───────────────
+  {
+    id: 7,
+    title: "Receptionist — Fill Visit Details",
+    description: "The New Visit dialog is open. Fill in the encounter type, reason for visit, chief complaint, and attending veterinarian. Click 'Create Visit' when done — the tutorial will minimise while you fill the form and will reopen once you save.",
+    target: "btn-new-visit",
+    position: "left",
+    role: "Receptionist",
+    roleColor: "bg-sky-500",
+  },
+
+  // ── STEP 8: Check in patient ──────────────────────────────────────────────
+  {
+    id: 8,
     title: "Receptionist — Check In the Patient",
     description: "With the visit created, check the patient in. On the patient profile or in Appointments, click 'Check In'. This moves them to WAITING status and they appear on the Live Queue dashboard. The Attendant can now see them for triage.",
     target: "live-queue",
@@ -85,9 +119,9 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     roleColor: "bg-sky-500",
   },
 
-  // ── STEP 6: Attendant sees queue ──────────────────────────────────────────
+  // ── STEP 9: Attendant sees queue ──────────────────────────────────────────
   {
-    id: 6,
+    id: 9,
     title: "Attendant — Today's Appointments",
     description: "Role switched to Attendant (Nurse). The dashboard shows all patients checked in today. Scroll down to 'Today's Appointments' — you'll see the patient you just checked in with status WAITING. Click 'Triage' on their card to begin the triage process.",
     target: "live-queue",
@@ -99,9 +133,9 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     actionLabel: "Scroll to Today's Appointments → click 'Triage' for the patient →",
   },
 
-  // ── STEP 7: Triage ────────────────────────────────────────────────────────
+  // ── STEP 10: Triage ────────────────────────────────────────────────────────
   {
-    id: 7,
+    id: 10,
     title: "Attendant — Triage the Patient",
     description: "The Triage page has opened. Record the patient's vitals: Temperature (°C), Heart Rate (bpm), Respiratory Rate (bpm), and Weight (kg). You can also note their chief complaint. Once vitals are saved, click 'Complete Triage' — this triggers a notification to the Vet that the patient is ready for consultation.",
     target: "triage-page",
@@ -113,9 +147,9 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     actionLabel: "Record vitals and click 'Complete Triage' →",
   },
 
-  // ── STEP 8: Start consultation ────────────────────────────────────────────
+  // ── STEP 11: Start consultation ────────────────────────────────────────────
   {
-    id: 8,
+    id: 11,
     title: "Attendant → Vet — Start Consultation",
     description: "Triage is complete. You can start the consultation as the Attendant (if working alongside the Vet) or the Vet can take over from their own login. We're switching to Vet role now. In the patient profile, click 'Start Consultation' (or 'New Record') — this opens the full clinical record.",
     target: "nav-registered-patients",
@@ -127,9 +161,9 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     actionLabel: "Open patient profile → click 'Start Consultation' →",
   },
 
-  // ── STEP 9: Overview tab ──────────────────────────────────────────────────
+  // ── STEP 12: Overview tab ──────────────────────────────────────────────────
   {
-    id: 9,
+    id: 12,
     title: "Vet — Clinical Record: Overview",
     description: "The clinical record is now open. The Overview tab shows a summary of the current visit: patient info, today's vitals from triage, chief complaint, and active encounter status. Review this before examining the patient — it gives you the full picture at a glance.",
     position: "center",
@@ -138,9 +172,9 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     roleColor: "bg-blue-600",
   },
 
-  // ── STEP 10: History tab ──────────────────────────────────────────────────
+  // ── STEP 13: History tab ──────────────────────────────────────────────────
   {
-    id: 10,
+    id: 13,
     title: "Vet — Clinical Record: History",
     description: "Click the 'History' tab. Here you document the patient's medical history: previous diagnoses, surgeries, chronic conditions, allergies, and vaccination history. For returning patients, past visit records appear here automatically. This context is critical for accurate diagnosis.",
     position: "center",
@@ -149,9 +183,9 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     roleColor: "bg-blue-600",
   },
 
-  // ── STEP 11: Physical Exam ────────────────────────────────────────────────
+  // ── STEP 14: Physical Exam ────────────────────────────────────────────────
   {
-    id: 11,
+    id: 14,
     title: "Vet — Clinical Record: Physical Exam",
     description: "On the 'Physical Exam' tab, record your findings system by system: cardiovascular, respiratory, gastrointestinal, musculoskeletal, neurological, skin & coat, eyes, ears, and oral cavity. Use the structured fields or free-text. Abnormal findings are flagged in red for easy review.",
     position: "center",
@@ -160,9 +194,9 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     roleColor: "bg-blue-600",
   },
 
-  // ── STEP 12: Clinical Notes ───────────────────────────────────────────────
+  // ── STEP 15: Clinical Notes ───────────────────────────────────────────────
   {
-    id: 12,
+    id: 15,
     title: "Vet — Clinical Record: Clinical Notes",
     description: "The 'Clinical Notes' tab is your SOAP note area — Subjective, Objective, Assessment, Plan. Write your differential diagnoses and working diagnosis here. These notes are time-stamped, form the legal medical record, and are visible to all roles with clinical access.",
     position: "center",
@@ -171,9 +205,9 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     roleColor: "bg-blue-600",
   },
 
-  // ── STEP 13: Diagnostics ──────────────────────────────────────────────────
+  // ── STEP 16: Diagnostics ──────────────────────────────────────────────────
   {
-    id: 13,
+    id: 16,
     title: "Vet — Clinical Record: Diagnostics",
     description: "On the 'Diagnostics' tab, order lab tests (CBC, biochemistry, urinalysis, culture & sensitivity, cytology, imaging). Lab orders are sent to the lab queue. When results come back, they attach directly to this record. You can also upload external diagnostic images.",
     position: "center",
@@ -182,9 +216,9 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     roleColor: "bg-blue-600",
   },
 
-  // ── STEP 14: Treatment + Inventory ───────────────────────────────────────
+  // ── STEP 17: Treatment + Inventory ───────────────────────────────────────
   {
-    id: 14,
+    id: 17,
     title: "Vet — Clinical Record: Treatment + Inventory",
     description: "The 'Treatment' tab is where you add procedures performed (IV fluid placement, wound suturing, injections). Each treatment line is linked to an inventory item — when you add a treatment, the system checks stock. If an item is low or out of stock, a warning appears. This is how Inventory stays accurate in real time.",
     target: "nav-inventory",
@@ -194,9 +228,9 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     roleColor: "bg-blue-600",
   },
 
-  // ── STEP 15: Medications ──────────────────────────────────────────────────
+  // ── STEP 18: Medications ──────────────────────────────────────────────────
   {
-    id: 15,
+    id: 18,
     title: "Vet — Clinical Record: Medications",
     description: "On the 'Medications' tab, add drugs administered in-clinic (IV antibiotics, anti-emetics, pain relief). Each drug entry auto-decrements from pharmacy inventory — no double-entry needed. Dosage, route, and frequency are recorded here and passed to the Pharmacist's dispensing queue.",
     position: "center",
@@ -205,9 +239,9 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     roleColor: "bg-blue-600",
   },
 
-  // ── STEP 16: Vaccinations ─────────────────────────────────────────────────
+  // ── STEP 19: Vaccinations ─────────────────────────────────────────────────
   {
-    id: 16,
+    id: 19,
     title: "Vet — Clinical Record: Vaccinations",
     description: "The 'Vaccinations' tab records any vaccines given this visit (Rabies, DA2PP, Bordetella, FELV etc.). The system tracks due dates and automatically schedules a reminder to the owner before the next booster is due — reducing missed vaccination appointments.",
     position: "center",
@@ -216,9 +250,9 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     roleColor: "bg-blue-600",
   },
 
-  // ── STEP 17: Prescriptions ────────────────────────────────────────────────
+  // ── STEP 20: Prescriptions ────────────────────────────────────────────────
   {
-    id: 17,
+    id: 20,
     title: "Vet — Clinical Record: Prescriptions",
     description: "Finally, the 'Prescriptions' tab lets you write take-home medication scripts. Add drug name, dose, frequency, duration, and dispensing instructions. These are handed to the Pharmacist for dispensing. A PDF prescription can be generated and sent to the owner. Click 'Complete Consultation' when all tabs are done.",
     position: "center",
@@ -227,9 +261,9 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     roleColor: "bg-blue-600",
   },
 
-  // ── STEP 18: Pharmacist ───────────────────────────────────────────────────
+  // ── STEP 21: Pharmacist ───────────────────────────────────────────────────
   {
-    id: 18,
+    id: 21,
     title: "Pharmacist — Dispense Medications",
     description: "Role switched to Pharmacist. The prescribed medications from the Vet now appear in the dispensing queue. Verify each item: check the drug, dose, and patient name. Click 'Dispense' to confirm — this auto-decrements stock from Inventory. If any item is out of stock, you'll be alerted to source an alternative.",
     target: "nav-inventory",
@@ -241,9 +275,9 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     actionLabel: "Click Inventory in the sidebar to see stock levels →",
   },
 
-  // ── STEP 19: Billing (disabled note) ─────────────────────────────────────
+  // ── STEP 22: Billing (disabled note) ─────────────────────────────────────
   {
-    id: 19,
+    id: 22,
     title: "Receptionist — Billing (Preview)",
     description: "Role switched back to Receptionist. The Billing module is currently being set up for your clinic — it will show the full invoice: consultation fee, procedures, medications, and any applicable taxes. Payment can be collected via M-Pesa STK Push, cash, or insurance. Billing will be enabled in your plan once activated.",
     target: "nav-billing",
@@ -253,9 +287,9 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     roleColor: "bg-sky-500",
   },
 
-  // ── STEP 20: Discharge ────────────────────────────────────────────────────
+  // ── STEP 23: Discharge ────────────────────────────────────────────────────
   {
-    id: 20,
+    id: 23,
     title: "Receptionist — Discharge the Patient",
     description: "Once payment is confirmed (or pre-authorized), the Receptionist clicks 'Discharge'. The patient's encounter is closed, a discharge summary is generated, and the owner receives a copy via SMS or email. The patient's record is archived and available for future visits. That's the full workflow!",
     target: "live-queue",
@@ -265,9 +299,9 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     roleColor: "bg-sky-500",
   },
 
-  // ── STEP 21: Complete ─────────────────────────────────────────────────────
+  // ── STEP 24: Complete ─────────────────────────────────────────────────────
   {
-    id: 21,
+    id: 24,
     title: "Tour Complete — You're Ready!",
     description: "You've completed the full InnoVetPro clinic workflow. Your team can switch roles anytime from the profile menu (top right). Use 'Generate Demo Data' on the dashboard to populate the system with sample patients and explore all features. Welcome aboard!",
     position: "center",

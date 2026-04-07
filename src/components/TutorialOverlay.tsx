@@ -45,6 +45,16 @@ function modalStyle(rect: TargetRect | null, pos: string): React.CSSProperties {
       left = Math.max(GAP, rect.left + rect.width / 2 - MODAL_W / 2);
       top  = rect.top + rect.height + GAP;
     }
+  } else if (effectivePos === "left") {
+    left = rect.left - MODAL_W - GAP;
+    top  = rect.top + rect.height / 2 - MODAL_H / 2;
+    // Not enough room on left? try right
+    if (left < GAP) left = rect.left + rect.width + GAP;
+    // Still off-screen? fall below
+    if (left + MODAL_W > vw - GAP) {
+      left = Math.max(GAP, rect.left + rect.width / 2 - MODAL_W / 2);
+      top  = rect.top + rect.height + GAP;
+    }
   } else if (effectivePos === "bottom") {
     top  = rect.top + rect.height + GAP;
     left = rect.left + rect.width / 2 - MODAL_W / 2;
@@ -98,11 +108,12 @@ function InnoVetProMark() {
 // Section labels for progress display (maps step → section name)
 const STEP_SECTIONS: Record<number, string> = {
   1: "Welcome", 2: "Register", 3: "Register", 4: "Register", 5: "Register",
-  6: "Triage", 7: "Triage",
-  8: "Consultation", 9: "Consultation", 10: "Consultation", 11: "Consultation",
-  12: "Consultation", 13: "Consultation", 14: "Consultation", 15: "Consultation",
-  16: "Consultation", 17: "Consultation",
-  18: "Pharmacy", 19: "Billing", 20: "Discharge", 21: "Complete",
+  6: "Register", 7: "Register", 8: "Register",
+  9: "Triage", 10: "Triage",
+  11: "Consultation", 12: "Consultation", 13: "Consultation", 14: "Consultation",
+  15: "Consultation", 16: "Consultation", 17: "Consultation", 18: "Consultation",
+  19: "Consultation", 20: "Consultation",
+  21: "Pharmacy", 22: "Billing", 23: "Discharge", 24: "Complete",
 };
 
 const SECTIONS = ["Welcome","Register","Triage","Consultation","Pharmacy","Billing","Discharge","Complete"];
@@ -280,6 +291,61 @@ export function TutorialOverlay() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isActive, step]);
 
+  // ── Step 4: auto-advance when user types in the search bar ──────────────────
+  useEffect(() => {
+    if (!isActive || step !== 4) return;
+    let el: HTMLInputElement | null = null;
+    const handleInput = () => {
+      if (el && el.value.trim().length >= 2) {
+        window.setTimeout(() => nextStep(), 600);
+      }
+    };
+    const id = window.setTimeout(() => {
+      el = document.querySelector<HTMLInputElement>('[data-tutorial="search-patients"] input, [data-tutorial="search-patients"]');
+      if (el) el.addEventListener("input", handleInput);
+    }, 300);
+    return () => { window.clearTimeout(id); if (el) el.removeEventListener("input", handleInput); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isActive, step]);
+
+  // ── Step 6: auto-scroll to encounters section & minimize when New Visit is clicked ──
+  useEffect(() => {
+    if (!isActive || step !== 6) return;
+    // Auto-scroll to the encounters section
+    const scrollId = window.setTimeout(() => {
+      const section = document.querySelector<HTMLElement>('[data-tutorial="btn-new-visit"]');
+      if (section) section.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 400);
+    // Listen for New Visit button click → minimize + advance
+    let el: HTMLElement | null = null;
+    const handleClick = () => {
+      setIsMinimized(true);
+      window.setTimeout(() => nextStep(), 300);
+    };
+    const findId = window.setTimeout(() => {
+      el = document.querySelector<HTMLElement>('[data-tutorial="btn-new-visit"]');
+      if (el) el.addEventListener("click", handleClick);
+    }, 300);
+    return () => { window.clearTimeout(scrollId); window.clearTimeout(findId); if (el) el.removeEventListener("click", handleClick); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isActive, step]);
+
+  // ── Step 7: stay minimized while user fills the New Visit dialog ──────────────
+  useEffect(() => {
+    if (!isActive || step !== 7) return;
+    setIsMinimized(true);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isActive, step]);
+
+  // ── Step 7: restore + advance when visit is saved ─────────────────────────────
+  useEffect(() => {
+    if (!isActive || step !== 7) return;
+    const handler = () => { setIsMinimized(false); setStepDone(true); window.setTimeout(() => nextStep(), 600); };
+    window.addEventListener("tutorial:visit-saved", handler);
+    return () => window.removeEventListener("tutorial:visit-saved", handler);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isActive, step]);
+
   if (!isActive || !currentStep) return null;
 
   // ── Minimized pill (shown while user fills the Add Patient form) ──────────────
@@ -291,7 +357,7 @@ export function TutorialOverlay() {
         title="Click to reopen tutorial"
       >
         <BookOpen className="h-3.5 w-3.5 shrink-0" />
-        <span>Tutorial paused — fill the patient form</span>
+        <span>{step === 7 ? "Tutorial paused — fill the visit form" : "Tutorial paused — fill the patient form"}</span>
         <Minimize2 className="h-3 w-3 opacity-60" />
       </button>
     );
@@ -302,8 +368,9 @@ export function TutorialOverlay() {
   const hasTarget  = !!targetRect;
   const pos        = currentStep.position ?? "center";
   const needsAction = !!currentStep.requiresAction;
-  // Step 3: must save the patient form first (stepDone=true), then user clicks Mark Complete
-  const canProceed = step === 3 ? stepDone : (!needsAction || stepDone);
+  // Steps 3 & 7: must save the form first (stepDone=true), then user clicks Mark Complete
+  // Step 4: auto-advances on search input, no manual proceed
+  const canProceed = (step === 3 || step === 7) ? stepDone : step === 4 ? false : (!needsAction || stepDone);
 
   const mobileModalStyle: React.CSSProperties = isMobile
     ? { position: "fixed", bottom: 0, left: 0, right: 0, top: "auto", transform: "none" }
@@ -377,7 +444,7 @@ export function TutorialOverlay() {
           </p>
 
           {/* Action prompt */}
-          {(needsAction || step === 3 || stepDone) && (
+          {(needsAction || step === 3 || step === 4 || step === 7 || stepDone) && (
             <div className={cn(
               "flex items-start gap-2.5 px-3 py-2.5 rounded-lg border text-xs font-medium leading-snug transition-all duration-300",
               stepDone
@@ -389,10 +456,14 @@ export function TutorialOverlay() {
                 : <ChevronRight className="h-4 w-4 shrink-0 mt-0.5 animate-pulse" />}
               <span>
                 {stepDone
-                  ? "Patient saved! Click 'Mark Complete' below to continue to the next step."
+                  ? (step === 7 ? "Visit created! Moving to next step…" : "Patient saved! Click 'Mark Complete' below to continue to the next step.")
                   : step === 3
                     ? "Click the highlighted 'Register Patient' button — the tutorial will minimise while you fill the form."
-                    : (currentStep.actionLabel ?? "Click the highlighted element to continue →")}
+                    : step === 4
+                      ? "Type the name of the patient you just registered in the search bar above."
+                      : step === 7
+                        ? "Fill the visit form and click 'Create Visit' — the tutorial will resume automatically."
+                        : (currentStep.actionLabel ?? "Click the highlighted element to continue →")}
               </span>
             </div>
           )}

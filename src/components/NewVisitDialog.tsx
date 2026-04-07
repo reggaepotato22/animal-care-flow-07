@@ -209,9 +209,26 @@ export function NewVisitDialog({ children, patientId: propPatientId, patientName
     form.reset();
     setOtherUrgency(null);
 
-    // Always navigate to patient details — the "Start" CTA on the encounter card
-    // is responsible for opening the workspace or /triage
-    navigate(`/patients/${effectivePatientId}`);
+    // Notify tutorial overlay that a visit was saved
+    window.dispatchEvent(new Event("tutorial:visit-saved"));
+
+    if (!isEmergency) {
+      toast.success(
+        `✓ New visit created for ${patientName ?? "patient"}. The receptionist can now check them in.`,
+        { duration: 4000 },
+      );
+    }
+
+    // Only navigate to patient details if opened from the PatientDetails page itself.
+    // When opened from PatientCard on /patients list, stay on the current page.
+    if (!propPatientId) {
+      const target = `/patients/${effectivePatientId}`;
+      window.setTimeout(() => {
+        if (window.location.pathname !== target) {
+          navigate(target);
+        }
+      }, 0);
+    }
   };
 
   return (

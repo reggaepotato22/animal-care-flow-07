@@ -181,10 +181,10 @@ const Index = () => {
     patientCount: getPatients().length
   };
 
-  // Vet: triaged patients ready for consultation
+  // Vet: triaged patients ready for consultation + those in triage progress
   const vetConsultQueue = allCheckedIn.filter(p => {
     const enc = getActiveEncounterForPatient(p.patientId);
-    return enc && enc.status === "TRIAGED";
+    return enc && ["TRIAGED", "IN_TRIAGE", "WAITING"].includes(enc.status);
   });
 
   const getEncounterStatus = (patientId: string): EncounterStatus | null =>
@@ -201,13 +201,29 @@ const Index = () => {
   // Vet          = "Go to Consultation" only when patient is at CONSULTATION step
   // Pharmacist   = "Go to Pharmacy" only when patient is at PHARMACY step
   // SuperAdmin   = button matches current step always
-  const getGoToAction = (patientStep: WorkflowStepId): { label: string; route: string } | null => {
+  const getGoToAction = (patientStep: WorkflowStepId, patientId: string): { label: string; route: string } | null => {
     if (role === "Receptionist")                                  return null;
     if (role === "Nurse"      && patientStep !== "TRIAGE")       return null;
-    if (role === "Vet"        && patientStep !== "CONSULTATION") return null;
+    if (role === "Vet"        && patientStep !== "CONSULTATION" && patientStep !== "TRIAGE") return null;
     if (role === "Pharmacist" && patientStep !== "PHARMACY")     return null;
     const cfg = STEP_CONFIG[patientStep];
     return { label: `Go to ${cfg.label}`, route: cfg.route };
+  };
+
+  // Navigate to start consultation for a patient (opens the clinical workspace / start record page)
+  const handleStartConsultation = (patientId: string, patientName: string) => {
+    const enc = getActiveEncounterForPatient(patientId);
+    if (enc) {
+      if (enc.status === "TRIAGED") {
+        updateEncounterStatus(enc.id, "IN_CONSULTATION");
+      }
+      wf.setStep(patientId, "CONSULTATION");
+      navigate(`/patients/${patientId}/encounters/${enc.id}`);
+    } else {
+      // Fallback if no encounter found
+      wf.setStep(patientId, "CONSULTATION");
+      navigate(`/patients/${patientId}`);
+    }
   };
 
   // ── Role-specific alerts ─────────────────────────────────────────────────────
@@ -281,14 +297,15 @@ const Index = () => {
               <p className="text-xs">No patients in clinic yet — checked-in patients appear here.</p>
             </div>
           ) : (
-            <ScrollArea className="h-[480px] pr-2 overflow-y-auto">
+            <div className={cn("pr-2 overflow-y-auto", activePatients.length > 4 ? "max-h-[480px]" : "")}>
               <div className="space-y-1.5">
                 {activePatients.map((patient, i) => {
                   const encStatus = getEncounterStatus(patient.patientId);
                   const encCfg   = encStatus ? ENC_STATUS_CONFIG[encStatus] : null;
                   const stepCfg  = STEP_CONFIG[patient.step] ?? STEP_CONFIG.TRIAGE;
                   const StepIcon = stepCfg.icon;
-                  const goTo     = getGoToAction(patient.step);
+                  const goTo     = getGoToAction(patient.step, patient.patientId);
+                  const canStartConsult = (role === "Vet" || role === "Nurse" || role === "SuperAdmin") && (encStatus === "TRIAGED");
                   const isLive   = encStatus === "IN_TRIAGE" || encStatus === "IN_CONSULTATION" || encStatus === "IN_SURGERY";
 
                   return (
@@ -345,8 +362,21 @@ const Index = () => {
                             {formatDistanceToNow(new Date(patient.checkedInAt), { addSuffix: true })}
                           </span>
 
-                          {/* Role-gated Go to button */}
-                          {goTo && (
+                          {/* Start Consultation button for triaged patients */}
+                          {canStartConsult && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-5 text-[9px] px-1.5 gap-0.5 text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950 shrink-0 font-semibold"
+                              onClick={() => handleStartConsultation(patient.patientId, patient.name)}
+                            >
+                              <Activity className="h-2.5 w-2.5" />
+                              Start Consultation
+                            </Button>
+                          )}
+
+                          {/* Role-gated Go to button (hide if Start Consultation is shown) */}
+                          {goTo && !canStartConsult && (
                             <Button
                               size="sm"
                               variant="ghost"
@@ -381,7 +411,7 @@ const Index = () => {
                   );
                 })}
               </div>
-            </ScrollArea>
+            </div>
           )}
         </CardContent>
       </Card>
@@ -527,32 +557,44 @@ const Index = () => {
                   );
                 })}
 
-                {/* ── VET: triaged patients ready for consultation ── */}
+                {/* ── VET: patients in triage progress + ready for consultation ── */}
                 {role === "Vet" && vetConsultQueue.map(p => {
                   const enc    = getActiveEncounterForPatient(p.patientId);
                   const encCfg = enc ? ENC_STATUS_CONFIG[enc.status] : null;
+                  const isTriaged = enc && enc.status === "TRIAGED";
+                  const borderCls = isTriaged
+                    ? "border-emerald-200 dark:border-emerald-900 bg-emerald-50/50 dark:bg-emerald-950/20 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
+                    : "border-amber-200 dark:border-amber-900 bg-amber-50/30 dark:bg-amber-950/10 hover:bg-amber-50/60 dark:hover:bg-amber-950/20";
                   return (
                     <div key={p.patientId}
-                      className="flex items-center justify-between p-3 border border-emerald-200 dark:border-emerald-900 rounded-lg bg-emerald-50/50 dark:bg-emerald-950/20 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 transition-colors">
+                      className={cn("flex items-center justify-between p-3 border rounded-lg transition-colors cursor-pointer", borderCls)}
+                      onClick={() => navigate(`/patients/${p.patientId}`)}>
                       <div className="min-w-0">
                         <p className="font-semibold text-sm">{p.name}</p>
                         <p className="text-xs text-muted-foreground">{p.owner}</p>
                         {encCfg && (
-                          <span className={cn("inline-flex items-center text-[10px] px-2 py-0.5 rounded-full mt-1", encCfg.cls)}>
+                          <span className={cn("inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full mt-1", encCfg.cls)}>
+                            {encCfg.pulse && <span className="h-1.5 w-1.5 rounded-full bg-current animate-pulse" />}
                             {encCfg.label}
                           </span>
                         )}
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
                         <p className="text-xs font-medium hidden sm:block">{p.time}</p>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-7 text-xs border-blue-400 text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950"
-                          onClick={() => navigate(`/patients/${p.patientId}/encounters/new?petName=${encodeURIComponent(p.name)}&owner=${encodeURIComponent(p.owner)}&draft=true`)}
-                        >
-                          <Activity className="h-3 w-3 mr-1" />Consult
-                        </Button>
+                        {isTriaged ? (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-xs border-blue-400 text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950"
+                            onClick={(e) => { e.stopPropagation(); handleStartConsultation(p.patientId, p.name); }}
+                          >
+                            <Activity className="h-3 w-3 mr-1" />Start Consultation
+                          </Button>
+                        ) : (
+                          <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-amber-400 text-amber-700">
+                            In Triage
+                          </Badge>
+                        )}
                       </div>
                     </div>
                   );

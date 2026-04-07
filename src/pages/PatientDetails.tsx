@@ -316,6 +316,7 @@ export default function PatientDetails() {
     if (type === "TRIAGE") {
       navigate(`/triage?patientId=${enc.patientId || patient.id}`);
     } else {
+      // Navigate to the clinical workspace / start record page for consultation
       navigate(`/patients/${enc.patientId || patient.id}/encounters/${enc.id}`);
     }
   };
@@ -492,7 +493,7 @@ export default function PatientDetails() {
             <Activity className="h-5 w-5 text-primary" />
             Encounters & Medical History
           </CardTitle>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2" data-tutorial="btn-new-visit">
             <NewVisitDialog>
               <Button size="sm" className="h-8" disabled={hasAppointmentToday} title={hasAppointmentToday ? "Patient has an appointment today. Please check-in from the appointments page." : ""}>
                 <Plus className="h-4 w-4 mr-1" />
