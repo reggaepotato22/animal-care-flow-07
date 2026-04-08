@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { DashboardStats } from "@/components/DashboardStats";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -14,6 +14,14 @@ import {
   Users,
   Trash2,
   Database,
+  AlertTriangle,
+  Microscope,
+  FlaskConical,
+  FileText,
+  BookOpen,
+  ParkingSquare,
+  CornerUpRight,
+  ArrowUpRight,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -39,6 +47,9 @@ import { Separator } from "@/components/ui/separator";
 import { useNotifications } from "@/contexts/NotificationContext";
 import { loadStoredAppointments, subscribeToAppointments, isToday, isoToTimeLabel } from "@/lib/appointmentStore";
 import { getPatients } from "@/lib/patientStore";
+import { loadClinicalRecords } from "@/lib/clinicalRecordStore";
+import { loadLabOrders } from "@/lib/attachmentStore";
+import { getParkedPatients } from "@/lib/parkedPatientsStore";
 import { seedMockData, clearAllData } from "@/lib/dataSeed";
 import { useAccount } from "@/contexts/AccountContext";
 import { getAccountScopedKey } from "@/lib/accountStore";
@@ -190,6 +201,68 @@ const Index = () => {
   const getEncounterStatus = (patientId: string): EncounterStatus | null =>
     getActiveEncounterForPatient(patientId)?.status ?? null;
 
+  // ── Dashboard: drafts, parked patients, recent records ──────────────────
+  const allClinicalRecords = useMemo(() => loadClinicalRecords(), []);
+
+  const dashDrafts = useMemo(() =>
+    allClinicalRecords
+      .filter(r => r.status === "draft")
+      .map(r => {
+        const d = r.data as any;
+        return {
+          id: r.id,
+          patientId: r.patientId,
+          encounterId: r.encounterId,
+          petName: r.petName || r.patientId,
+          ownerName: r.ownerName || "—",
+          draftLabel: d?.draftLabel || d?.chiefComplaint || "Draft encounter",
+          tentativeCount: d?.tentativeCount ?? 0,
+          pendingLabCount: d?.pendingLabCount ?? 0,
+          savedAt: r.savedAt,
+          resumePath: r.encounterId
+            ? `/patients/${r.patientId}/encounters/${r.encounterId}?draft=true`
+            : `/records/new?patientId=${r.patientId}&draft=true`,
+        };
+      })
+  , [allClinicalRecords]);
+
+  const dashParked = useMemo(() => getParkedPatients(), []);
+
+  const dashRecentRecords = useMemo(() =>
+    allClinicalRecords
+      .filter(r => r.status !== "draft")
+      .slice(0, 6)
+      .map(r => ({
+        id: r.id,
+        patientId: r.patientId,
+        encounterId: r.encounterId,
+        petName: r.petName || r.patientId,
+        ownerName: r.ownerName || "—",
+        savedAt: r.savedAt,
+        status: r.status ?? "ongoing",
+      }))
+  , [allClinicalRecords]);
+
+  const getRecordPath = (patientId: string, encounterId: string, status?: string) => {
+    const active = ["IN_CONSULTATION", "IN_TRIAGE", "TRIAGED", "WAITING", "ongoing", "in-consultation", "in-triage", "triaged", "waiting"];
+    if (!status || active.includes(status)) return `/patients/${patientId}/encounters/${encounterId}`;
+    return `/records/${encounterId}`;
+  };
+
+  // ── Tentative findings + pending labs per patient ─────────────────────────
+  const getClinicalMeta = (patientId: string) => {
+    const rec = loadClinicalRecords().find(r => r.patientId === patientId);
+    const d = (rec?.data ?? {}) as any;
+    const tentativeCount: number =
+      d?.tentativeCount ??
+      ((d?.notes ?? []) as any[]).flatMap((n: any) =>
+        (n?.soapData?.clinicalFindings ?? [])
+      ).filter((f: any) => f?.status === "tentative").length;
+    const pendingLabs = loadLabOrders(patientId)
+      .filter(o => o.status === "pending" || o.status === "in_progress").length;
+    return { tentativeCount, pendingLabs, hasDraft: rec?.status === "draft" };
+  };
+
   // ── Today's count label by role ─────────────────────────────────────────────
   const todayCount =
     role === "Nurse" ? nurseTriageQueue.length :
@@ -339,6 +412,40 @@ const Index = () => {
                             </span>
                           )}
 
+                          {/* Clinical Findings tentative + pending labs badges */}
+                          {(() => {
+                            const { tentativeCount, pendingLabs, hasDraft } = getClinicalMeta(patient.patientId);
+                            return (
+                              <>
+                                {tentativeCount > 0 && (
+                                  <span
+                                    className="inline-flex items-center gap-0.5 text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 border border-amber-300 shrink-0 cursor-pointer hover:bg-amber-200 transition-colors"
+                                    title="Clinical findings pending confirmation"
+                                    onClick={() => handleStartConsultation(patient.patientId, patient.name)}
+                                  >
+                                    <AlertTriangle className="h-2.5 w-2.5" />
+                                    {tentativeCount} tentative
+                                  </span>
+                                )}
+                                {pendingLabs > 0 && (
+                                  <span
+                                    className="inline-flex items-center gap-0.5 text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300 border border-blue-300 shrink-0"
+                                    title="Lab orders pending results"
+                                  >
+                                    <Microscope className="h-2.5 w-2.5" />
+                                    {pendingLabs} lab{pendingLabs > 1 ? "s" : ""} pending
+                                  </span>
+                                )}
+                                {hasDraft && !tentativeCount && !pendingLabs && (
+                                  <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-800 dark:bg-violet-900/40 dark:text-violet-300 border border-violet-300 shrink-0">
+                                    <FlaskConical className="h-2.5 w-2.5" />
+                                    Draft
+                                  </span>
+                                )}
+                              </>
+                            );
+                          })()}
+
                           {/* Lifecycle status badge (Hospitalized/Referred/Deceased) */}
                           {(() => {
                             const lc = wf.getPatientStatus(patient.patientId);
@@ -454,6 +561,155 @@ const Index = () => {
           </Button>
         </div>
       </div>
+
+      {/* ══════════════════════════════════════════════════════════════════════ */}
+      {/* CLINICAL RECORDS & DRAFTS                                              */}
+      {/* ══════════════════════════════════════════════════════════════════════ */}
+      <Card>
+        <CardHeader className="pb-2 px-4 pt-4">
+          <CardTitle className="flex items-center justify-between text-sm">
+            <span className="flex items-center gap-2">
+              <FileText className="h-3.5 w-3.5 text-primary" />
+              Clinical Records
+            </span>
+            <Button
+              variant="ghost" size="sm"
+              className="h-7 text-xs gap-1 text-primary"
+              onClick={() => navigate("/records")}
+            >
+              View All <ArrowUpRight className="h-3 w-3" />
+            </Button>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="px-4 pb-4 pt-0 space-y-3">
+
+          {/* — Parked patients banner (consultation in progress, not saved as draft) — */}
+          {dashParked.length > 0 && dashDrafts.length === 0 && (
+            <div className="flex items-center gap-2 rounded-lg border border-violet-300 dark:border-violet-700/50 bg-violet-50/60 dark:bg-violet-900/10 px-3 py-2.5">
+              <ParkingSquare className="h-4 w-4 text-violet-600 dark:text-violet-400 shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-semibold text-violet-800 dark:text-violet-300">
+                  {dashParked.length} consultation{dashParked.length !== 1 ? "s" : ""} in progress
+                </p>
+                <p className="text-[10px] text-violet-600/70 truncate">
+                  {dashParked.map(p => p.patientName).join(", ")}
+                </p>
+              </div>
+              <div className="flex flex-col gap-1 shrink-0">
+                {dashParked.slice(0, 2).map(p => (
+                  <Button
+                    key={p.patientId}
+                    size="sm"
+                    variant="outline"
+                    className="h-6 text-[10px] gap-1 border-violet-300 text-violet-700 hover:bg-violet-50 dark:border-violet-600 dark:text-violet-300"
+                    onClick={() => navigate(p.returnPath)}
+                  >
+                    <CornerUpRight className="h-2.5 w-2.5" />
+                    Return to {p.patientName}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* — Saved Drafts — */}
+          {dashDrafts.length > 0 && (
+            <div className="space-y-1.5">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                <BookOpen className="h-3 w-3" /> Saved Drafts
+                <span className="ml-1 px-1.5 rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300">{dashDrafts.length}</span>
+              </p>
+              {dashDrafts.slice(0, 3).map(d => (
+                <div
+                  key={d.id}
+                  className="flex items-center gap-2 rounded-lg border border-amber-200 dark:border-amber-800/40 bg-amber-50/50 dark:bg-amber-950/20 px-3 py-2"
+                >
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-semibold truncate">{d.petName}</p>
+                    <p className="text-[10px] text-muted-foreground truncate italic">“{d.draftLabel}”</p>
+                    <div className="flex items-center gap-1 mt-0.5">
+                      {d.tentativeCount > 0 && (
+                        <span className="inline-flex items-center gap-0.5 text-[9px] px-1 py-0.5 rounded bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
+                          <AlertTriangle className="h-2 w-2" />{d.tentativeCount} tentative
+                        </span>
+                      )}
+                      {d.pendingLabCount > 0 && (
+                        <span className="inline-flex items-center gap-0.5 text-[9px] px-1 py-0.5 rounded bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300">
+                          <Microscope className="h-2 w-2" />{d.pendingLabCount} lab{d.pendingLabCount !== 1 ? "s" : ""}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <Button
+                    size="sm"
+                    className="h-7 text-[10px] gap-1 bg-amber-500 hover:bg-amber-600 text-white border-0 shrink-0"
+                    onClick={() => navigate(d.resumePath)}
+                  >
+                    <CornerUpRight className="h-3 w-3" />
+                    Resume
+                  </Button>
+                </div>
+              ))}
+              {dashDrafts.length > 3 && (
+                <button
+                  className="text-[10px] text-primary hover:underline w-full text-left pl-1"
+                  onClick={() => navigate("/records")}
+                >
+                  +{dashDrafts.length - 3} more drafts → View all in Records
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* — Recent records list — */}
+          {dashRecentRecords.length > 0 ? (
+            <div className="space-y-1">
+              {dashDrafts.length > 0 || dashParked.length > 0 ? (
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                  <Clock className="h-3 w-3" /> Recent Records
+                </p>
+              ) : null}
+              {dashRecentRecords.map(r => (
+                <div
+                  key={r.id}
+                  className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-muted/50 cursor-pointer transition-colors group"
+                  onClick={() => navigate(getRecordPath(r.patientId, r.encounterId || r.id, r.status))}
+                >
+                  <div className="h-7 w-7 rounded-full bg-primary/10 flex items-center justify-center shrink-0 text-[10px] font-bold text-primary">
+                    {r.petName.slice(0, 2).toUpperCase()}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-semibold truncate">{r.petName}</p>
+                    <p className="text-[10px] text-muted-foreground truncate">{r.ownerName}</p>
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <span className={cn(
+                      "text-[9px] font-semibold px-1.5 py-0.5 rounded-full",
+                      ["IN_CONSULTATION","ongoing","in-consultation"].includes(r.status)
+                        ? "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300"
+                        : ["completed","DISCHARGED","discharged"].includes(r.status)
+                          ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300"
+                          : "bg-muted text-muted-foreground"
+                    )}>
+                      {r.status.toLowerCase().replace(/_/g, " ")}
+                    </span>
+                    <ArrowUpRight className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : dashDrafts.length === 0 && dashParked.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-5 text-center gap-2 text-muted-foreground">
+              <FileText className="h-8 w-8 opacity-20" />
+              <p className="text-xs">No records yet — check in a patient and start a consultation.</p>
+              <Button size="sm" variant="outline" className="h-7 text-xs mt-1" onClick={() => navigate("/records/new")}>
+                + New Record
+              </Button>
+            </div>
+          ) : null}
+
+        </CardContent>
+      </Card>
 
       {/* ── Today's Appointments + Alerts row ───────────────────────────────── */}
       <div className="grid gap-6 md:grid-cols-2">

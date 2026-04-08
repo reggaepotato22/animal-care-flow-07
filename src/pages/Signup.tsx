@@ -1,355 +1,335 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { AppLogo } from "@/components/AppLogo";
-import { useNavigate, Link } from "react-router-dom";
-import { useAuth, registerUser } from "@/contexts/AuthContext";
+import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { AlertCircle, Building2, UserCircle, Eye, EyeOff } from "lucide-react";
-import { createAccount, getAccountScopedKey, setActiveAccountId } from "@/lib/accountStore";
-import { saveStaff } from "@/lib/staffStore";
-import type { Role } from "@/lib/rbac";
-
-const ROLE_OPTIONS: { value: Role; label: string; desc: string }[] = [
-  { value: "SuperAdmin",   label: "Super Admin",   desc: "Full system access — manage all users, settings and data" },
-  { value: "Vet",          label: "Veterinarian",  desc: "Clinical staff — create records, prescribe, manage consultations" },
-  { value: "Nurse",        label: "Nurse / Attendant", desc: "Triage, clinical support and patient assessment" },
-  { value: "Receptionist", label: "Receptionist",  desc: "Front-desk — register patients, book appointments, billing" },
-  { value: "Pharmacist",   label: "Pharmacist",    desc: "Dispense medication and manage inventory" },
-];
-
-interface StaffMember {
-  name: string;
-  role: "doctor" | "receptionist" | "admin";
-  email: string;
-}
+import { AlertCircle, Building2, UserCircle, Mail, Phone, KeyRound, CheckCircle2, ChevronDown, ChevronUp, SendHorizonal, Rocket, FlaskConical, Bell } from "lucide-react";
+import { validateToken, type AccessToken, DEMO_TOKEN_CODE } from "@/lib/tokenStore";
+import { submitAccessRequest } from "@/lib/accessRequestStore";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function Signup() {
-  const [clinicName, setClinicName] = useState("");
-  const [adminEmail, setAdminEmail] = useState("");
-  const [adminPassword, setAdminPassword] = useState("");
-  const [adminName, setAdminName] = useState("");
-  const [adminRole, setAdminRole] = useState<Role>("SuperAdmin");
-  const [showPassword, setShowPassword] = useState(false);
-  const [staff, setStaff] = useState<StaffMember[]>([]);
-  const [newStaffName, setNewStaffName] = useState("");
-  const [newStaffRole, setNewStaffRole] = useState<"doctor" | "receptionist" | "admin">("doctor");
-  const [newStaffEmail, setNewStaffEmail] = useState("");
-  const [error, setError] = useState("");
-  const [step, setStep] = useState(1);
-  const { login } = useAuth();
   const navigate = useNavigate();
+  const { loginWithToken } = useAuth();
+  const [clinicName, setClinicName] = useState("");
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [message, setMessage] = useState("");
+  const [showTokenInput, setShowTokenInput] = useState(false);
+  const [tokenCode, setTokenCode] = useState("");
+  const [detectedToken, setDetectedToken] = useState<AccessToken | null>(null);
+  const [tokenError, setTokenError] = useState("");
+  const [error, setError] = useState("");
+  const [submitted, setSubmitted] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  const handleAddStaff = () => {
-    if (!newStaffName.trim()) return;
-    setStaff([...staff, { name: newStaffName, role: newStaffRole, email: newStaffEmail }]);
-    setNewStaffName("");
-    setNewStaffEmail("");
+  const handleTokenChange = (val: string) => {
+    const upper = val.toUpperCase();
+    setTokenCode(upper);
+    setTokenError("");
+    if (upper.length >= 8) {
+      const found = validateToken(upper);
+      setDetectedToken(found);
+      if (upper.length > 8 && !found) setTokenError("Token not recognised — it may be invalid or expired.");
+    } else {
+      setDetectedToken(null);
+    }
   };
 
-  const removeStaff = (index: number) => {
-    setStaff(staff.filter((_, i) => i !== index));
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
 
-    if (step === 1) {
-      if (!clinicName.trim() || !adminName.trim() || !adminEmail.trim() || !adminPassword.trim()) {
-        setError("Please fill in all required fields");
-        return;
-      }
-      if (adminPassword.length < 6) {
-        setError("Password must be at least 6 characters");
-        return;
-      }
-      setStep(2);
+    if (!clinicName.trim() || !name.trim() || !email.trim()) {
+      setError("Please fill in Clinic Name, Your Name and Email.");
       return;
     }
 
-    const account = createAccount({
-      name: clinicName,
-      ownerEmail: adminEmail,
-      mode: "demo",
-    });
-    setActiveAccountId(account.id);
-
-    // Store clinic data scoped to this account
-    localStorage.setItem(
-      getAccountScopedKey("vetcare_clinic_data", account.id),
-      JSON.stringify({ accountId: account.id, name: clinicName, adminEmail, createdAt: new Date().toISOString() })
-    );
-
-    // Store the admin's role for this account
-    localStorage.setItem(
-      getAccountScopedKey("acf_role", account.id),
-      JSON.stringify(adminRole)
-    );
-
-    // Store the profile display name
-    localStorage.setItem(
-      getAccountScopedKey("acf_profile_name", account.id),
-      adminName.trim() || clinicName
-    );
-
-    const staffRecords = staff.map((s, i) => ({
-      id: `staff-${Date.now()}-${i}`,
-      name: s.name,
-      email: s.email || "",
-      phone: "",
-      role: s.role,
-      department: s.role === "doctor" ? "Clinical" : "Front Office",
-      status: "active",
-      startDate: new Date().toISOString().split("T")[0],
-      schedule: "",
-      availability: "available",
-      avatar: null,
-    }));
-    saveStaff(staffRecords);
-
-    // Register the admin user with their chosen role
-    registerUser({
-      id: `user-${Date.now()}`,
-      email: adminEmail.trim().toLowerCase(),
-      name: adminName.trim() || clinicName,
-      password: adminPassword,
-      accountId: account.id,
-      role: adminRole,
-    });
-
-    // Auto login with the created account
-    const success = await login(adminEmail, adminPassword);
-    if (success) {
-      navigate("/dashboard", { replace: true });
-    } else {
-      setError("Account created but login failed. Please try logging in.");
+    if (showTokenInput && tokenCode && !detectedToken) {
+      setError("The token you entered is invalid. Please correct it or remove it to submit without a token.");
+      return;
     }
+
+    setLoading(true);
+
+    // Always record the access request
+    submitAccessRequest({
+      clinicName: clinicName.trim(),
+      name: name.trim(),
+      email: email.trim().toLowerCase(),
+      phone: phone.trim(),
+      message: message.trim(),
+      hasToken: showTokenInput && !!detectedToken,
+      tokenCode: detectedToken ? detectedToken.code : "",
+      tokenPlan: detectedToken ? detectedToken.plan : "",
+      tokenIsDemo: detectedToken ? detectedToken.isDemo : false,
+    });
+
+    // Notify admins of the new request
+    window.dispatchEvent(new CustomEvent("acf:notification", {
+      detail: {
+        type: "info",
+        message: `New access request from ${clinicName.trim()} (${email.trim()})`,
+        targetRoles: ["SuperAdmin"],
+      },
+    }));
+
+    // If a valid token was provided → log in immediately and go to dashboard
+    if (detectedToken) {
+      const ok = loginWithToken(email.trim().toLowerCase(), detectedToken);
+      if (ok) {
+        navigate("/dashboard", { replace: true });
+        return;
+      }
+    }
+
+    setLoading(false);
+    setSubmitted(true);
   };
 
+  // "Start Demo" — log in with the shared demo token immediately
+  const handleStartDemo = () => {
+    const demoToken = validateToken(DEMO_TOKEN_CODE);
+    if (!demoToken) return;
+    const ok = loginWithToken(email.trim().toLowerCase() || "demo@innovetpro.com", demoToken);
+    if (ok) navigate("/dashboard", { replace: true });
+  };
+
+  if (submitted) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-muted/30 flex items-center justify-center p-4">
+        <div className="w-full max-w-md">
+          <Card className="shadow-lg">
+            <CardContent className="pt-8 pb-6 px-6 space-y-5 text-center">
+              <div className="flex items-center justify-center mb-1">
+                <AppLogo imgHeight={44} showText textClassName="text-xl font-bold" />
+              </div>
+              <div className="rounded-full bg-emerald-100 dark:bg-emerald-900/30 w-16 h-16 flex items-center justify-center mx-auto">
+                <CheckCircle2 className="h-8 w-8 text-emerald-600 dark:text-emerald-400" />
+              </div>
+              <div>
+                <h1 className="text-xl font-bold">Request Submitted!</h1>
+                <p className="text-muted-foreground text-sm mt-1 leading-relaxed">
+                  Your access request for <strong>{clinicName}</strong> has been received.
+                  We'll review it and send credentials to <strong>{email}</strong>.
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Typical response time: <span className="font-semibold">1–2 business days</span>
+                </p>
+              </div>
+
+              {/* Notification reminder */}
+              <div className="flex items-start gap-2.5 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 px-3 py-2.5 text-left">
+                <Bell className="h-4 w-4 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
+                <p className="text-xs text-blue-700 dark:text-blue-300">
+                  You'll receive an email notification at <strong>{email}</strong> once your account is approved and ready.
+                </p>
+              </div>
+
+              {/* Start demo immediately */}
+              <div className="space-y-2">
+                <p className="text-xs text-muted-foreground font-medium">Want to explore InnoVetPro right now?</p>
+                <Button
+                  className="w-full gap-2 bg-primary hover:bg-primary/90"
+                  onClick={handleStartDemo}
+                >
+                  <FlaskConical className="h-4 w-4" />
+                  Start Free Demo — Use Platform Now
+                </Button>
+                <p className="text-[11px] text-muted-foreground">
+                  Full-featured demo environment. No token required.
+                </p>
+              </div>
+
+              <div className="pt-1 border-t">
+                <Link to="/login" className="text-sm text-primary hover:underline font-medium">
+                  Back to Sign In
+                </Link>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-muted/30 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-muted/30 flex items-center justify-center p-4">
       <Card className="w-full max-w-lg shadow-lg">
         <CardHeader className="space-y-1 text-center">
-          {/* InnoVetPro logo */}
           <div className="flex items-center justify-center mb-2">
             <AppLogo imgHeight={44} showText textClassName="text-xl font-bold" />
           </div>
-          {/* Step progress pills */}
-          <div className="flex items-center justify-center gap-1.5 mb-1">
-            {[1, 2].map(n => (
-              <div
-                key={n}
-                className={`h-1.5 rounded-full transition-all duration-300 ${
-                  n <= step ? "w-8 bg-primary" : "w-4 bg-muted"
-                }`}
-              />
-            ))}
-          </div>
-          <CardTitle className="text-xl font-bold">
-            {step === 1 ? "Create Your Clinic Account" : "Add Staff Members"}
-          </CardTitle>
+          <CardTitle className="text-xl font-bold">Request Access</CardTitle>
           <CardDescription>
-            {step === 1
-              ? "Set up your clinic with a separate, isolated account"
-              : `Step 2 of 2 — ${clinicName} · ${adminName}`}
+            Fill in your details and we'll get you set up on InnoVetPro.
           </CardDescription>
         </CardHeader>
+
         <CardContent>
           {error && (
             <Alert variant="destructive" className="mb-4">
               <AlertCircle className="h-4 w-4" />
-              <AlertDescription>{error}</AlertDescription>
+              <AlertDescription className="text-sm">{error}</AlertDescription>
             </Alert>
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            {step === 1 ? (
-              <>
-                <div className="space-y-2">
-                  <Label htmlFor="clinicName">Clinic Name <span className="text-destructive">*</span></Label>
-                  <div className="relative">
-                    <Building2 className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      id="clinicName"
-                      placeholder="Enter your clinic name"
-                      value={clinicName}
-                      onChange={(e) => setClinicName(e.target.value)}
-                      className="pl-9"
-                      required
-                    />
-                  </div>
-                </div>
+            <div className="space-y-2">
+              <Label htmlFor="clinicName">
+                Clinic / Practice Name <span className="text-destructive">*</span>
+              </Label>
+              <div className="relative">
+                <Building2 className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                <Input
+                  id="clinicName"
+                  placeholder="e.g. Nairobi Animal Hospital"
+                  value={clinicName}
+                  onChange={(e) => setClinicName(e.target.value)}
+                  className="pl-9"
+                  required
+                />
+              </div>
+            </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="adminName">Your Full Name <span className="text-destructive">*</span></Label>
-                  <div className="relative">
-                    <UserCircle className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      id="adminName"
-                      placeholder="Dr. Jane Smith"
-                      value={adminName}
-                      onChange={(e) => setAdminName(e.target.value)}
-                      className="pl-9"
-                      required
-                    />
-                  </div>
-                </div>
+            <div className="space-y-2">
+              <Label htmlFor="name">
+                Your Full Name <span className="text-destructive">*</span>
+              </Label>
+              <div className="relative">
+                <UserCircle className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                <Input
+                  id="name"
+                  placeholder="Dr. Jane Smith"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="pl-9"
+                  required
+                />
+              </div>
+            </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="adminRole">Your Role <span className="text-destructive">*</span></Label>
-                  <Select value={adminRole} onValueChange={(v) => setAdminRole(v as Role)}>
-                    <SelectTrigger id="adminRole">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {ROLE_OPTIONS.map(r => (
-                        <SelectItem key={r.value} value={r.value}>
-                          <div>
-                            <span className="font-medium">{r.label}</span>
-                            <p className="text-xs text-muted-foreground">{r.desc}</p>
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+            <div className="space-y-2">
+              <Label htmlFor="email">
+                Email Address <span className="text-destructive">*</span>
+              </Label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="you@yourclinic.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="pl-9"
+                  required
+                />
+              </div>
+            </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="adminEmail">Email Address <span className="text-destructive">*</span></Label>
+            <div className="space-y-2">
+              <Label htmlFor="phone">Phone Number <span className="text-xs text-muted-foreground">(optional)</span></Label>
+              <div className="relative">
+                <Phone className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                <Input
+                  id="phone"
+                  type="tel"
+                  placeholder="+254 700 000 000"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="message">Message <span className="text-xs text-muted-foreground">(optional)</span></Label>
+              <Textarea
+                id="message"
+                placeholder="Tell us about your clinic, number of vets, any specific needs…"
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                rows={3}
+                className="resize-none"
+              />
+            </div>
+
+            {/* Token toggle */}
+            <div className="border rounded-lg overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setShowTokenInput((s) => !s)}
+                className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium hover:bg-muted/40 transition-colors"
+              >
+                <span className="flex items-center gap-2">
+                  <KeyRound className="h-4 w-4 text-primary" />
+                  I already have an access token
+                </span>
+                {showTokenInput ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+              </button>
+
+              {showTokenInput && (
+                <div className="px-4 pb-4 pt-1 border-t space-y-2 bg-muted/20">
+                  <Label htmlFor="tokenCode" className="text-xs font-medium flex items-center gap-1.5">
+                    <KeyRound className="h-3 w-3" /> Access Token Code
+                  </Label>
                   <Input
-                    id="adminEmail"
-                    type="email"
-                    placeholder="you@yourclinic.com"
-                    value={adminEmail}
-                    onChange={(e) => setAdminEmail(e.target.value)}
-                    required
+                    id="tokenCode"
+                    type="text"
+                    placeholder="e.g. STR-XXXX-XXXX or DEMO-INNOVETPRO-2024"
+                    value={tokenCode}
+                    onChange={(e) => handleTokenChange(e.target.value)}
+                    autoComplete="off"
+                    className="h-9 font-mono tracking-wider uppercase bg-white dark:bg-background"
                   />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="adminPassword">Password <span className="text-destructive">*</span></Label>
-                  <div className="relative">
-                    <Input
-                      id="adminPassword"
-                      type={showPassword ? "text" : "password"}
-                      placeholder="At least 6 characters"
-                      value={adminPassword}
-                      onChange={(e) => setAdminPassword(e.target.value)}
-                      required
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(s => !s)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                    >
-                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    </button>
-                  </div>
-                </div>
-
-                <Button type="submit" className="w-full">
-                  Continue
-                </Button>
-              </>
-            ) : (
-              <>
-                <div className="space-y-4">
-                  <div className="flex items-center gap-2">
-                    <UserCircle className="h-5 w-5 text-primary" />
-                    <span className="font-medium">Add Staff Members</span>
-                  </div>
-
-                  <div className="flex gap-2">
-                    <Input
-                      placeholder="Staff name"
-                      value={newStaffName}
-                      onChange={(e) => setNewStaffName(e.target.value)}
-                      className="flex-1"
-                    />
-                    <Select
-                      value={newStaffRole}
-                      onValueChange={(value: "doctor" | "receptionist" | "admin") => setNewStaffRole(value)}
-                    >
-                      <SelectTrigger className="w-[140px]">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="doctor">Doctor</SelectItem>
-                        <SelectItem value="receptionist">Receptionist</SelectItem>
-                        <SelectItem value="admin">Admin</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="flex gap-2">
-                    <Input
-                      placeholder="Email (optional)"
-                      value={newStaffEmail}
-                      onChange={(e) => setNewStaffEmail(e.target.value)}
-                      className="flex-1"
-                    />
-                    <Button type="button" variant="outline" onClick={handleAddStaff}>
-                      Add
-                    </Button>
-                  </div>
-
-                  {staff.length > 0 && (
-                    <div className="border rounded-md p-3 space-y-2">
-                      <p className="text-sm font-medium text-muted-foreground">
-                        Added Staff ({staff.length})
-                      </p>
-                      {staff.map((member, index) => (
-                        <div
-                          key={index}
-                          className="flex items-center justify-between bg-muted/50 rounded-md p-2"
-                        >
-                          <div className="flex items-center gap-2">
-                            <Badge variant={member.role === "doctor" ? "default" : "secondary"}>
-                              {member.role}
-                            </Badge>
-                            <span className="text-sm">{member.name}</span>
-                          </div>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => removeStaff(index)}
-                          >
-                            Remove
-                          </Button>
-                        </div>
-                      ))}
+                  {tokenError && (
+                    <p className="text-[11px] text-destructive">{tokenError}</p>
+                  )}
+                  {detectedToken && (
+                    <div className="flex items-center gap-2 pt-0.5">
+                      <Badge
+                        variant="outline"
+                        className={
+                          detectedToken.isDemo
+                            ? "text-[10px] px-2 bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-900/30 dark:text-amber-300"
+                            : "text-[10px] px-2 bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-900/30 dark:text-emerald-300"
+                        }
+                      >
+                        {detectedToken.isDemo ? "Demo Account" : "Production Account"}
+                      </Badge>
+                      <span className="text-[10px] text-muted-foreground">
+                        {detectedToken.clinicName} · {detectedToken.plan} plan
+                      </span>
                     </div>
                   )}
+                  <p className="text-[10px] text-muted-foreground leading-relaxed">
+                    If you have been assigned a token, enter it here. The system will automatically detect whether it's for a Production or Demo account.
+                  </p>
                 </div>
+              )}
+            </div>
 
-                <div className="flex gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="w-full"
-                    onClick={() => setStep(1)}
-                  >
-                    Back
-                  </Button>
-                  <Button type="submit" className="w-full">
-                    Create Account
-                  </Button>
-                </div>
-              </>
-            )}
+            <Button type="submit" className="w-full gap-2" disabled={loading}>
+              {loading ? (
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+              ) : (
+                <SendHorizonal className="h-4 w-4" />
+              )}
+              {detectedToken ? "Submit & Sign In" : "Submit Access Request"}
+            </Button>
           </form>
 
-          <div className="mt-6 pt-4 border-t text-center">
+          <div className="mt-5 pt-4 border-t text-center">
             <p className="text-sm text-muted-foreground">
-              Already have an account?{" "}
-              <Link to="/login" className="text-primary hover:underline">
-                Sign in
+              Already have access?{" "}
+              <Link to="/login" className="text-primary hover:underline font-medium">
+                Sign In
               </Link>
             </p>
           </div>

@@ -60,7 +60,11 @@ function saveTokens(tokens: AccessToken[]): void {
 }
 
 function generateCode(plan: TokenPlan): string {
-  const prefix = plan === "starter" ? "STR" : plan === "professional" ? "PRO" : plan === "clinic-chain" ? "ENT" : "DEMO";
+  const prefix =
+    plan === "starter" ? "STR" :
+    plan === "professional" ? "PRO" :
+    plan === "clinic-chain" ? "ENT" :
+    plan === "demo" ? "DMO" : "TKN";
   const part = () => Math.random().toString(36).substring(2, 6).toUpperCase();
   return `${prefix}-${part()}-${part()}`;
 }
@@ -111,4 +115,22 @@ export function loadAllTokens(): AccessToken[] {
 
 export function revokeToken(code: string): void {
   saveTokens(loadStoredTokens().filter(t => t.code !== code));
+}
+
+export function generateDemoToken(
+  clinicName: string,
+  expiryDays?: number
+): AccessToken {
+  const token: AccessToken = {
+    code: generateCode("demo"),
+    plan: "demo",
+    clinicName: clinicName.trim() || "Demo Clinic",
+    maxUsers: "unlimited",
+    features: ["all"],
+    createdAt: new Date().toISOString(),
+    expiresAt: expiryDays ? new Date(Date.now() + expiryDays * 86_400_000).toISOString() : null,
+    isDemo: true,
+  };
+  saveTokens([...loadStoredTokens(), token]);
+  return token;
 }

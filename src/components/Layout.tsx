@@ -6,6 +6,7 @@ import { TutorialOverlay, TutorialRelaunchButton } from "@/components/TutorialOv
 import { FeedbackButton } from "@/components/feedback/FeedbackButton";
 import { FeedbackModal } from "@/components/feedback/FeedbackModal";
 import { MicroSurvey } from "@/components/feedback/MicroSurvey";
+import { ParkedPatientsSidebar } from "@/components/ParkedPatientsSidebar";
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -43,6 +44,8 @@ export function Layout({ children, footer }: LayoutProps) {
       <FeedbackButton />
       <FeedbackModal />
       <MicroSurvey />
+      {/* Parked Patients floating sidebar */}
+      <ParkedPatientsSidebar />
     </div>
   );
 }

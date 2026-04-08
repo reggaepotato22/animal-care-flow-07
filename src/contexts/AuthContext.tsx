@@ -1,7 +1,8 @@
 import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from "react";
 import { DEMO_USER, getDemoCredentials } from "@/lib/authStore";
-import { DEMO_ACCOUNT_ID, setActiveAccountId, getAccountScopedKey } from "@/lib/accountStore";
+import { DEMO_ACCOUNT_ID, setActiveAccountId, getAccountScopedKey, createAccount } from "@/lib/accountStore";
 import type { Role } from "@/lib/rbac";
+import type { AccessToken } from "@/lib/tokenStore";
 
 const AUTH_STORAGE_KEY = "vetcare-demo-auth";
 
@@ -11,11 +12,28 @@ export interface User {
   name: string;
 }
 
+const TOKEN_ACCOUNT_MAP_KEY = "acf_token_account_map";
+
+function getTokenAccountId(tokenCode: string): string | null {
+  try {
+    const map = JSON.parse(localStorage.getItem(TOKEN_ACCOUNT_MAP_KEY) || "{}");
+    return map[tokenCode] ?? null;
+  } catch { return null; }
+}
+
+function setTokenAccountId(tokenCode: string, accountId: string): void {
+  try {
+    const map = JSON.parse(localStorage.getItem(TOKEN_ACCOUNT_MAP_KEY) || "{}");
+    map[tokenCode] = accountId;
+    localStorage.setItem(TOKEN_ACCOUNT_MAP_KEY, JSON.stringify(map));
+  } catch {}
+}
+
 interface AuthContextValue {
   user: User | null;
   isAuthenticated: boolean;
   login: (email: string, password: string) => boolean;
-  loginWithToken: (email: string) => boolean;
+  loginWithToken: (email: string, token: AccessToken) => boolean;
   loginDemo: (email: string, password: string) => boolean;
   logout: () => void;
 }
@@ -97,18 +115,44 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   /**
-   * Token-gated demo login.
-   * The token is validated before this is called; the email is recorded for
-   * activity tracking only. Every successful login enters the shared demo
-   * environment — there are no separate live accounts.
+   * Token-gated login.
+   * Demo tokens → shared demo environment.
+   * Production tokens → isolated account per token code.
    */
-  const loginWithToken = useCallback((_email: string): boolean => {
-    setUser(DEMO_USER);
-    saveUser(DEMO_USER);
-    setActiveAccountId(DEMO_ACCOUNT_ID);
-    const roleKey = getAccountScopedKey("acf_role", DEMO_ACCOUNT_ID);
-    if (!localStorage.getItem(roleKey)) {
-      try { localStorage.setItem(roleKey, JSON.stringify("SuperAdmin")); } catch {}
+  const loginWithToken = useCallback((email: string, token: AccessToken): boolean => {
+    if (token.isDemo) {
+      setUser(DEMO_USER);
+      saveUser(DEMO_USER);
+      setActiveAccountId(DEMO_ACCOUNT_ID);
+      const roleKey = getAccountScopedKey("acf_role", DEMO_ACCOUNT_ID);
+      if (!localStorage.getItem(roleKey)) {
+        try { localStorage.setItem(roleKey, JSON.stringify("SuperAdmin")); } catch {}
+      }
+    } else {
+      // Production: isolated account per token
+      let accountId = getTokenAccountId(token.code);
+      if (!accountId) {
+        const acct = createAccount({
+          name: token.clinicName,
+          ownerEmail: email.trim().toLowerCase(),
+          mode: "live",
+        });
+        accountId = acct.id;
+        setTokenAccountId(token.code, accountId);
+      }
+      setActiveAccountId(accountId);
+      const nameFromEmail = email.split("@")[0].replace(/[._-]/g, " ");
+      const prodUser: User = {
+        id: `u-${token.code.toLowerCase().replace(/[^a-z0-9]/g, "")}-${Date.now()}`,
+        email: email.trim().toLowerCase(),
+        name: nameFromEmail.charAt(0).toUpperCase() + nameFromEmail.slice(1),
+      };
+      setUser(prodUser);
+      saveUser(prodUser);
+      const roleKey = getAccountScopedKey("acf_role", accountId);
+      if (!localStorage.getItem(roleKey)) {
+        try { localStorage.setItem(roleKey, JSON.stringify("SuperAdmin")); } catch {}
+      }
     }
     return true;
   }, []);
