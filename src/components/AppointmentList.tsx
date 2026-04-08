@@ -38,6 +38,36 @@ interface AppointmentListProps {
   liveStatuses?: Record<string, string>;
 }
 
+type UrgencyLevel = "emergency" | "sick" | "routine";
+
+function getUrgencyLevel(type: string): UrgencyLevel {
+  const t = type.toLowerCase();
+  if (t.includes("emergency") || t.includes("critical") || t.includes("urgent")) return "emergency";
+  if (t.includes("sick") || t.includes("illness") || t.includes("injury") || t.includes("pain") || t.includes("vomit") || t.includes("trauma")) return "sick";
+  return "routine";
+}
+
+const URGENCY_META: Record<UrgencyLevel, { dot: string; label: string; border: string; badge: string }> = {
+  emergency: {
+    dot:    "bg-red-500",
+    label:  "Emergency",
+    border: "border-l-4 border-l-red-500",
+    badge:  "bg-red-100 text-red-800 border-red-300 dark:bg-red-900/30 dark:text-red-300",
+  },
+  sick: {
+    dot:    "bg-orange-500",
+    label:  "Sick Patient",
+    border: "border-l-4 border-l-orange-400",
+    badge:  "bg-orange-100 text-orange-800 border-orange-300 dark:bg-orange-900/30 dark:text-orange-300",
+  },
+  routine: {
+    dot:    "bg-emerald-500",
+    label:  "Routine",
+    border: "border-l-4 border-l-emerald-400",
+    badge:  "bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-900/30 dark:text-emerald-300",
+  },
+};
+
 const ENC_LABEL: Record<EncounterStatus, { label: string; cls: string; pulse?: boolean }> = {
   WAITING:         { label: "Awaiting Triage",   cls: "bg-yellow-100 text-yellow-800 border-yellow-300 dark:bg-yellow-900/30 dark:text-yellow-300" },
   IN_TRIAGE:       { label: "In Triage",          cls: "bg-orange-100 text-orange-800 border-orange-300 dark:bg-orange-900/30 dark:text-orange-300", pulse: true },
@@ -118,13 +148,23 @@ export function AppointmentList({ appointments, searchTerm, onCheckIn, onCancel,
             return (
               <Card
                 key={appointment.id}
-                className="cursor-pointer hover:bg-muted/50 transition-colors"
+                className={cn("cursor-pointer hover:bg-muted/50 transition-colors overflow-hidden", URGENCY_META[getUrgencyLevel(appointment.type)].border)}
                 onClick={() => navigate(`/appointments/${appointment.id}`)}
               >
                 <CardHeader className="pb-3">
                   <div className="flex items-center justify-between gap-2 flex-wrap">
                     <CardTitle className="text-lg">{appointment.petName}</CardTitle>
                     <div className="flex items-center gap-2 flex-wrap">
+                      {(() => {
+                        const u = getUrgencyLevel(appointment.type);
+                        const um = URGENCY_META[u];
+                        return (
+                          <span className={cn("inline-flex items-center gap-1.5 text-[11px] font-semibold px-2 py-0.5 rounded-full border", um.badge)}>
+                            <span className={cn("inline-block h-2 w-2 rounded-full", um.dot)} />
+                            {um.label}
+                          </span>
+                        );
+                      })()}
                       {encCfg && (
                         <span className={cn(
                           "inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full border",

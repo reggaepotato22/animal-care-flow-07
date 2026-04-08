@@ -36,7 +36,10 @@ import {
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { useEncounter } from "@/contexts/EncounterContext";
-import { broadcastClinicalRecordUpdate, upsertClinicalRecord } from "@/lib/clinicalRecordStore";
+import { broadcastClinicalRecordUpdate, upsertClinicalRecord, getClinicalRecordById } from "@/lib/clinicalRecordStore";
+import { parkPatient } from "@/lib/parkedPatientsStore";
+import { loadLabOrders } from "@/lib/attachmentStore";
+import { useToast } from "@/hooks/use-toast";
 import { deductInventoryByName } from "@/lib/inventoryStore";
 import { getHospChannelName } from "@/lib/hospitalizationStore";
 import { EncounterHeader } from "@/components/EncounterHeader";
@@ -873,6 +876,7 @@ export default function NewRecord() {
   const location = useLocation();
   const params = useParams<{ patientId?: string; encounterId?: string }>();
   const { triggerSurvey } = useFeedback();
+  const { toast } = useToast();
   const { encounters, activeEncounter, setActiveEncounter, updateEncounterStatus, getEncountersByPatient, getActiveEncounterForPatient, createEncounter } = useEncounter();
   const [templateSearch, setTemplateSearch] = useState("");
   const [activeTab, setActiveTab] = useState("overview");
@@ -907,19 +911,23 @@ export default function NewRecord() {
     if (urlPatientId) {
       let enc = getActiveEncounterForPatient(urlPatientId);
       if (!enc) {
-        // No encounter exists yet — auto-create one from URL params so the
-        // page is immediately usable instead of showing a blank state.
+        // Resolve real patient name before auto-creating so records store a proper name
+        const realPt = loadPatientData(urlPatientId, undefined);
+        const realName = (realPt.name && realPt.name !== "Unknown Patient")
+          ? realPt.name
+          : urlPetName ?? urlPatientId;
+        const realOwner = realPt.owner?.name ?? urlOwner ?? "";
         enc = createEncounter(urlPatientId, {
           reason: "Consultation",
-          petName: urlPetName ?? urlPatientId,
-          ownerName: urlOwner ?? "",
+          petName: realName,
+          ownerName: realOwner,
           status: "IN_CONSULTATION",
         });
       }
       if (enc) {
         setActiveEncounter(enc);
-        // Transition TRIAGED / WAITING → IN_CONSULTATION when vet opens the record
-        if (urlDraft && (enc.status === "TRIAGED" || enc.status === "WAITING")) {
+        // Always transition back to IN_CONSULTATION when vet opens / resumes
+        if (["TRIAGED", "WAITING", "IN_TRIAGE"].includes(enc.status) || urlDraft) {
           updateEncounterStatus(enc.id, "IN_CONSULTATION");
         }
       }
@@ -1529,8 +1537,31 @@ export default function NewRecord() {
 
   // State for assessment form
   
-  // Encounter items state (treatments linked to SOAP notes)
-  const [encounterItems, setEncounterItems] = useState<EncounterItem[]>([]);
+  // Encounter items state — restored from saved draft on resume, otherwise empty
+  const [encounterItems, setEncounterItems] = useState<EncounterItem[]>(() => {
+    if (!urlDraft) return [];
+    const pid = new URLSearchParams(location.search).get("patientId") ?? params.patientId;
+    const eid = (params.encounterId && params.encounterId !== "new") ? params.encounterId : undefined;
+    try {
+      const saved = eid
+        ? getClinicalRecordById(eid)
+        : pid ? getClinicalRecordById(pid) : null;
+      const items = (saved?.data as any)?.encounterItems;
+      if (Array.isArray(items) && items.length > 0) return items;
+      // Also merge pending lab orders from attachmentStore
+      const labs = loadLabOrders(pid ?? "").filter(o =>
+        o.status === "pending" || o.status === "in_progress"
+      ).map(o => ({
+        id: o.id,
+        type: "lab" as const,
+        title: o.testName,
+        status: "pending" as const,
+        addedAt: o.orderedAt,
+        labOrderId: o.id,
+      }));
+      return labs;
+    } catch { return []; }
+  });
 
   // ── Cross-module sync: persist to clinical records store on every change ──
   useEffect(() => {
@@ -1926,6 +1957,129 @@ const applyTemplate = (templateName: string, noteId?: string) => {
   const removeAttachment = (index: number) => {
     setAttachments(prev => prev.filter((_, i) => i !== index));
   };
+
+  // ── Save as Draft ─────────────────────────────────────────────────────────
+  const handleSaveDraft = () => {
+    const pid = selectedPatient || urlPatientId;
+    if (!pid) return;
+
+    // Count tentative findings
+    const tentativeCount = clinicalNotes
+      .flatMap(n => (n.soapData?.clinicalFindings ?? []))
+      .filter(f => f.status === "tentative").length;
+
+    // Count pending lab orders
+    const pendingLabCount = loadLabOrders(pid)
+      .filter(o => o.status === "pending" || o.status === "in_progress").length;
+
+    // Snapshot first SOAP subjective line as draft label
+    const firstSoap = clinicalNotes.find(n => n.type === "soap");
+    const draftLabel = firstSoap?.soapData?.subjective?.split("\n")[0].slice(0, 60) ||
+      firstSoap?.content?.slice(0, 60) ||
+      activeEncounter?.chiefComplaint?.slice(0, 60) ||
+      "Draft encounter";
+
+    // Save to clinical records with draft status
+    try {
+      upsertClinicalRecord({
+        id: activeEncounter?.id ?? `draft-${pid}-${Date.now()}`,
+        encounterId: activeEncounter?.id ?? `draft-${pid}-${Date.now()}`,
+        patientId: pid,
+        petName: displayPetName || pid,
+        ownerName: displayOwner,
+        veterinarian: selectedVeterinarian || "",
+        status: "draft",
+        savedAt: new Date().toISOString(),
+        data: { notes: clinicalNotes, encounterItems, tentativeCount, pendingLabCount, draftLabel },
+      });
+      broadcastClinicalRecordUpdate();
+    } catch {}
+
+    // Park the patient so the tray knows where to resume
+    // Always include ?draft=true so the workspace restores status → IN_CONSULTATION
+    const _sp = new URLSearchParams(window.location.search);
+    _sp.set("draft", "true");
+    const resumePath = `${window.location.pathname}?${_sp.toString()}`;
+    parkPatient({
+      patientId: pid,
+      patientName: displayPetName || pid,
+      species: getPatients().find(p => p.id === pid || p.patientId === pid)?.species,
+      encounterId: activeEncounter?.id,
+      returnPath: resumePath,
+      draftNote: draftLabel,
+      tentativeFindings: tentativeCount,
+      pendingLabs: pendingLabCount,
+      draftLabel,
+    });
+
+    // Fire notification
+    const parts: string[] = ["Consultation saved as draft."];
+    if (tentativeCount > 0)
+      parts.push(`${tentativeCount} tentative finding${tentativeCount > 1 ? "s" : ""} pending confirmation.`);
+    if (pendingLabCount > 0)
+      parts.push(`${pendingLabCount} lab order${pendingLabCount > 1 ? "s" : ""} still pending results.`);
+
+    window.dispatchEvent(new CustomEvent("acf:notification", {
+      detail: {
+        type: "warning",
+        message: parts.join(" "),
+        patientId: pid,
+        patientName: displayPetName || pid,
+        targetRoles: ["SuperAdmin", "Vet", "Nurse"],
+      },
+    }));
+
+    toast({
+      title: "Saved as Draft",
+      description: parts.slice(1).join(" ") || "You can resume this from the Parked Patients tray or Clinical Records.",
+      duration: 6000,
+    });
+  };
+
+  // ── "Back to Consultation" notification when resuming a draft ──────────────────
+  useEffect(() => {
+    if (!urlDraft || !activeEncounter) return;
+    const pid = selectedPatient || urlPatientId;
+    const pName = displayPetName || pid || "Patient";
+    // Restore any pending lab orders into encounterItems
+    if (pid) {
+      const labs = loadLabOrders(pid).filter(o =>
+        o.status === "pending" || o.status === "in_progress"
+      );
+      if (labs.length > 0) {
+        setEncounterItems(prev => {
+          const existingIds = new Set(prev.map(i => i.id));
+          const newLabs = labs
+            .filter(o => !existingIds.has(o.id))
+            .map(o => ({
+              id: o.id,
+              type: "lab" as const,
+              title: o.testName,
+              status: "pending" as const,
+              addedAt: o.orderedAt,
+              labOrderId: o.id,
+            }));
+          return newLabs.length > 0 ? [...prev, ...newLabs] : prev;
+        });
+      }
+    }
+    window.dispatchEvent(new CustomEvent("acf:notification", {
+      detail: {
+        type: "info",
+        message: `Resumed consultation for ${pName} — workspace restored.`,
+        patientId: pid,
+        patientName: pName,
+        targetRoles: ["SuperAdmin", "Vet", "Nurse"],
+      },
+    }));
+    toast({
+      title: `↩ Back to Consultation`,
+      description: `${pName}’s draft notes and lab orders have been restored.`,
+      duration: 5000,
+    });
+  // Only fire once when the encounter first loads
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urlDraft, !!activeEncounter]);
 
   const handleSaveRecord = () => {
     const pid = selectedPatient || urlPatientId;
@@ -2750,14 +2904,20 @@ const applyTemplate = (templateName: string, noteId?: string) => {
                 </ScheduleSurgeryDialog>
 
                 <LabOrderDialog
-                  prefillData={{
-                    patientId: selectedPatient,
-                    veterinarian: selectedVeterinarian,
-                    diagnosis: (() => {
-                      const soapNote = clinicalNotes.find(n => n.type === "soap" && n.soapData);
-                      return soapNote?.soapData?.primaryDiagnosis || soapNote?.soapData?.assessment || "";
-                    })()
-                  }}
+                  prefillData={(() => {
+                    const soapNote = clinicalNotes.find(n => n.type === "soap" && n.soapData);
+                    const findings = clinicalNotes
+                      .flatMap(n => n.soapData?.clinicalFindings ?? [])
+                      .filter((f: any) => f.status === "tentative")
+                      .map((f: any) => f.name || f.finding || "");
+                    return {
+                      patientId: selectedPatient,
+                      veterinarian: selectedVeterinarian,
+                      diagnosis: soapNote?.soapData?.primaryDiagnosis || soapNote?.soapData?.assessment || "",
+                      chiefComplaint: activeEncounter?.chiefComplaint || soapNote?.soapData?.subjective?.split("\n")[0] || "",
+                      tentativeFindings: findings,
+                    };
+                  })()}
                   onLabOrderCreated={handleLabOrderCreated}
                 >
                   <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
@@ -3648,11 +3808,21 @@ const applyTemplate = (templateName: string, noteId?: string) => {
                   <CardHeader>
                     <div className="flex justify-between items-center">
                       <CardTitle className="text-sm font-semibold">Lab Requests</CardTitle>
-                      <LabOrderDialog 
-                        prefillData={{
-                          patientId: selectedPatient,
-                          veterinarian: selectedVeterinarian,
-                        }}
+                      <LabOrderDialog
+                        prefillData={(() => {
+                          const soapNote = clinicalNotes.find(n => n.type === "soap" && n.soapData);
+                          const findings = clinicalNotes
+                            .flatMap(n => n.soapData?.clinicalFindings ?? [])
+                            .filter((f: any) => f.status === "tentative")
+                            .map((f: any) => f.name || f.finding || "");
+                          return {
+                            patientId: selectedPatient,
+                            veterinarian: selectedVeterinarian,
+                            diagnosis: soapNote?.soapData?.primaryDiagnosis || soapNote?.soapData?.assessment || "",
+                            chiefComplaint: activeEncounter?.chiefComplaint || soapNote?.soapData?.subjective?.split("\n")[0] || "",
+                            tentativeFindings: findings,
+                          };
+                        })()}
                         onLabOrderCreated={handleLabOrderCreated}
                       >
                         <Button size="sm" variant="outline"><Plus className="h-4 w-4 mr-1" /> New Lab</Button>
@@ -7696,7 +7866,7 @@ const applyTemplate = (templateName: string, noteId?: string) => {
                   Cancel
                 </Button>
                 <div className="flex gap-2">
-                  <Button variant="outline">
+                  <Button variant="outline" onClick={handleSaveDraft}>
                     Save as Draft
                   </Button>
                   <Button onClick={handleSaveRecord}>

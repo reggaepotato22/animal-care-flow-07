@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -41,6 +41,8 @@ import {
   saveLabOrder, generateLabUploadToken, generateLabUploadEmailTemplate,
   type LabOrder, type LabDestination,
 } from "@/lib/attachmentStore";
+import { getPatients } from "@/lib/patientStore";
+import { getStaff } from "@/lib/staffStore";
 
 const labOrderSchema = z.object({
   patientId: z.string().min(1, "Patient is required"),
@@ -63,22 +65,73 @@ interface LabOrderDialogProps {
     patientId?: string;
     veterinarian?: string;
     diagnosis?: string;
+    chiefComplaint?: string;
+    tentativeFindings?: string[];
+    suggestedTests?: string[];
   };
   onLabOrderCreated?: (orderData: LabOrderFormData & { orderId: string; testName: string }) => void;
 }
 
-// Load real patients from localStorage
-function loadKnownPatients(): Array<{
-  patientId: string;
-  petName: string;
-  ownerName: string;
-  species?: string;
-  breed?: string;
-}> {
+// Map finding text / diagnosis keywords to test IDs
+function mapFindingsToTests(findings: string[]): string[] {
+  const text = findings.join(" ").toLowerCase();
+  const matched: string[] = [];
+  const push = (id: string) => { if (!matched.includes(id)) matched.push(id); };
+  if (/\bcbc\b|blood count|haematol|hematol/.test(text))             push("cbc");
+  if (/chemistry|metabolic|liver|renal|kidney|panel/.test(text))      push("chemistry");
+  if (/thyroid|t4|hyperthyroid|hypothyroid/.test(text))               push("thyroid");
+  if (/felv|fiv|feline leuk|immunodefic/.test(text))                  push("felv-fiv");
+  if (/heartworm|dirofilaria/.test(text))                             push("heartworm");
+  if (/electrolyte|sodium|potassium|chloride/.test(text))             push("electrolytes");
+  if (/coagulat|clotting|bleeding|prothrombin/.test(text))            push("coagulation");
+  if (/urine culture|uti|cystitis/.test(text))                        push("urine-culture");
+  if (/urine protein|proteinuria/.test(text))                         push("urine-protein");
+  if (/urinalysis|urine|urinary/.test(text))                          push("urinalysis");
+  if (/x.?ray|radiograph|chest|skeletal|bone/.test(text))            push("radiographs");
+  if (/ultrasound|abdominal scan|echograph/.test(text))               push("ultrasound");
+  if (/echocardiogram|cardiac echo|heart scan/.test(text))            push("echocardiogram");
+  if (/ct scan|computed tomography/.test(text))                       push("ct-scan");
+  if (/cytology|mass|lump|swelling|node/.test(text))                  push("cytology");
+  if (/biopsy|histopath|tissue|tumou?r/.test(text))                   push("biopsy");
+  if (/fecal|faecal|parasite|worm|giardia|coccidia/.test(text))       push("fecal");
+  if (/culture|sensitivity|bacterial|infection/.test(text))           push("culture");
+  return matched;
+}
+
+// Load patients from both patientStore and legacy acf_known_patients, deduplicated
+function loadAllPatients(): Array<{ patientId: string; petName: string; ownerName: string; species?: string; breed?: string }> {
+  const seen = new Set<string>();
+  const result: Array<{ patientId: string; petName: string; ownerName: string; species?: string; breed?: string }> = [];
+  // Primary source: account-scoped patientStore
+  try {
+    getPatients().forEach(p => {
+      const id = p.patientId || p.id;
+      if (!id || seen.has(id)) return;
+      seen.add(id);
+      result.push({ patientId: id, petName: (p as any).name || p.patientId, ownerName: (p as any).owner || "", species: (p as any).species, breed: (p as any).breed });
+    });
+  } catch {}
+  // Fallback: legacy known patients
   try {
     const raw = localStorage.getItem("acf_known_patients");
-    return raw ? JSON.parse(raw) : [];
-  } catch { return []; }
+    const legacy: any[] = raw ? JSON.parse(raw) : [];
+    legacy.forEach(p => {
+      const id = p.patientId;
+      if (!id || seen.has(id)) return;
+      seen.add(id);
+      result.push({ patientId: id, petName: p.petName || p.name || id, ownerName: p.ownerName || "", species: p.species, breed: p.breed });
+    });
+  } catch {}
+  return result;
+}
+
+// Load vets from staffStore, falling back to hardcoded list
+function loadVeterinarians(): string[] {
+  try {
+    const staff = getStaff().filter(s => s.role === "Vet" || s.role === "SuperAdmin");
+    if (staff.length > 0) return staff.map(s => s.name);
+  } catch {}
+  return ["Dr. Smith", "Dr. Johnson", "Dr. Brown", "Dr. Wilson", "Dr. Davis", "Dr. Thompson"];
 }
 
 const availableTests = [
@@ -116,14 +169,6 @@ const commonTests = availableTests.filter(test => test.isCommon);
 // Define test categories in preferred order
 const testCategories = ["Bloodwork", "Urinalysis", "Imaging", "Pathology"];
 
-const veterinarians = [
-  "Dr. Smith",
-  "Dr. Johnson", 
-  "Dr. Brown",
-  "Dr. Wilson",
-  "Dr. Davis",
-  "Dr. Thompson",
-];
 
 export function LabOrderDialog({ children, patientName, prefillData, onLabOrderCreated }: LabOrderDialogProps) {
   const [open, setOpen] = useState(false);
@@ -132,32 +177,55 @@ export function LabOrderDialog({ children, patientName, prefillData, onLabOrderC
   const [emailPreview, setEmailPreview] = useState<{ subject: string; html: string; body: string } | null>(null);
   const [copied, setCopied] = useState(false);
   const [emailTo, setEmailTo] = useState("");
-  
-  // Load real patients from localStorage
-  const patients = useMemo(() => {
-    const knownPatients = loadKnownPatients();
-    return knownPatients.map(p => ({
-      id: p.patientId,
-      name: p.petName,
-      species: p.species || "Unknown",
-      breed: p.breed || "Unknown",
-    }));
-  }, []);
+
+  // Load real patients from both stores
+  const patients = useMemo(() => loadAllPatients().map(p => ({
+    id: p.patientId,
+    name: p.petName,
+    species: p.species || "Unknown",
+    breed: p.breed || "Unknown",
+    ownerName: p.ownerName,
+  })), []);
+
+  // Load real vets from staffStore
+  const veterinarians = useMemo(() => loadVeterinarians(), []);
 
   const form = useForm<LabOrderFormData>({
     resolver: zodResolver(labOrderSchema),
     defaultValues: {
-      patientId: prefillData?.patientId || "",
-      veterinarian: prefillData?.veterinarian || "",
+      patientId: "",
+      veterinarian: "",
       priority: "routine",
       tests: [],
-      diagnosis: prefillData?.diagnosis || "",
+      diagnosis: "",
       specialInstructions: "",
       labDestination: "external",
       labName: "",
       labEmail: "",
     },
   });
+
+  // Re-populate form every time the dialog opens with fresh prefill data
+  useEffect(() => {
+    if (!open) return;
+    const autoTests = [
+      ...(prefillData?.suggestedTests ?? []),
+      ...mapFindingsToTests(prefillData?.tentativeFindings ?? []),
+    ].filter((v, i, a) => a.indexOf(v) === i);
+    const diagnosis = prefillData?.diagnosis || prefillData?.chiefComplaint || "";
+    form.reset({
+      patientId: prefillData?.patientId || "",
+      veterinarian: prefillData?.veterinarian || "",
+      priority: "routine",
+      tests: autoTests,
+      diagnosis,
+      specialInstructions: "",
+      labDestination: "external",
+      labName: "",
+      labEmail: "",
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   const selectedTests = form.watch("tests");
   const labDestination = form.watch("labDestination");
@@ -510,7 +578,7 @@ export function LabOrderDialog({ children, patientName, prefillData, onLabOrderC
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Patient</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <Select onValueChange={field.onChange} value={field.value}>
                           <FormControl>
                             <SelectTrigger>
                               <SelectValue placeholder="Select patient" />
@@ -540,7 +608,7 @@ export function LabOrderDialog({ children, patientName, prefillData, onLabOrderC
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Requesting Veterinarian</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <Select onValueChange={field.onChange} value={field.value}>
                           <FormControl>
                             <SelectTrigger>
                               <SelectValue placeholder="Select veterinarian" />
@@ -561,12 +629,22 @@ export function LabOrderDialog({ children, patientName, prefillData, onLabOrderC
                 </div>
 
                 {selectedPatient && (
-                  <div className="p-3 bg-muted rounded-lg">
-                    <h4 className="font-medium mb-2">Patient Information</h4>
-                    <div className="grid grid-cols-2 gap-2 text-sm">
-                      <div>Species: {selectedPatient.species}</div>
-                      <div>Breed: {selectedPatient.breed}</div>
+                  <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-primary/5 border border-primary/20">
+                    <div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold text-primary shrink-0">
+                      {selectedPatient.name.slice(0, 2).toUpperCase()}
                     </div>
+                    <div className="flex-1 min-w-0 text-sm">
+                      <p className="font-semibold truncate">{selectedPatient.name}</p>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {(selectedPatient as any).ownerName ? `${(selectedPatient as any).ownerName} · ` : ""}{selectedPatient.species}{selectedPatient.breed && selectedPatient.breed !== "Unknown" ? ` · ${selectedPatient.breed}` : ""}
+                      </p>
+                    </div>
+                    {prefillData?.tentativeFindings && prefillData.tentativeFindings.length > 0 && (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 shrink-0">
+                        <AlertTriangle className="h-3 w-3" />
+                        {prefillData.tentativeFindings.length} tentative finding{prefillData.tentativeFindings.length !== 1 ? "s" : ""}
+                      </span>
+                    )}
                   </div>
                 )}
 
@@ -577,7 +655,7 @@ export function LabOrderDialog({ children, patientName, prefillData, onLabOrderC
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Priority</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <Select onValueChange={field.onChange} value={field.value}>
                           <FormControl>
                             <SelectTrigger>
                               <SelectValue />
@@ -599,9 +677,12 @@ export function LabOrderDialog({ children, patientName, prefillData, onLabOrderC
                     name="diagnosis"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Diagnosis/Reason for Testing</FormLabel>
+                        <FormLabel className="flex items-center gap-1.5">
+                          Diagnosis/Reason for Testing
+                          {prefillData?.chiefComplaint && <span className="text-[9px] font-normal text-primary bg-primary/10 px-1.5 py-0.5 rounded-full">auto-filled</span>}
+                        </FormLabel>
                         <FormControl>
-                          <Input placeholder="Enter diagnosis or reason" {...field} />
+                          <Textarea placeholder="Enter diagnosis or reason" className="min-h-[60px] resize-none" {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>

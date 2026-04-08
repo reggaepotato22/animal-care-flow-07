@@ -72,6 +72,12 @@ import TokenGenerator from "./pages/TokenGenerator";
 
 const queryClient = new QueryClient();
 
+// Redirect authenticated users away from the root landing page straight to the dashboard
+function SmartRoot() {
+  const { isAuthenticated } = useAuth();
+  return isAuthenticated ? <Navigate to="/dashboard" replace /> : <Landing />;
+}
+
 function ProtectedRoutes() {
   const { isAuthenticated } = useAuth();
   // TutorialProvider wraps protected routes so it resets on every navigation/refresh
@@ -85,6 +91,7 @@ function ProtectedRoutes() {
     <TutorialProvider>
     <Layout>
       <Routes>
+        <Route index element={<Navigate to="/dashboard" replace />} />
         <Route path="/dashboard" element={<Index />} />
         <Route path="/patients" element={<Patients />} />
         <Route path="/patients/add" element={<AddPatient />} />
@@ -113,6 +120,8 @@ function ProtectedRoutes() {
         <Route path="/patients/:patientId/chart" element={<ClinicalRecordDetails />} />
         {/* Legacy alias for /records/new — kept for backward compat */}
         <Route path="/records/new" element={<NewRecord />} />
+        {/* /records/:id — view a saved clinical record or active encounter */}
+        <Route path="/records/:id" element={<ClinicalRecordDetails />} />
         <Route path="/patients/:id/journey" element={<PatientJourney />} />
         <Route path="/patients/:id/refer" element={<ReferPatient />} />
         <Route path="/workflow-settings" element={<WorkflowSettings />} />
@@ -167,7 +176,7 @@ const App = () => (
                     <Routes>
                       <Route path="/field" element={<ProtectedField />} />
                       <Route path="/tokensag" element={<TokenGenerator />} />
-                      <Route path="/" element={<Landing />} />
+                      <Route path="/" element={<SmartRoot />} />
                       <Route path="/pricing" element={<Pricing />} />
                       <Route path="/signup" element={<Signup />} />
                       <Route path="/login" element={<Login />} />

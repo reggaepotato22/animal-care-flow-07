@@ -1,5 +1,5 @@
 import { useParams, useNavigate } from "react-router-dom";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { differenceInDays, format, isSameDay } from "date-fns";
 import { PatientHeader } from "@/components/PatientHeader";
 import { AdmissionRequestDialog } from "@/components/AdmissionRequestDialog";
@@ -25,6 +25,8 @@ import { ArrowLeft, Calendar, MapPin, Phone, Heart, Edit, Trash2, FileText, Pill
 import type { EncounterType } from "@/lib/types";
 import { getHospChannelName } from "@/lib/hospitalizationStore";
 import { upsertClinicalRecord, broadcastClinicalRecordUpdate } from "@/lib/clinicalRecordStore";
+import { parkPatient, unparkPatient } from "@/lib/parkedPatientsStore";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 export default function PatientDetails() {
   const { id } = useParams();
@@ -47,6 +49,30 @@ export default function PatientDetails() {
   };
 
   const wf = useWorkflow({ patientId: patient?.id });
+
+  // Park patient on unmount if there is an active encounter
+  useEffect(() => {
+    return () => {
+      if (!id) return;
+      const pts = getPatients();
+      const p = pts.find(pt => pt.id === id || pt.patientId === id);
+      if (!p) return;
+      const enc = encounters.find(e =>
+        e.patientId === id &&
+        ["WAITING", "IN_TRIAGE", "TRIAGED", "IN_CONSULTATION", "IN_SURGERY", "RECOVERY"].includes(e.status)
+      );
+      if (enc) {
+        parkPatient({
+          patientId: id,
+          patientName: p.name,
+          species: p.species,
+          encounterId: enc.id,
+          returnPath: window.location.pathname,
+        });
+      }
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
 
   const handleEncounterCheckIn = (encId: string) => {
     if (!patient) return;
@@ -308,8 +334,87 @@ export default function PatientDetails() {
     }
   };
 
+  const criticalAllergies = (patient.allergies || []).filter(Boolean);
+
   return (
+    <TooltipProvider>
     <div className="space-y-6">
+      {/* ── Sticky Vitals Bar ── */}
+      <div className="sticky top-0 z-20 -mx-4 md:-mx-6 px-4 md:px-6 py-2.5 bg-card/95 backdrop-blur-sm border-b border-border shadow-sm flex flex-wrap items-center gap-x-5 gap-y-1.5">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="text-base font-bold truncate">{patient.name}</span>
+          <Badge variant="outline" className="text-[10px] px-1.5 shrink-0">{patient.species}</Badge>
+          {patient.breed && <span className="text-xs text-muted-foreground hidden sm:inline truncate">{patient.breed}</span>}
+        </div>
+        <Separator orientation="vertical" className="h-5 hidden sm:block" />
+        <div className="flex items-center gap-1 text-xs text-muted-foreground">
+          <span className="font-medium text-foreground">{patient.age}</span>
+          {patient.sex && <span>· {patient.sex}</span>}
+        </div>
+        {patient.weight && (
+          <>
+            <Separator orientation="vertical" className="h-5 hidden sm:block" />
+            <div className="flex items-center gap-1 text-xs">
+              <span className="font-semibold text-foreground">{patient.weight}</span>
+              <span className="text-muted-foreground">kg</span>
+            </div>
+          </>
+        )}
+        {criticalAllergies.length > 0 && (
+          <>
+            <Separator orientation="vertical" className="h-5 hidden sm:block" />
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="flex items-center gap-1.5 cursor-default">
+                  <AlertTriangle className="h-3.5 w-3.5 text-destructive shrink-0" />
+                  <div className="flex gap-1 flex-wrap">
+                    {criticalAllergies.slice(0, 3).map((a) => (
+                      <span key={a} className="text-[10px] font-bold bg-destructive/15 text-destructive border border-destructive/30 rounded px-1.5 py-0.5">
+                        {a}
+                      </span>
+                    ))}
+                    {criticalAllergies.length > 3 && (
+                      <span className="text-[10px] text-destructive font-semibold">+{criticalAllergies.length - 3}</span>
+                    )}
+                  </div>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p className="text-xs font-semibold mb-1">⚠ Known Allergies</p>
+                {criticalAllergies.map((a) => <p key={a} className="text-xs">{a}</p>)}
+              </TooltipContent>
+            </Tooltip>
+          </>
+        )}
+        <div className="ml-auto flex items-center gap-3 shrink-0">
+          {patient.owner && (
+            <div className="flex items-center gap-1.5 text-xs">
+              <User className="h-3.5 w-3.5 text-muted-foreground" />
+              <span className="font-medium hidden md:inline">{patient.owner}</span>
+            </div>
+          )}
+          {patient.phone && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <a
+                  href={`tel:${patient.phone}`}
+                  className="flex items-center gap-1 text-xs text-primary hover:underline font-medium"
+                >
+                  <Phone className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">{patient.phone}</span>
+                </a>
+              </TooltipTrigger>
+              <TooltipContent>Call {patient.owner || "owner"}</TooltipContent>
+            </Tooltip>
+          )}
+          {activeEncounter && (
+            <Badge className="text-[10px] bg-primary animate-pulse px-2">
+              {activeEncounter.status.replace(/_/g, " ")}
+            </Badge>
+          )}
+        </div>
+      </div>
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-4">
@@ -891,5 +996,6 @@ export default function PatientDetails() {
         </Card>
       </div>
     </div>
+    </TooltipProvider>
   );
 }

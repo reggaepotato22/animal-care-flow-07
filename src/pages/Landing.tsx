@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
 import { AppLogo } from "@/components/AppLogo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -267,7 +268,11 @@ function AccessForm({ center = false }: { center?: boolean }) {
 
 // ── Page ────────────────────────────────────────────────────────────────────────────────
 export default function Landing() {
-  const navigate     = useNavigate();
+  const navigate = useNavigate();
+  const { logout } = useAuth();
+
+  // Ensure user is always logged out on the landing page
+  useEffect(() => { logout(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const goTo = (id: string) => {
@@ -295,7 +300,7 @@ export default function Landing() {
             </Button>
             <Button variant="ghost" size="sm"
               className="text-white/60 hover:text-white hover:bg-white/10 gap-1.5"
-              onClick={() => navigate("/login/demo")}>
+              onClick={() => navigate("/login")}>
               <Lock className="h-3.5 w-3.5" /> Sign In
             </Button>
             <Button size="sm" className="bg-[#56B246] hover:bg-[#56B246]/90 text-white font-semibold gap-1.5"
@@ -314,7 +319,7 @@ export default function Landing() {
             ))}
             <div className="flex gap-2 pt-2 border-t border-white/[0.06]">
               <Button variant="outline" size="sm" className="flex-1 border-white/20 text-white bg-transparent"
-                onClick={() => navigate("/login/demo")}>Sign In</Button>
+                onClick={() => navigate("/login")}>Sign In</Button>
               <Button size="sm" className="flex-1 bg-[#56B246] text-white" onClick={() => goTo("access")}>Get Access</Button>
             </div>
           </div>
@@ -694,9 +699,9 @@ export default function Landing() {
               </div>
               <div>
                 <div className="text-white/50 font-semibold mb-3 text-xs uppercase tracking-wider">Access</div>
-                <button onClick={() => navigate("/login/demo")} className="block text-white/30 hover:text-white/60 mb-2 text-xs transition-colors">Sign In</button>
+                <button onClick={() => navigate("/login")} className="block text-white/30 hover:text-white/60 mb-2 text-xs transition-colors">Sign In</button>
                 <button onClick={() => navigate("/signup")} className="block text-white/30 hover:text-white/60 mb-2 text-xs transition-colors">Create Account</button>
-                <button onClick={() => navigate("/login/demo")} className="block text-white/30 hover:text-white/60 mb-2 text-xs transition-colors">Demo Clinic</button>
+                <button onClick={() => navigate("/login")} className="block text-white/30 hover:text-white/60 mb-2 text-xs transition-colors">Demo Clinic</button>
               </div>
             </div>
           </div>
