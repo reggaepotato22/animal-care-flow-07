@@ -293,6 +293,7 @@ export default function Triage() {
           <EncounterHeader 
             encounter={selectedEncounter}
             onStatusChange={(status) => markStatus(status)}
+            onStartConsultation={startRecord}
             onStatusChipClass={(s) => 
               s === "WAITING" ? "bg-yellow-100 text-yellow-800" :
               s === "IN_TRIAGE" ? "bg-orange-100 text-orange-800" :

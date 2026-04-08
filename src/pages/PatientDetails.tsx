@@ -6,7 +6,7 @@ import { AdmissionRequestDialog } from "@/components/AdmissionRequestDialog";
 import { useEncounter } from "@/contexts/EncounterContext";
 import { useWorkflowContext } from "@/contexts/WorkflowContext";
 import { getPatients, updatePatient } from "@/lib/patientStore";
-import { loadStoredAppointments, saveAppointment, broadcastAppointmentUpdate } from "@/lib/appointmentStore";
+import { loadStoredAppointments } from "@/lib/appointmentStore";
 import { useRole } from "@/contexts/RoleContext";
 import { useWorkflow } from "@/hooks/useWorkflow";
 import { useToast } from "@/hooks/use-toast";
@@ -34,6 +34,7 @@ export default function PatientDetails() {
   const { encounters, getActiveEncounterForPatient, updateEncounterStatus } = useEncounter();
   const { setPatientStatus, setStep, checkIn } = useWorkflowContext();
   const [updateCount, setUpdateCount] = useState(0);
+  const [newVisitOpen, setNewVisitOpen] = useState(false);
 
   const patient = useMemo(() => {
     return getPatients().find(p => p.id === id || p.patientId === id);
@@ -72,30 +73,7 @@ export default function PatientDetails() {
     navigate(`/patients/${id}/refer`);
   };
 
-  const handleNewVisit = () => {
-    if (!patient) return;
-    const now = new Date();
-    const appt = {
-      id: `walkin-${Date.now()}`,
-      petName: patient.name,
-      ownerName: (patient as any).owner || "",
-      ownerPhone: (patient as any).phone || "",
-      ownerEmail: (patient as any).email || "",
-      date: now.toISOString(),
-      time: `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`,
-      type: "Walk-in",
-      vet: "",
-      status: "SCHEDULED" as const,
-      patientId: patient.id,
-      duration: 30,
-      createdAt: now.toISOString(),
-    };
-    saveAppointment(appt);
-    broadcastAppointmentUpdate();
-    navigate(
-      `/patients/${encodeURIComponent(patient.id)}/encounters/new?petName=${encodeURIComponent(patient.name)}&owner=${encodeURIComponent((patient as any).owner || "")}`
-    );
-  };
+  const handleNewVisit = () => setNewVisitOpen(true);
 
   const handleDeceased = () => {
     if (!id) return;
@@ -494,8 +472,15 @@ export default function PatientDetails() {
             Encounters & Medical History
           </CardTitle>
           <div className="flex items-center gap-2" data-tutorial="btn-new-visit">
-            <NewVisitDialog>
-              <Button size="sm" className="h-8" disabled={hasAppointmentToday} title={hasAppointmentToday ? "Patient has an appointment today. Please check-in from the appointments page." : ""}>
+            <NewVisitDialog
+              open={newVisitOpen}
+              onOpenChange={setNewVisitOpen}
+              patientId={patient?.id}
+              patientName={patient?.name}
+            >
+              <Button size="sm" className="h-8" disabled={hasAppointmentToday}
+                title={hasAppointmentToday ? "Patient has an appointment today. Please check-in from the appointments page." : ""}
+                onClick={() => setNewVisitOpen(true)}>
                 <Plus className="h-4 w-4 mr-1" />
                 New Visit
               </Button>
