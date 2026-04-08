@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import * as z from "zod";
 import type { EncounterType } from "@/lib/types";
 import {
@@ -50,6 +50,8 @@ interface NewVisitDialogProps {
   children?: React.ReactNode;
   patientId?: string;
   patientName?: string;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
 const ENCOUNTER_TYPES: { value: EncounterType; label: string; description: string; icon: React.ElementType; color: string }[] = [
@@ -80,11 +82,12 @@ function getInitialStatus(type: EncounterType) {
 }
 
 
-export function NewVisitDialog({ children, patientId: propPatientId, patientName }: NewVisitDialogProps) {
-  const [open, setOpen] = useState(false);
+export function NewVisitDialog({ children, patientId: propPatientId, patientName, open: controlledOpen, onOpenChange: controlledOnOpenChange }: NewVisitDialogProps) {
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = controlledOpen !== undefined ? controlledOpen : internalOpen;
+  const setOpen = (v: boolean) => { setInternalOpen(v); controlledOnOpenChange?.(v); };
   const [otherUrgency, setOtherUrgency] = useState<"emergency" | "routine" | null>(null);
   const { id: paramPatientId } = useParams();
-  const navigate = useNavigate();
   const { setStep, setPatientStatus, checkIn } = useWorkflowContext();
   const { createEncounter, setActiveEncounter } = useEncounter();
 
@@ -217,18 +220,19 @@ export function NewVisitDialog({ children, patientId: propPatientId, patientName
         `✓ New visit created for ${patientName ?? "patient"}. The receptionist can now check them in.`,
         { duration: 4000 },
       );
+      // Notify receptionist to check in the patient
+      window.dispatchEvent(new CustomEvent("acf:notification", {
+        detail: {
+          type: "info",
+          message: `New visit created for ${patientName ?? "patient"} — ready for check-in`,
+          patientId: effectivePatientId,
+          patientName: patientName ?? effectivePatientId,
+          step: "WAITING",
+          targetRoles: ["Receptionist", "SuperAdmin"],
+        },
+      }));
     }
 
-    // Only navigate to patient details if opened from the PatientDetails page itself.
-    // When opened from PatientCard on /patients list, stay on the current page.
-    if (!propPatientId) {
-      const target = `/patients/${effectivePatientId}`;
-      window.setTimeout(() => {
-        if (window.location.pathname !== target) {
-          navigate(target);
-        }
-      }, 0);
-    }
   };
 
   return (
@@ -241,7 +245,7 @@ export function NewVisitDialog({ children, patientId: propPatientId, patientName
           </Button>
         )}
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[480px]">
+      <DialogContent className="sm:max-w-[480px]" onClick={(e) => e.stopPropagation()}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FileText className="h-4 w-4" />

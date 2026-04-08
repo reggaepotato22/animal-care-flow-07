@@ -8,9 +8,10 @@ interface EncounterHeaderProps {
   encounter: any;
   onStatusChange: (status: EncounterStatus) => void;
   onStatusChipClass: (status: string) => string;
+  onStartConsultation?: () => void;
 }
 
-export function EncounterHeader({ encounter, onStatusChange, onStatusChipClass }: EncounterHeaderProps) {
+export function EncounterHeader({ encounter, onStatusChange, onStatusChipClass, onStartConsultation }: EncounterHeaderProps) {
   if (!encounter) return null;
 
   const statusActions: Record<EncounterStatus, { label: string; icon: React.ElementType; next: EncounterStatus }[]> = {
@@ -51,7 +52,10 @@ export function EncounterHeader({ encounter, onStatusChange, onStatusChipClass }
         <div className="flex items-center gap-3">
           <Badge className={onStatusChipClass(encounter.status)}>{encounter.status}</Badge>
           {primaryAction && (
-            <Button size="sm" className="h-8" onClick={() => onStatusChange(primaryAction.next)}>
+            <Button size="sm" className="h-8" onClick={() => {
+              onStatusChange(primaryAction.next);
+              if (primaryAction.next === "IN_CONSULTATION") onStartConsultation?.();
+            }}>
               <primaryAction.icon className="h-4 w-4 mr-2" />
               {primaryAction.label}
             </Button>
@@ -64,7 +68,10 @@ export function EncounterHeader({ encounter, onStatusChange, onStatusChipClass }
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               {(statusActions[encounter.status as EncounterStatus] ?? []).map((action) => (
-                <DropdownMenuItem key={action.label} onClick={() => onStatusChange(action.next)}>
+                <DropdownMenuItem key={action.label} onClick={() => {
+                  onStatusChange(action.next);
+                  if (action.next === "IN_CONSULTATION") onStartConsultation?.();
+                }}>
                   <action.icon className="h-4 w-4 mr-2" />
                   {action.label}
                 </DropdownMenuItem>
