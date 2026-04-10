@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { formatKES } from "@/lib/kenya";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -223,7 +224,7 @@ export function InventoryItemDialog({ open, onOpenChange, item, onSave }: Invent
                 <Input
                   id="totalValue"
                   type="text"
-                  value={`$${((formData.quantity || 0) * (formData.unitCost || 0)).toFixed(2)}`}
+                  value={formatKES((formData.quantity || 0) * (formData.unitCost || 0))}
                   disabled
                   className="bg-muted"
                 />

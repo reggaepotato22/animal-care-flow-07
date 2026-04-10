@@ -68,6 +68,8 @@ import Pricing from "./pages/Pricing";
 import { FeedbackProvider } from "@/contexts/FeedbackContext";
 import { MobileClinicPrompt } from "@/components/MobileClinicPrompt";
 import TokenGenerator from "./pages/TokenGenerator";
+import Clients from "./pages/Clients";
+import ClientProfile from "./pages/ClientProfile";
 
 const queryClient = new QueryClient();
 
@@ -93,6 +95,8 @@ function ProtectedRoutes() {
         <Route index element={<Navigate to="/dashboard" replace />} />
         <Route path="/dashboard" element={<Index />} />
         <Route path="/patients" element={<Patients />} />
+        <Route path="/clients" element={<Clients />} />
+        <Route path="/clients/:id" element={<ClientProfile />} />
         <Route path="/patients/add" element={<AddPatient />} />
         <Route path="/patients/:id" element={<PatientDetails />} />
         <Route path="/appointments" element={<Appointments />} />

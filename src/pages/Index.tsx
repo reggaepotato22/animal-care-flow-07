@@ -51,6 +51,7 @@ import { loadClinicalRecords } from "@/lib/clinicalRecordStore";
 import { loadLabOrders } from "@/lib/attachmentStore";
 import { getParkedPatients } from "@/lib/parkedPatientsStore";
 import { seedMockData, clearAllData } from "@/lib/dataSeed";
+import { seedDemoClients, runAtRiskChecks } from "@/lib/clientStore";
 import { useAccount } from "@/contexts/AccountContext";
 import { getAccountScopedKey } from "@/lib/accountStore";
 import { getHospChannelName } from "@/lib/hospitalizationStore";
@@ -119,6 +120,15 @@ const Index = () => {
   const { createEncounter, getActiveEncounterForPatient, updateEncounterStatus } = useEncounter();
   const { notifications } = useNotifications();
   const [isAlertsModalOpen, setIsAlertsModalOpen] = useState(false);
+
+  // Run CRM sync checks once on dashboard mount
+  useEffect(() => {
+    seedDemoClients();
+    // Small delay so the NotificationContext is ready to receive events
+    const t = setTimeout(() => runAtRiskChecks(), 2000);
+    return () => clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Scroll to check-in section when arriving via ?walkin=
   useEffect(() => {

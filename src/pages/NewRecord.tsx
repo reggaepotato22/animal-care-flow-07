@@ -41,6 +41,7 @@ import { parkPatient } from "@/lib/parkedPatientsStore";
 import { loadLabOrders } from "@/lib/attachmentStore";
 import { useToast } from "@/hooks/use-toast";
 import { deductInventoryByName } from "@/lib/inventoryStore";
+import { syncVisitToClient } from "@/lib/clientStore";
 import { getHospChannelName } from "@/lib/hospitalizationStore";
 import { EncounterHeader } from "@/components/EncounterHeader";
 import { Separator } from "@/components/ui/separator";
@@ -2140,6 +2141,12 @@ const applyTemplate = (templateName: string, noteId?: string) => {
     // End consultation — set encounter to DISCHARGED
     if (activeEncounter) {
       updateEncounterStatus(activeEncounter.id, "DISCHARGED");
+      syncVisitToClient({
+        patientId: activeEncounter.patientId,
+        patientName: activeEncounter.petName ?? activeEncounter.patientId,
+        status: "DISCHARGED",
+        description: chiefComplaint ? `Discharged — ${chiefComplaint}` : "Visit completed & discharged",
+      });
     }
 
     // Auto-deduct used inventory items

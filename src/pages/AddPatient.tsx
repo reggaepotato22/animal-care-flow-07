@@ -27,6 +27,7 @@ import {
 import { commonBreedsKE } from "@/lib/kenya";
 import { BreedCombobox } from "@/components/ui/breed-combobox";
 import { addPatient } from "@/lib/patientStore";
+import { syncPatientToClientCRM } from "@/lib/clientStore";
 
 const patientSchema = z.object({
   name: z.string().min(1, "Pet name is required"),
@@ -150,8 +151,21 @@ export default function AddPatient() {
         lastVisit: new Date().toISOString().split("T")[0],
         status: "healthy",
         allergies: data.allergies,
-        behavioralWarnings: data.behavioralWarnings,
+        behavioralWarnings: data.behavioralWarnings.map(w => ({ text: w.text ?? "", level: w.level ?? "low" as const })),
         medications: data.medications.map(m => ({ name: m, dosage: "", prescribed: new Date().toISOString().split("T")[0] })),
+      });
+    } catch {}
+
+    // Auto-create/link client in CRM
+    try {
+      syncPatientToClientCRM({
+        patientId,
+        patientName: data.name,
+        ownerName: data.ownerName,
+        ownerPhone: data.ownerPhone,
+        ownerEmail: data.ownerEmail,
+        ownerAddress: data.ownerAddress,
+        species: data.species,
       });
     } catch {}
 
