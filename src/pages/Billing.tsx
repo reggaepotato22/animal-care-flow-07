@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { formatKES, mpesaStkPushPlaceholder } from "@/lib/kenya";
+import { syncPaymentToClient } from "@/lib/clientStore";
 import { Search, Receipt, User, Phone, Stethoscope, Pill, CheckCircle, Clock, XCircle, CreditCard, ChevronRight } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
@@ -98,6 +99,13 @@ export default function Billing() {
     // Move patient workflow to COMPLETED
     if (bill.patientId) setStep(bill.patientId, "COMPLETED");
     toast({ title: "✓ Payment Recorded", description: `${bill.petName}'s invoice marked as paid.` });
+    // Sync payment to CRM client timeline
+    syncPaymentToClient({
+      patientId: bill.patientId,
+      patientName: bill.petName,
+      amount: bill.total,
+      description: `Invoice paid — ${bill.ownerName} · ${bill.items?.map(i => i.name).join(", ") ?? "Services"}`,
+    });
     // Cross-role notification — Receptionist + SuperAdmin see payment confirmed
     addNotification({
       type: "success",

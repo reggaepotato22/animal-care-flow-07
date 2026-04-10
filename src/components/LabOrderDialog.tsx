@@ -43,6 +43,7 @@ import {
 } from "@/lib/attachmentStore";
 import { getPatients } from "@/lib/patientStore";
 import { getStaff } from "@/lib/staffStore";
+import { syncLabToClient } from "@/lib/clientStore";
 import { useEncounter } from "@/contexts/EncounterContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRole } from "@/contexts/RoleContext";
@@ -446,6 +447,15 @@ export function LabOrderDialog({ children, patientName, prefillData, onLabOrderC
       caseId: generateCaseId(),
     };
     saveLabOrder(labOrder);
+
+    // Sync to client CRM timeline
+    syncLabToClient({
+      patientId: data.patientId,
+      patientName: displayPatientName,
+      testName: testNames,
+      caseId: labOrder.caseId,
+      priority: data.priority,
+    });
     
     // Auto-generate PDF
     generatePDFLabRequest(data);
