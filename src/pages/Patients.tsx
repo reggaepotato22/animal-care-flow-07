@@ -377,9 +377,24 @@ export default function Patients() {
                     >
                       <TableCell className="font-mono text-xs text-muted-foreground">{patient.patientId}</TableCell>
                       <TableCell className="font-semibold text-foreground group-hover:text-primary transition-colors">
-                        <div className="flex flex-col gap-1">
-                          <div className="flex items-center gap-1.5">
-                            {patient.name}
+                        <div className="flex items-center gap-3">
+                          {/* Patient Profile Picture */}
+                          <div className="h-10 w-10 rounded-full overflow-hidden bg-muted shrink-0">
+                            {(patient as any).photoUrl ? (
+                              <img 
+                                src={(patient as any).photoUrl} 
+                                alt={patient.name}
+                                className="h-full w-full object-cover"
+                              />
+                            ) : (
+                              <div className="h-full w-full flex items-center justify-center bg-primary/10 text-primary text-sm font-bold">
+                                {patient.name.charAt(0).toUpperCase()}
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex flex-col gap-1">
+                            <div className="flex items-center gap-1.5">
+                              {patient.name}
                             {patient.allergies && patient.allergies.length > 0 && patient.allergies[0] !== "None known" && (
                               <Badge variant="outline" className="h-4 px-1 text-[9px] bg-red-50 text-red-600 border-red-200">
                                 <AlertTriangle className="h-2 w-2 mr-0.5" />
@@ -389,6 +404,7 @@ export default function Patients() {
                             {encounters.some(enc => enc.patientId === patient.id && ["WAITING","IN_TRIAGE","TRIAGED","IN_CONSULTATION"].includes(enc.status)) && (
                               <Badge variant="outline" className="h-4 px-1 text-[9px] bg-teal-50 text-teal-700 border-teal-200 animate-pulse">In Clinic</Badge>
                             )}
+                          </div>
                           </div>
                           {(patient as any).behavioralWarnings?.filter((w: any) => w.text).map((w: any, i: number) => (
                             <div key={i} className={`inline-flex items-center gap-0.5 text-[9px] font-medium px-1 py-0 rounded ${

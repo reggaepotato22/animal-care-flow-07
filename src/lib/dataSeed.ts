@@ -1,6 +1,6 @@
 
-import { savePatients, samplePatients, generatePatientId, generateOwnerId, AUTH_PRESERVE_KEYS } from "./patientStore";
-import { saveStaff, sampleStaff } from "./staffStore";
+import { savePatients, samplePatients, generatePatientId, generateOwnerId, AUTH_PRESERVE_KEYS, getMockPatientAvatar } from "./patientStore";
+import { saveStaff, sampleStaff, getMockStaffAvatar } from "./staffStore";
 import { createDemoAppointments, saveAppointments } from "./appointmentStore";
 import { saveRoles, saveGroups, saveUsers, sampleRoles, sampleGroups, sampleUsers } from "./roleStore";
 import { getAccountScopedKey } from "./accountStore";
@@ -276,19 +276,21 @@ function seedMockClinicalRecords(patients: { id: string; name: string; owner?: s
 export function seedMockData() {
   if (typeof window === "undefined") return;
 
-  // Seed Patients
+  // Seed Patients with profile pictures
   const patients = samplePatients.map((p, i) => ({
     ...p,
     id: `sample-${Date.now()}-${i}`,
     patientId: generatePatientId(),
     ownerId: generateOwnerId(),
+    photoUrl: getMockPatientAvatar(p.species),
   }));
   savePatients(patients);
 
-  // Seed Staff
+  // Seed Staff with avatars
   const staff = sampleStaff.map((s, i) => ({
     ...s,
     id: `staff-${Date.now()}-${i}`,
+    avatar: getMockStaffAvatar(i),
   }));
   saveStaff(staff);
 

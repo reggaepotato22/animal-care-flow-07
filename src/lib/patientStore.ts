@@ -264,7 +264,43 @@ export const samplePatients: Omit<PatientRow, "id" | "patientId">[] = [
   }
 ];
 
-// Initialize sample patients if not already done
+// Mock avatar URLs for demo/production
+export const MOCK_PATIENT_AVATARS: Record<string, string[]> = {
+  dog: [
+    "https://images.unsplash.com/photo-1543466835-00a7907e9de1?w=200&h=200&fit=crop",
+    "https://images.unsplash.com/photo-1587300003388-59208cc962cb?w=200&h=200&fit=crop",
+    "https://images.unsplash.com/photo-1583511655857-d19bc40da7e6?w=200&h=200&fit=crop",
+    "https://images.unsplash.com/photo-1537151608828-ea2b11777ee8?w=200&h=200&fit=crop",
+  ],
+  cat: [
+    "https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=200&h=200&fit=crop",
+    "https://images.unsplash.com/photo-1573865526739-10659fec78a5?w=200&h=200&fit=crop",
+    "https://images.unsplash.com/photo-1495360010541-f48722b34f7d?w=200&h=200&fit=crop",
+    "https://images.unsplash.com/photo-1533738363-b7f9aef128ce?w=200&h=200&fit=crop",
+  ],
+  bird: [
+    "https://images.unsplash.com/photo-1552728089-57bdde30beb3?w=200&h=200&fit=crop",
+    "https://images.unsplash.com/photo-1544568100-847a948585b9?w=200&h=200&fit=crop",
+  ],
+  rabbit: [
+    "https://images.unsplash.com/photo-1585110396000-c928ffd6f5c3?w=200&h=200&fit=crop",
+    "https://images.unsplash.com/photo-1518796745738-41048802f99a?w=200&h=200&fit=crop",
+  ],
+  other: [
+    "https://images.unsplash.com/photo-1425082661705-1834bfd09dca?w=200&h=200&fit=crop",
+    "https://images.unsplash.com/photo-1507146426996-ef05306b995a?w=200&h=200&fit=crop",
+  ],
+};
+
+// Get random mock avatar based on species
+export function getMockPatientAvatar(species: string = "dog"): string {
+  const key = species.toLowerCase() as keyof typeof MOCK_PATIENT_AVATARS;
+  const avatars = MOCK_PATIENT_AVATARS[key] || MOCK_PATIENT_AVATARS.other;
+  return avatars[Math.floor(Math.random() * avatars.length)];
+}
+
+// Initialize sample patients - DISABLED by default (zero data start)
+// Call this function explicitly to generate demo data
 export function initializeSamplePatients(): void {
   if (typeof window === "undefined") return;
   
@@ -277,12 +313,13 @@ export function initializeSamplePatients(): void {
     return;
   }
 
-  // Create sample patients with generated IDs
+  // Create sample patients with generated IDs - ONLY when explicitly called
   const patients: PatientRow[] = samplePatients.map((patient, index) => ({
     ...patient,
     id: `sample-${Date.now()}-${index}`,
     patientId: generatePatientId(),
     ownerId: generateOwnerId(),
+    photoUrl: getMockPatientAvatar(patient.species),
   }));
 
   savePatients(patients);
@@ -504,8 +541,24 @@ export function generateMockPatients(count: number = 5): PatientRow[] {
     id: `mock-${Date.now()}-${i}`,
     patientId: generatePatientId(),
     ownerId: generateOwnerId(),
+    photoUrl: getMockPatientAvatar(p.species),
   }));
 
   savePatients([...existing, ...newRecords]);
+  
+  // Real-time broadcast for each new patient
+  newRecords.forEach(patient => {
+    try {
+      broadcast({
+        type: EVENTS.PATIENT_ADMITTED,
+        payload: { patientName: patient.name, patientId: patient.patientId, species: patient.species ?? "" },
+        actorRole: "System",
+        actorName: "Demo Generator",
+        clinicId: getActiveAccountId(),
+        timestamp: new Date().toISOString(),
+      });
+    } catch {}
+  });
+  
   return newRecords;
 }

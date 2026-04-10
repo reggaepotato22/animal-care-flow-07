@@ -48,8 +48,6 @@ export interface UploadLink {
   urgency?: "routine" | "urgent" | "stat";
 }
 
-export type LabDestination = "internal" | "external";
-
 export interface LabOrder {
   id: string;
   patientId: string;
@@ -64,8 +62,6 @@ export interface LabOrder {
   status: LabTestStatus;
   completedAt?: string;
   labName?: string;
-  labDestination?: LabDestination;
-  labEmail?: string;
   uploadLinkToken?: string;
   uploadToken?: string; // Session-tokenized URL
   uploadExpiresAt?: string;
@@ -455,7 +451,7 @@ export function completeLabOrder(orderId: string, attachmentIds: string[], labNo
             labName: order.labName,
             attachmentIds: attachmentIds,
             completedAt: new Date().toISOString(),
-            actionUrl: `/patients/${order.patientId}/encounters/new`,
+            actionUrl: `/records/new?patient=${order.patientId}`,
           }
         }
       }));

@@ -101,10 +101,36 @@ export function addStaff(member: Omit<Staff, "id">): Staff {
   return newMember;
 }
 
+// Mock staff avatar URLs
+export const MOCK_STAFF_AVATARS = [
+  "https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?w=200&h=200&fit=crop",
+  "https://images.unsplash.com/photo-1559839734-2b71ea197ec2?w=200&h=200&fit=crop",
+  "https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=200&h=200&fit=crop",
+  "https://images.unsplash.com/photo-1594824476967-48c8b964273f?w=200&h=200&fit=crop",
+  "https://images.unsplash.com/photo-1537368910025-700350fe46c7?w=200&h=200&fit=crop",
+  "https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?w=200&h=200&fit=crop",
+  "https://images.unsplash.com/photo-1582750433449-648ed127bb54?w=200&h=200&fit=crop",
+  "https://images.unsplash.com/photo-1594824476967-48c8b964273f?w=200&h=200&fit=crop",
+];
+
+// Get random mock staff avatar
+export function getMockStaffAvatar(index?: number): string {
+  if (index !== undefined && index >= 0 && index < MOCK_STAFF_AVATARS.length) {
+    return MOCK_STAFF_AVATARS[index];
+  }
+  return MOCK_STAFF_AVATARS[Math.floor(Math.random() * MOCK_STAFF_AVATARS.length)];
+}
+
+// Initialize sample staff - DISABLED by default (zero data start)
+// Call this function explicitly to generate demo data
 export function initializeSampleStaff(): void {
   const existing = getStaff();
   if (existing.length === 0) {
-    const seeded = sampleStaff.map(s => ({ ...s, id: Math.random().toString(36).substr(2, 9) }));
+    const seeded = sampleStaff.map((s, i) => ({ 
+      ...s, 
+      id: Math.random().toString(36).substr(2, 9),
+      avatar: getMockStaffAvatar(i),
+    }));
     saveStaff(seeded);
   }
 }
