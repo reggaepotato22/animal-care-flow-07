@@ -327,7 +327,8 @@ const TutorialContext = createContext<TutorialContextValue | null>(null);
 
 export function TutorialProvider({ children }: { children: ReactNode }) {
   // Pure React state — intentionally NOT persisted, so it resets on every page refresh
-  const [isActive, setIsActive] = useState(true);
+  // Start as inactive so the app loads normally; user clicks the tour button to begin
+  const [isActive, setIsActive] = useState(false);
   const [step, setStep] = useState(1);
   // Track whether the tutorial itself seeded inventory so we can clean up after
   const tutorialSeededRef = useRef(false);
