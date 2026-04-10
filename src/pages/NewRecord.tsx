@@ -47,6 +47,8 @@ import { Separator } from "@/components/ui/separator";
 import { AttachmentManager } from "@/components/AttachmentManager";
 import { LabOrderManager } from "@/components/LabOrderManager";
 import { ClinicalTimeline } from "@/components/ClinicalTimeline";
+import { ClinicalContextPanel } from "@/components/clinical/ClinicalContextPanel";
+import { PlaceholderHints } from "@/components/clinical/PlaceholderHints";
 
 const NOTE_TYPES = [
   { value: "soap", label: "SOAP" },
@@ -870,6 +872,7 @@ function loadPatientData(patientId: string | undefined, encounter?: any) {
 }
 
 const DRAFT_RECORD_KEY = (patientId: string) => `acf_draft_record_${patientId}`;
+const SESSION_KEY = (encounterId: string) => `acf_clinical_session_${encounterId}`;
 
 export default function NewRecord() {
   const navigate = useNavigate();
@@ -1603,6 +1606,36 @@ export default function NewRecord() {
     } catch {}
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clinicalNotes, encounterItems, activeEncounter?.status, selectedVeterinarian]);
+
+  // ── Per-encounter lightweight session (tab, vet, triage data) ───────────────
+  useEffect(() => {
+    const eid = activeEncounter?.id;
+    if (!eid) return;
+    try {
+      localStorage.setItem(SESSION_KEY(eid), JSON.stringify({
+        activeTab,
+        selectedVeterinarian,
+        triageData,
+      }));
+    } catch {}
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeEncounter?.id, activeTab, selectedVeterinarian, triageData]);
+
+  // Restore session when encounter changes (resume support)
+  const restoredEncounterRef = React.useRef<string | null>(null);
+  useEffect(() => {
+    const eid = activeEncounter?.id;
+    if (!eid || restoredEncounterRef.current === eid) return;
+    restoredEncounterRef.current = eid;
+    try {
+      const raw = localStorage.getItem(SESSION_KEY(eid));
+      if (!raw) return;
+      const session = JSON.parse(raw);
+      if (session.activeTab) setActiveTab(session.activeTab);
+      if (session.selectedVeterinarian) setSelectedVeterinarian(session.selectedVeterinarian);
+      if (session.triageData) setTriageData(session.triageData);
+    } catch {}
+  }, [activeEncounter?.id]);
 
   // Add item to encounter when lab order is created
   const handleLabOrderCreated = (orderData: any) => {
@@ -3163,7 +3196,7 @@ const applyTemplate = (templateName: string, noteId?: string) => {
 
       {/* Persistent Encounter Header */}
       {activeEncounter && (
-        <div className="mb-4">
+        <div className="mb-2">
           <EncounterHeader 
             encounter={activeEncounter}
             onStatusChange={(status) => updateEncounterStatus(activeEncounter.id, status)}
@@ -3178,6 +3211,44 @@ const applyTemplate = (templateName: string, noteId?: string) => {
               "bg-gray-100 text-gray-800"
             }
           />
+        </div>
+      )}
+
+      {/* ── Encounter Switcher ── */}
+      {patientEncounters.length > 1 && (
+        <div className="mb-3 flex items-center gap-2 rounded-lg border border-border/50 bg-muted/30 px-3 py-2">
+          <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+          <span className="text-xs text-muted-foreground shrink-0">Switch encounter:</span>
+          <Select
+            value={activeEncounter?.id ?? ""}
+            onValueChange={(id) => {
+              handleEncounterChange(id);
+            }}
+          >
+            <SelectTrigger className="h-7 text-xs flex-1 border-0 bg-transparent shadow-none focus:ring-0 p-0 pl-1">
+              <SelectValue placeholder="Select encounter…" />
+            </SelectTrigger>
+            <SelectContent>
+              {[...patientEncounters]
+                .sort((a, b) => new Date(b.startTime ?? 0).getTime() - new Date(a.startTime ?? 0).getTime())
+                .map((enc) => (
+                  <SelectItem key={enc.id} value={enc.id} className="text-xs">
+                    <span className="font-medium">{enc.reason || enc.type || "Encounter"}</span>
+                    <span className="text-muted-foreground ml-2">
+                      {enc.startTime ? new Date(enc.startTime).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : enc.id.slice(-6)}
+                    </span>
+                    <Badge variant="outline" className={`ml-2 text-[9px] py-0 h-4 ${
+                      enc.status === "IN_CONSULTATION" ? "border-blue-200 text-blue-700" :
+                      enc.status === "DISCHARGED" ? "border-green-200 text-green-700" :
+                      enc.status === "IN_TRIAGE" ? "border-orange-200 text-orange-700" :
+                      "border-gray-200 text-gray-600"
+                    }`}>
+                      {enc.status?.replace(/_/g, " ")}
+                    </Badge>
+                  </SelectItem>
+                ))}
+            </SelectContent>
+          </Select>
         </div>
       )}
 
@@ -3336,7 +3407,6 @@ const applyTemplate = (templateName: string, noteId?: string) => {
                 <TabsList className="flex h-11 items-center justify-start gap-1 bg-transparent border-0 p-0">
                 {([
                   { value: "overview",      label: "Overview" },
-                  { value: "history",       label: "History" },
                   { value: "physical-exam", label: "Physical Exam" },
                   { value: "clinical-notes",label: "Clinical Notes" },
                   { value: "diagnostics",   label: "Diagnostics" },
@@ -3361,8 +3431,25 @@ const applyTemplate = (templateName: string, noteId?: string) => {
 
       <div ref={groupRef}>
       <div className="flex min-h-[600px] rounded-lg border mt-4">
-        {/* Left Panel - Quick Templates and Medical History */}
-        <div className={["treatment","clinical-notes"].includes(activeTab) ? "w-[44%] border-r shrink-0" : "hidden"}>
+
+        {/* ── Context Panel — always visible ── */}
+        <div className="w-60 border-r shrink-0 overflow-y-auto">
+          <div className="sticky top-0 z-10 px-3 pt-3 pb-2 border-b bg-muted/30">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Patient Context</p>
+          </div>
+          <ClinicalContextPanel
+            allergies={mockPatientData?.allergies ?? []}
+            vitals={(selectedPatientFull as any)?.vitals ?? []}
+            medications={(selectedPatientFull as any)?.medications ?? []}
+            recentVisits={(selectedPatientFull as any)?.recentVisits ?? []}
+            activeProblems={clinicalNotes.flatMap(n => (n.soapData?.clinicalFindings ?? []).filter((f: any) => f.status !== "ruled_out"))}
+            lastDiagnosis={clinicalNotes.find(n => n.soapData?.primaryDiagnosis)?.soapData?.primaryDiagnosis ?? undefined}
+            conditions={(selectedPatientFull as any)?.conditions ?? []}
+          />
+        </div>
+
+        {/* ── Templates / Treatment Selector — only for relevant tabs ── */}
+        <div className={["treatment","clinical-notes"].includes(activeTab) ? "w-[38%] border-r shrink-0" : "hidden"}>
           <div className="h-full p-6 space-y-6 overflow-y-auto">
             {/* Quick Templates Section - visible on Notes tab where clinical notes are managed */}
             <TabsContent value="clinical-notes" className="space-y-6">
@@ -3690,47 +3777,6 @@ const applyTemplate = (templateName: string, noteId?: string) => {
                   </span>
                 ))}
               </div>
-            </TabsContent>
-
-            {/* History Tab */}
-            <TabsContent value="history" className="space-y-4">
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="flex items-center gap-2 text-sm font-semibold">
-                    <History className="h-4 w-4" />
-                    Patient Medical History
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="overflow-x-auto rounded-md border">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead className="whitespace-nowrap text-xs">Date</TableHead>
-                          <TableHead className="whitespace-nowrap text-xs">Type</TableHead>
-                          <TableHead className="whitespace-nowrap text-xs">Clinician</TableHead>
-                          <TableHead className="text-xs">Description</TableHead>
-                          <TableHead className="text-xs">Notes</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {historyRows.map((row) => (
-                          <TableRow key={row.id}>
-                            <TableCell className="text-xs whitespace-nowrap">{new Date(row.date).toLocaleDateString()}</TableCell>
-                            <TableCell><Badge variant="outline" className="text-[10px] whitespace-nowrap">{row.type}</Badge></TableCell>
-                            <TableCell className="text-xs whitespace-nowrap">{row.clinician}</TableCell>
-                            <TableCell className="min-w-[120px]">
-                              <div className="text-xs font-medium">{row.title}</div>
-                              {row.subtitle && <div className="text-[10px] text-muted-foreground">{row.subtitle}</div>}
-                            </TableCell>
-                            <TableCell className="text-xs text-muted-foreground max-w-[180px] truncate">{row.notes || "—"}</TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                </CardContent>
-              </Card>
             </TabsContent>
 
             {/* Physical Exam Tab */}
@@ -4322,6 +4368,22 @@ const applyTemplate = (templateName: string, noteId?: string) => {
                                             placeholder="Owner's concerns, history, and observations..."
                                             className="min-h-[100px]"
                                           />
+                                          <PlaceholderHints
+                                            value={note.soapData.subjective}
+                                            onChange={(v) => handleUpdateSoapField(note.id, "subjective", v)}
+                                            context={{
+                                              temperature: triageData.temperature,
+                                              heartRate: triageData.heartRate,
+                                              respiratoryRate: triageData.respiratoryRate,
+                                              weight: triageData.weight,
+                                              patientName: mockPatientData.name,
+                                              species: mockPatientData.species,
+                                              breed: mockPatientData.breed,
+                                              veterinarian: selectedVeterinarian,
+                                              primaryDiagnosis: note.soapData.primaryDiagnosis,
+                                              chiefComplaint: activeEncounter?.chiefComplaint,
+                                            }}
+                                          />
                                         </div>
                                       </div>
 
@@ -4411,6 +4473,22 @@ const applyTemplate = (templateName: string, noteId?: string) => {
                                         onChange={(e) => handleUpdateSoapField(note.id, "objective", e.target.value)}
                                         placeholder="Physical examination findings, diagnostic test results, imaging findings..."
                                         className="min-h-[120px]"
+                                      />
+                                      <PlaceholderHints
+                                        value={note.soapData.objective}
+                                        onChange={(v) => handleUpdateSoapField(note.id, "objective", v)}
+                                        context={{
+                                          temperature: triageData.temperature,
+                                          heartRate: triageData.heartRate,
+                                          respiratoryRate: triageData.respiratoryRate,
+                                          weight: triageData.weight,
+                                          patientName: mockPatientData.name,
+                                          species: mockPatientData.species,
+                                          breed: mockPatientData.breed,
+                                          veterinarian: selectedVeterinarian,
+                                          primaryDiagnosis: note.soapData.primaryDiagnosis,
+                                          chiefComplaint: activeEncounter?.chiefComplaint,
+                                        }}
                                       />
                                     </div>
                                   </div>

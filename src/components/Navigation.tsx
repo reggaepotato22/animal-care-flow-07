@@ -137,7 +137,6 @@ export function Navigation({ mobileOpen = false, onMobileClose }: NavigationProp
             if (item.name === "Inventory")           return has("can_manage_inventory") && hasFeature("inventory", activeAccount);
             if (item.name === "Billing")             return has("can_access_billing");
             if (item.name === "Triage")              return !skipTriage && has("can_triage");
-            if (item.name === "Records")             return has("can_view_records");
             if (item.name === "Labs")                return has("can_view_records") && hasFeature("labs", activeAccount);
             if (item.name === "Hospitalization")     return has("can_view_records") && hasFeature("hospitalization", activeAccount);
             if (item.name === "Treatments")          return has("can_view_records") && hasFeature("clinical_records", activeAccount);
@@ -155,7 +154,6 @@ export function Navigation({ mobileOpen = false, onMobileClose }: NavigationProp
               data-tutorial={
                 item.name === "Registered Patients" ? "nav-registered-patients" :
                 item.name === "Billing"             ? "nav-billing" :
-                item.name === "Records"             ? "nav-records" :
                 item.name === "Inventory"           ? "nav-inventory" :
                 item.name === "Triage"              ? "triage-page" :
                 undefined

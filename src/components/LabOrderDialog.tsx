@@ -43,6 +43,9 @@ import {
 } from "@/lib/attachmentStore";
 import { getPatients } from "@/lib/patientStore";
 import { getStaff } from "@/lib/staffStore";
+import { useEncounter } from "@/contexts/EncounterContext";
+import { useAuth } from "@/contexts/AuthContext";
+import { useRole } from "@/contexts/RoleContext";
 
 const labOrderSchema = z.object({
   patientId: z.string().min(1, "Patient is required"),
@@ -171,6 +174,9 @@ const testCategories = ["Bloodwork", "Urinalysis", "Imaging", "Pathology"];
 
 
 export function LabOrderDialog({ children, patientName, prefillData, onLabOrderCreated }: LabOrderDialogProps) {
+  const { activeEncounter, encounters } = useEncounter();
+  const { user } = useAuth();
+  const { role } = useRole();
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState<"form" | "email">("form");
   const [generatedUrl, setGeneratedUrl] = useState("");
@@ -213,9 +219,37 @@ export function LabOrderDialog({ children, patientName, prefillData, onLabOrderC
       ...mapFindingsToTests(prefillData?.tentativeFindings ?? []),
     ].filter((v, i, a) => a.indexOf(v) === i);
     const diagnosis = prefillData?.diagnosis || prefillData?.chiefComplaint || "";
+
+    // Best encounter: explicit active one, or most recent non-discharged encounter
+    const bestEncounter = activeEncounter ??
+      [...encounters]
+        .filter(e => e.status !== "DISCHARGED")
+        .sort((a, b) => new Date(b.startTime ?? 0).getTime() - new Date(a.startTime ?? 0).getTime())[0] ??
+      null;
+
+    // Auto-pick patient from best encounter
+    const autoPatientId = prefillData?.patientId || bestEncounter?.patientId || "";
+
+    // Auto-pick vet with contextual fallback chain:
+    // 1. Explicit prefillData (from workspace encounter)
+    // 2. Best encounter's assigned vet (if any)
+    // 3. Current user if they are a Vet/SuperAdmin
+    // 4. First available staff veterinarian
+    const isVetUser = role === "Vet" || role === "SuperAdmin";
+    const staffVets = loadVeterinarians();
+    const currentUserAsVet = isVetUser && user?.name ? user.name : null;
+
+    // When opened from workspace (prefillData.patientId exists), use encounter vet then fallbacks
+    const encounterVet = prefillData?.patientId ? (prefillData?.veterinarian || bestEncounter?.veterinarian) : null;
+    const autoVet = encounterVet
+      || currentUserAsVet
+      || bestEncounter?.veterinarian
+      || staffVets[0]
+      || "";
+
     form.reset({
-      patientId: prefillData?.patientId || "",
-      veterinarian: prefillData?.veterinarian || "",
+      patientId: autoPatientId,
+      veterinarian: autoVet,
       priority: "routine",
       tests: autoTests,
       diagnosis,

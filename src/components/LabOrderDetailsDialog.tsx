@@ -1,28 +1,8 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
-import { Calendar, User, Stethoscope, TestTube, AlertTriangle, FileText, Clock } from "lucide-react";
-
-interface LabOrder {
-  id: string;
-  patientId: string;
-  patientName: string;
-  species: string;
-  breed: string;
-  orderDate: string;
-  veterinarian: string;
-  tests: string[];
-  priority: "routine" | "urgent" | "stat";
-  status: "pending" | "collected" | "in-progress" | "completed";
-  specialInstructions?: string;
-  diagnosis: string;
-  collectedDate?: string;
-  collectedBy?: string;
-  sampleType?: string;
-  resultDate?: string;
-  results?: any;
-}
+import { User, Stethoscope, TestTube, FileText, Clock } from "lucide-react";
+import { type LabOrder } from "@/lib/attachmentStore";
 
 interface LabOrderDetailsDialogProps {
   order: LabOrder | null;
@@ -69,12 +49,12 @@ export function LabOrderDetailsDialog({ order, open, onOpenChange }: LabOrderDet
               <Badge className={getStatusColor(order.status)}>
                 {order.status.replace('-', ' ').toUpperCase()}
               </Badge>
-              <Badge className={getPriorityColor(order.priority)}>
-                {order.priority.toUpperCase()} PRIORITY
+              <Badge className={getPriorityColor(order.urgency ?? "routine")}>
+                {(order.urgency ?? "routine").toUpperCase()} PRIORITY
               </Badge>
             </div>
             <div className="text-sm text-muted-foreground">
-              Order Date: {order.orderDate}
+              Order Date: {order.orderedAt ? new Date(order.orderedAt).toLocaleDateString() : "—"}
             </div>
           </div>
 
@@ -116,12 +96,14 @@ export function LabOrderDetailsDialog({ order, open, onOpenChange }: LabOrderDet
               <CardContent className="space-y-3">
                 <div>
                   <span className="font-medium">Veterinarian:</span>
-                  <div className="text-muted-foreground">{order.veterinarian}</div>
+                  <div className="text-muted-foreground">{order.orderedBy}</div>
                 </div>
-                <div>
-                  <span className="font-medium">Diagnosis/Reason:</span>
-                  <div className="text-muted-foreground">{order.diagnosis}</div>
-                </div>
+                {order.notes && (
+                  <div>
+                    <span className="font-medium">Notes/Reason:</span>
+                    <div className="text-muted-foreground">{order.notes}</div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -136,7 +118,7 @@ export function LabOrderDetailsDialog({ order, open, onOpenChange }: LabOrderDet
             </CardHeader>
             <CardContent>
               <div className="flex flex-wrap gap-2">
-                {order.tests.map((test, index) => (
+                {order.testName.split(", ").map((test, index) => (
                   <Badge key={index} variant="outline" className="text-sm">
                     {test}
                   </Badge>
@@ -144,21 +126,6 @@ export function LabOrderDetailsDialog({ order, open, onOpenChange }: LabOrderDet
               </div>
             </CardContent>
           </Card>
-
-          {/* Special Instructions */}
-          {order.specialInstructions && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <AlertTriangle className="h-4 w-4" />
-                  Special Instructions
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground">{order.specialInstructions}</p>
-              </CardContent>
-            </Card>
-          )}
 
           {/* Timeline */}
           <Card>
@@ -175,23 +142,10 @@ export function LabOrderDetailsDialog({ order, open, onOpenChange }: LabOrderDet
                   <div className="flex-1">
                     <div className="font-medium">Order Created</div>
                     <div className="text-sm text-muted-foreground">
-                      {order.orderDate} by {order.veterinarian}
+                      {order.orderedAt ? new Date(order.orderedAt).toLocaleDateString() : "—"} by {order.orderedBy}
                     </div>
                   </div>
                 </div>
-
-                {order.collectedDate && (
-                  <div className="flex items-center gap-3">
-                    <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                    <div className="flex-1">
-                      <div className="font-medium">Sample Collected</div>
-                      <div className="text-sm text-muted-foreground">
-                        {order.collectedDate} by {order.collectedBy}
-                        {order.sampleType && ` • Sample Type: ${order.sampleType}`}
-                      </div>
-                    </div>
-                  </div>
-                )}
 
                 {order.status === "in-progress" && (
                   <div className="flex items-center gap-3">
@@ -205,13 +159,13 @@ export function LabOrderDetailsDialog({ order, open, onOpenChange }: LabOrderDet
                   </div>
                 )}
 
-                {order.resultDate && (
+                {order.completedAt && (
                   <div className="flex items-center gap-3">
                     <div className="w-3 h-3 bg-green-600 rounded-full"></div>
                     <div className="flex-1">
                       <div className="font-medium">Results Available</div>
                       <div className="text-sm text-muted-foreground">
-                        {order.resultDate}
+                        {new Date(order.completedAt).toLocaleDateString()}
                       </div>
                     </div>
                   </div>
@@ -221,7 +175,7 @@ export function LabOrderDetailsDialog({ order, open, onOpenChange }: LabOrderDet
           </Card>
 
           {/* Results Summary (if completed) */}
-          {order.status === "completed" && order.results && (
+          {order.status === "completed" && order.completedAt && (
             <Card>
               <CardHeader>
                 <CardTitle className="text-lg flex items-center gap-2">

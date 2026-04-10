@@ -21,7 +21,6 @@ import AddPatient from "./pages/AddPatient";
 import PatientDetails from "./pages/PatientDetails";
 import Appointments from "./pages/Appointments";
 import AppointmentDetails from "./pages/AppointmentDetails";
-import Records from "./pages/Records";
 import NewRecord from "./pages/NewRecord";
 import ClinicalRecordDetails from "./pages/ClinicalRecordDetails";
 import Staff from "./pages/Staff";
@@ -110,7 +109,6 @@ function ProtectedRoutes() {
         <Route path="/treatments" element={<Treatments />} />
         <Route path="/inventory" element={<Inventory />} />
         <Route path="/triage" element={<Triage />} />
-        <Route path="/records" element={<Records />} />
         <Route path="/audit" element={<Audit />} />
         <Route path="/billing" element={<Billing />} />
         <Route path="/staff" element={<Staff />} />
@@ -120,8 +118,6 @@ function ProtectedRoutes() {
         <Route path="/patients/:patientId/chart" element={<ClinicalRecordDetails />} />
         {/* Legacy alias for /records/new — kept for backward compat */}
         <Route path="/records/new" element={<NewRecord />} />
-        {/* /records/:id — view a saved clinical record or active encounter */}
-        <Route path="/records/:id" element={<ClinicalRecordDetails />} />
         <Route path="/patients/:id/journey" element={<PatientJourney />} />
         <Route path="/patients/:id/refer" element={<ReferPatient />} />
         <Route path="/workflow-settings" element={<WorkflowSettings />} />

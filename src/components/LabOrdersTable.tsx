@@ -10,26 +10,7 @@ import { useNavigate } from "react-router-dom";
 import { LabResultsDialog } from "./LabResultsDialog";
 import { LabOrderDetailsDialog } from "./LabOrderDetailsDialog";
 import { toast } from "sonner";
-
-interface LabOrder {
-  id: string;
-  patientId: string;
-  patientName: string;
-  species: string;
-  breed: string;
-  orderDate: string;
-  veterinarian: string;
-  tests: string[];
-  priority: "routine" | "urgent" | "stat";
-  status: "pending" | "collected" | "in-progress" | "completed";
-  specialInstructions?: string;
-  diagnosis: string;
-  collectedDate?: string;
-  collectedBy?: string;
-  sampleType?: string;
-  resultDate?: string;
-  results?: any;
-}
+import { type LabOrder } from "@/lib/attachmentStore";
 
 interface LabOrdersTableProps {
   orders: LabOrder[];
@@ -67,7 +48,7 @@ export function LabOrdersTable({ orders, onResultsAdded }: LabOrdersTableProps) 
   };
 
   const getCurrentStatus = (order: LabOrder) => {
-    return statusUpdates[order.id] || order.status;
+    return (statusUpdates[order.id] || order.status) as string;
   };
 
   const handleRowClick = (order: LabOrder) => {
@@ -122,14 +103,14 @@ export function LabOrdersTable({ orders, onResultsAdded }: LabOrdersTableProps) 
                     </TableCell>
                     <TableCell>
                       <div className="space-y-1">
-                        {order.tests.slice(0, 2).map((test, index) => (
+                        {order.testName.split(", ").slice(0, 2).map((test, index) => (
                           <Badge key={index} variant="outline" className="text-xs">
                             {test}
                           </Badge>
                         ))}
-                        {order.tests.length > 2 && (
+                        {order.testName.split(", ").length > 2 && (
                           <Badge variant="outline" className="text-xs">
-                            +{order.tests.length - 2} more
+                            +{order.testName.split(", ").length - 2} more
                           </Badge>
                         )}
                       </div>
@@ -137,12 +118,12 @@ export function LabOrdersTable({ orders, onResultsAdded }: LabOrdersTableProps) 
                     <TableCell>
                       <div className="flex items-center gap-2">
                         <User className="h-4 w-4 text-muted-foreground" />
-                        {order.veterinarian}
+                        {order.orderedBy}
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Badge className={getPriorityColor(order.priority)}>
-                        {order.priority.toUpperCase()}
+                      <Badge className={getPriorityColor(order.urgency ?? "routine")}>
+                        {(order.urgency ?? "routine").toUpperCase()}
                       </Badge>
                     </TableCell>
                     <TableCell>
@@ -166,7 +147,7 @@ export function LabOrdersTable({ orders, onResultsAdded }: LabOrdersTableProps) 
                     <TableCell>
                       <div className="flex items-center gap-2">
                         <Calendar className="h-4 w-4 text-muted-foreground" />
-                        {order.orderDate}
+                        {order.orderedAt ? new Date(order.orderedAt).toLocaleDateString() : "—"}
                       </div>
                     </TableCell>
                     <TableCell className="text-right">

@@ -1,4 +1,4 @@
-import { Bell, Search as SearchIcon, User, LogOut, Sun, Moon, Leaf, SunMoon, Shield, CheckCheck, Trash2, Settings, Menu, ExternalLink } from "lucide-react";
+import { Bell, Search as SearchIcon, User, LogOut, Sun, Moon, Leaf, SunMoon, Shield, CheckCheck, Trash2, Settings, Menu, ExternalLink, ChevronDown } from "lucide-react";
 import { AppLogo } from "@/components/AppLogo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -70,6 +70,30 @@ export function Header({ onMobileMenuOpen }: HeaderProps) {
 
   const isDev = process.env.NODE_ENV === 'development' || true; // Always show for demo
 
+  const ROLE_LABELS: Record<string, string> = {
+    SuperAdmin: "Super Admin",
+    Vet: "Veterinarian",
+    Nurse: "Attendant",
+    Receptionist: "Receptionist",
+    Pharmacist: "Pharmacist",
+  };
+
+  const ROLE_COLORS: Record<string, string> = {
+    SuperAdmin: "bg-emerald-500 hover:bg-emerald-600",
+    Vet: "bg-blue-600 hover:bg-blue-700",
+    Nurse: "bg-amber-500 hover:bg-amber-600",
+    Receptionist: "bg-sky-500 hover:bg-sky-600",
+    Pharmacist: "bg-purple-500 hover:bg-purple-600",
+  };
+
+  const ROLES = [
+    { value: "SuperAdmin", label: "Super Admin" },
+    { value: "Vet", label: "Veterinarian" },
+    { value: "Nurse", label: "Attendant" },
+    { value: "Receptionist", label: "Receptionist" },
+    { value: "Pharmacist", label: "Pharmacist" },
+  ] as const;
+
   return (
     <header className="bg-card border-b border-border px-4 md:px-6 py-3 md:py-4 sticky top-0 z-30">
       <div className="flex flex-col gap-4">
@@ -105,6 +129,36 @@ export function Header({ onMobileMenuOpen }: HeaderProps) {
           </div>
           
           <div className="flex items-center space-x-1 md:space-x-2">
+            {/* Active user type badge with role switcher */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  className={`hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full text-white text-xs font-semibold transition-colors ${
+                    ROLE_COLORS[role] ?? "bg-gray-500 hover:bg-gray-600"
+                  }`}
+                  title="Switch role"
+                >
+                  <span>{ROLE_LABELS[role] ?? role}</span>
+                  <ChevronDown className="h-3 w-3 opacity-70" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-44">
+                <DropdownMenuLabel className="text-xs text-muted-foreground">Switch Role</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {ROLES.map((r) => (
+                  <DropdownMenuItem
+                    key={r.value}
+                    onClick={() => setRole(r.value)}
+                    className={`gap-2 text-sm ${role === r.value ? "font-semibold" : ""}`}
+                  >
+                    <span className={`h-2 w-2 rounded-full ${ROLE_COLORS[r.value]?.split(" ")[0] ?? "bg-gray-400"}`} />
+                    {r.label}
+                    {role === r.value && <Shield className="h-3 w-3 ml-auto text-primary" />}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+
             {/* Theme switchers — hidden on mobile to save space */}
             <div className="hidden sm:flex items-center gap-1">
               <Button variant="ghost" size="icon" onClick={() => setTheme("light")} title="Light">
