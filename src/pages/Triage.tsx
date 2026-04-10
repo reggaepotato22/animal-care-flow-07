@@ -20,6 +20,7 @@ import { useEncounter } from "@/contexts/EncounterContext";
 import { getPatients, updatePatient } from "@/lib/patientStore";
 import { EncounterStatus } from "@/lib/types";
 import { getStaff } from "@/lib/staffStore";
+import { broadcast, EVENTS } from "@/lib/realtimeEngine";
 
 type TriageIntake = {
   chiefComplaint: string;
@@ -244,6 +245,23 @@ export default function Triage() {
       });
       channel.close();
     }
+
+    // Broadcast vitals update → Vet + SuperAdmin notified
+    try {
+      broadcast({
+        type: EVENTS.VITALS_UPDATED,
+        payload: {
+          patientName: selectedEncounter.petName,
+          patientId: selectedEncounter.patientId,
+          temperature: intake.temperature,
+          heartRate: intake.heartRate,
+        },
+        actorRole: "Nurse",
+        actorName: intake.assignedVeterinarian || "Nursing Staff",
+        clinicId: "clinic-demo",
+        timestamp: new Date().toISOString(),
+      });
+    } catch {}
 
     toast({
       title: "Triage Completed",

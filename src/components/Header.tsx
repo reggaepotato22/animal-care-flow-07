@@ -21,7 +21,9 @@ import * as React from "react";
 import { GlobalSearch } from "@/components/GlobalSearch";
 import { WorkflowProgress } from "@/components/WorkflowProgress";
 import { useNotifications } from "@/contexts/NotificationContext";
+import { NotificationBell } from "@/components/NotificationBell";
 import { cn } from "@/lib/utils";
+import { settingsItems } from "@/components/Navigation";
 
 interface HeaderProps {
   onMobileMenuOpen?: () => void;
@@ -129,36 +131,50 @@ export function Header({ onMobileMenuOpen }: HeaderProps) {
           </div>
           
           <div className="flex items-center space-x-1 md:space-x-2">
-            {/* Active user type badge with role switcher */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button
-                  className={`hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full text-white text-xs font-semibold transition-colors ${
-                    ROLE_COLORS[role] ?? "bg-gray-500 hover:bg-gray-600"
-                  }`}
-                  title="Switch role"
-                >
-                  <span>{ROLE_LABELS[role] ?? role}</span>
-                  <ChevronDown className="h-3 w-3 opacity-70" />
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-44">
-                <DropdownMenuLabel className="text-xs text-muted-foreground">Switch Role</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                {ROLES.map((r) => (
-                  <DropdownMenuItem
-                    key={r.value}
-                    onClick={() => setRole(r.value)}
-                    className={`gap-2 text-sm ${role === r.value ? "font-semibold" : ""}`}
+            {/* Role badge — SuperAdmin gets a switcher, others see a static pill locked to their profile role */}
+            {role === "SuperAdmin" ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    className={`hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full text-white text-xs font-semibold transition-colors ${
+                      ROLE_COLORS[role] ?? "bg-gray-500 hover:bg-gray-600"
+                    }`}
+                    title="Switch role (SuperAdmin)"
                   >
-                    <span className={`h-2 w-2 rounded-full ${ROLE_COLORS[r.value]?.split(" ")[0] ?? "bg-gray-400"}`} />
-                    {r.label}
-                    {role === r.value && <Shield className="h-3 w-3 ml-auto text-primary" />}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
+                    <span>{ROLE_LABELS[role] ?? role}</span>
+                    <ChevronDown className="h-3 w-3 opacity-70" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-44">
+                  <DropdownMenuLabel className="text-xs text-muted-foreground">Switch Role</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  {ROLES.map((r) => (
+                    <DropdownMenuItem
+                      key={r.value}
+                      onClick={() => setRole(r.value)}
+                      className={`gap-2 text-sm ${role === r.value ? "font-semibold" : ""}`}
+                    >
+                      <span className={`h-2 w-2 rounded-full ${ROLE_COLORS[r.value]?.split(" ")[0] ?? "bg-gray-400"}`} />
+                      {r.label}
+                      {role === r.value && <Shield className="h-3 w-3 ml-auto text-primary" />}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : (
+              <span
+                className={`hidden sm:flex items-center px-3 py-1.5 rounded-full text-white text-xs font-semibold ${
+                  ROLE_COLORS[role]?.split(" ")[0] ?? "bg-gray-500"
+                }`}
+                title={`Logged in as ${ROLE_LABELS[role] ?? role}`}
+              >
+                {ROLE_LABELS[role] ?? role}
+              </span>
+            )}
 
+            {/* Realtime role-targeted notification bell — moved to separate from workflow notifications */}
+            <NotificationBell />
+            <div className="w-px h-6 bg-border/60 mx-1 hidden sm:block" />
             {/* Theme switchers — hidden on mobile to save space */}
             <div className="hidden sm:flex items-center gap-1">
               <Button variant="ghost" size="icon" onClick={() => setTheme("light")} title="Light">
@@ -263,10 +279,10 @@ export function Header({ onMobileMenuOpen }: HeaderProps) {
                   <Shield className="h-4 w-4" />
                   Role: {role}
                 </DropdownMenuItem>
-                {isDev && (
+                {role === "SuperAdmin" && (
                   <>
                     <DropdownMenuSeparator />
-                    <DropdownMenuLabel className="text-xs text-muted-foreground">Demo Role Switch</DropdownMenuLabel>
+                    <DropdownMenuLabel className="text-xs text-muted-foreground">Switch Role (SuperAdmin)</DropdownMenuLabel>
                     <DropdownMenuItem onClick={() => setRole("SuperAdmin")}>Switch to SuperAdmin</DropdownMenuItem>
                     <DropdownMenuItem onClick={() => setRole("Vet")}>Switch to Vet</DropdownMenuItem>
                     <DropdownMenuItem onClick={() => setRole("Nurse")}>Switch to Attendant</DropdownMenuItem>
@@ -275,18 +291,22 @@ export function Header({ onMobileMenuOpen }: HeaderProps) {
                   </>
                 )}
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => navigate("/profile")} className="gap-2">
-                  <User className="h-4 w-4" />
-                  Profile
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => navigate("/workflow-settings")} className="gap-2">
-                  <Settings className="h-4 w-4" />
-                  Settings
-                </DropdownMenuItem>
+                <DropdownMenuLabel className="text-xs text-muted-foreground">Settings</DropdownMenuLabel>
+                {settingsItems.map((item) => (
+                  <DropdownMenuItem key={item.name} onClick={() => navigate(item.href)} className="gap-2">
+                    <item.icon className="h-4 w-4" />
+                    {item.name}
+                  </DropdownMenuItem>
+                ))}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => navigate("/admin")} className="gap-2 text-muted-foreground">
                   <ExternalLink className="h-4 w-4" />
                   Admin Portal
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => navigate("/profile")} className="gap-2">
+                  <User className="h-4 w-4" />
+                  Profile
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleLogout}>

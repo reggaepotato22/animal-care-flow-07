@@ -34,7 +34,7 @@ const PLANS: Plan[] = [
     annualPrice: 3750,
     description: "Solo practitioners, mobile vets, and small clinics transitioning away from paper records.",
     highlight: false,
-    cta: "Get Access Token",
+    cta: "Start 14-Day Free Trial",
     ctaVariant: "outline",
     features: [
       { text: "Up to 2 users (1 Vet + 1 Receptionist)", included: true },
@@ -58,7 +58,7 @@ const PLANS: Plan[] = [
     annualPrice: 10000,
     description: "Busy established clinics with multiple doctors, a dispensary, and higher daily foot traffic.",
     highlight: true,
-    cta: "Get Access Token",
+    cta: "Start 14-Day Free Trial",
     ctaVariant: "default",
     features: [
       { text: "Up to 10 users", included: true },
@@ -120,6 +120,7 @@ export default function Pricing() {
       toast({ title: "Sales team notified", description: "We'll reach out within 1 business day to schedule a demo." });
       return;
     }
+    navigate("/register");
     setCheckoutPlan(plan.id);
     setTimeout(() => {
       toast({
@@ -302,7 +303,7 @@ export default function Pricing() {
         {/* ── CTA Footer ── */}
         <div className="rounded-2xl border bg-gradient-to-r from-primary/10 to-emerald-500/10 p-10 text-center space-y-4">
           <h2 className="text-2xl font-bold">Ready to modernise your clinic?</h2>
-          <p className="text-muted-foreground">Join veterinary practices across Kenya using InnoVetPro. Get your Access Token today.</p>
+          <p className="text-muted-foreground">Join veterinary practices across Kenya using InnoVetPro. Start your 14-day free trial today.</p>
           <div className="flex flex-wrap gap-3 justify-center">
             <Button size="lg" onClick={() => navigate("/login")} className="gap-2">
               Start Free Trial <ArrowRight className="h-4 w-4" />

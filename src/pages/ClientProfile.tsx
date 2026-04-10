@@ -10,6 +10,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFooter as SheetFtr } from "@/components/ui/sheet";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import {
@@ -22,11 +24,11 @@ import {
 } from "lucide-react";
 import {
   getClientById, getLinksForClient, getCommEvents, getTimeline,
-  addCommEvent, upsertClient, seedDemoClients,
+  addCommEvent, upsertClient, seedDemoClients, syncPatientToClientCRM,
   type Client, type CommEvent, type TimelineEvent, type ClientPatientLink,
   type CommEventType,
 } from "@/lib/clientStore";
-import { getPatients } from "@/lib/patientStore";
+import { getPatients, addPatient } from "@/lib/patientStore";
 import { formatKES } from "@/lib/kenya";
 
 // ─── Brand SVG Icons ──────────────────────────────────────────────────────────
@@ -361,7 +363,9 @@ function TimelineItem({ ev, isLast }: { ev: TimelineEvent; isLast: boolean }) {
 
 // ─── Center Panel — Framer Motion Tabs ───────────────────────────────────────
 
-function CenterPanel({ clientId, clientName }: { clientId: string; clientName: string }) {
+function CenterPanel({ client }: { client: Client }) {
+  const clientId = client.id;
+  const clientName = client.name;
   const [tab, setTab] = useState<"timeline" | "comms">("timeline");
   const [timeline, setTimeline] = useState<TimelineEvent[]>([]);
   const [commEvents, setCommEvents] = useState<CommEvent[]>([]);
@@ -369,7 +373,11 @@ function CenterPanel({ clientId, clientName }: { clientId: string; clientName: s
   const [message, setMessage] = useState("");
   const [subject, setSubject] = useState("");
   const [tlFilter, setTlFilter] = useState("all");
+  const [talkingAs, setTalkingAs] = useState<"clinic" | "staff">("clinic");
+  const [tempPhone, setTempPhone] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
+  const hasPhone = !!(client.phone);
+  const hasEmail = !!(client.email);
 
   const refresh = useCallback(() => {
     setTimeline(getTimeline(clientId));
@@ -385,19 +393,20 @@ function CenterPanel({ clientId, clientName }: { clientId: string; clientName: s
 
   function sendMsg() {
     if (!message.trim()) return;
-    addCommEvent({ clientId, type: channel, direction: "outbound", content: message.trim(), subject: subject || undefined, status: "sent", createdBy: "Staff" });
+    const sender = talkingAs === "clinic" ? "InnoVetPro Clinic" : "Dr. Andrew";
+    addCommEvent({ clientId, type: channel, direction: "outbound", content: message.trim(), subject: subject || undefined, status: "sent", createdBy: sender });
     setMessage(""); setSubject(""); refresh();
   }
 
   const channelMeta = [
-    { id: "sms" as CommEventType,      Icon: SmsIcon,      activeBg: "bg-indigo-500",  label: "SMS" },
-    { id: "email" as CommEventType,    Icon: GmailIcon,    activeBg: "bg-red-500",     label: "Gmail" },
-    { id: "whatsapp" as CommEventType, Icon: WhatsAppIcon, activeBg: "bg-emerald-500", label: "WhatsApp" },
-    { id: "call" as CommEventType,     Icon: Phone,        activeBg: "bg-sky-500",     label: "Call" },
+    { id: "sms" as CommEventType,      Icon: SmsIcon,      activeBg: "bg-indigo-500",  label: "SMS",      enabled: hasPhone },
+    { id: "email" as CommEventType,    Icon: GmailIcon,    activeBg: "bg-red-500",     label: "Gmail",    enabled: hasEmail },
+    { id: "whatsapp" as CommEventType, Icon: WhatsAppIcon, activeBg: "bg-emerald-500", label: "WhatsApp", enabled: hasPhone },
+    { id: "call" as CommEventType,     Icon: Phone,        activeBg: "bg-sky-500",     label: "Call",     enabled: hasPhone || client.commPreferences.callOptIn },
   ];
 
   return (
-    <div className="rounded-2xl bg-card shadow-lg shadow-black/[0.06] dark:shadow-black/25 overflow-hidden flex flex-col">
+    <div className="rounded-2xl bg-card/80 backdrop-blur-md shadow-lg shadow-black/[0.06] dark:shadow-black/30 overflow-hidden flex flex-col ring-1 ring-white/[0.06]">
       {/* Tab bar with motion underline */}
       <div className="flex items-center border-b border-border/20 px-1 bg-muted/10">
         {[{ id: "timeline", label: "Event Stream", icon: Activity }, { id: "comms", label: "Communications", icon: Zap }].map(t => (
@@ -451,11 +460,15 @@ function CenterPanel({ clientId, clientName }: { clientId: string; clientName: s
           <motion.div key="comms" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
             transition={{ duration: 0.18, ease: "easeOut" }} className="flex flex-col h-[580px]">
             <div className="flex items-center gap-2 px-5 py-3 border-b border-border/20 bg-muted/10">
-              {channelMeta.map(({ id, Icon, activeBg, label }) => (
-                <motion.button key={id} whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
-                  onClick={() => setChannel(id)}
+              {channelMeta.map(({ id, Icon, activeBg, label, enabled }) => (
+                <motion.button key={id} whileHover={{ scale: enabled ? 1.03 : 1 }} whileTap={{ scale: enabled ? 0.97 : 1 }}
+                  onClick={() => enabled ? setChannel(id) : undefined}
+                  disabled={!enabled}
+                  title={!enabled ? `No ${id === "email" ? "email" : "phone"} on file` : undefined}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${
-                    channel === id ? `${activeBg} text-white shadow-sm` : "bg-muted/60 text-muted-foreground hover:text-foreground"
+                    channel === id ? `${activeBg} text-white shadow-sm` :
+                    enabled ? "bg-muted/60 text-muted-foreground hover:text-foreground" :
+                    "bg-muted/20 text-muted-foreground/30 cursor-not-allowed"
                   }`}>
                   <Icon className={`h-3.5 w-3.5 ${channel === id ? "text-white" : ""}`} />
                   {label}
@@ -510,7 +523,23 @@ function CenterPanel({ clientId, clientName }: { clientId: string; clientName: s
                   <Send className="h-4 w-4" strokeWidth={1.5} />
                 </motion.button>
               </div>
-              <p className="text-[10px] text-muted-foreground mt-1.5 pl-1">⌘↵ to send</p>
+              <div className="flex items-center justify-between mt-1.5 pl-1 pr-1">
+                <p className="text-[10px] text-muted-foreground">⌘↵ to send</p>
+                <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+                  onClick={() => setTalkingAs(v => v === "clinic" ? "staff" : "clinic")}
+                  className="flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-muted/60 text-muted-foreground hover:text-foreground transition-colors">
+                  <User className="h-2.5 w-2.5" strokeWidth={1.5} />
+                  Talking as: {talkingAs === "clinic" ? "InnoVetPro Clinic" : "Dr. Andrew"}
+                </motion.button>
+              </div>
+              {!hasPhone && channel !== "email" && (
+                <div className="flex items-center gap-2 mt-2">
+                  <Input value={tempPhone} onChange={e => setTempPhone(e.target.value)}
+                    placeholder="Enter temporary number…"
+                    className="h-7 text-xs bg-amber-500/5 border-amber-500/20 flex-1" />
+                  <span className="text-[10px] text-amber-500 whitespace-nowrap font-medium">No phone on file</span>
+                </div>
+              )}
             </div>
           </motion.div>
         )}
@@ -592,12 +621,127 @@ function EmptyHousehold({ onAdd }: { onAdd: () => void }) {
   );
 }
 
+// ─── Add Patient Slide-Over ────────────────────────────────────────────────────
+
+function AddPatientSheet({ open, onClose, client, onSuccess }: {
+  open: boolean; onClose: () => void; client: Client; onSuccess: () => void;
+}) {
+  const [form, setForm] = useState({ name: "", species: "dog", breed: "", dob: "", sex: "unknown" });
+  const [saving, setSaving] = useState(false);
+
+  function handleSubmit() {
+    if (!form.name.trim()) { toast.error("Patient name is required"); return; }
+    setSaving(true);
+    try {
+      const ageStr = form.dob
+        ? `${Math.max(0, Math.floor((Date.now() - new Date(form.dob).getTime()) / (365.25 * 86400000)))} yrs`
+        : "Unknown";
+      const newPt = addPatient({
+        name: form.name.trim(), species: form.species, breed: form.breed || "Mixed",
+        age: ageStr, weight: "Unknown", owner: client.name, phone: client.phone,
+        email: client.email, address: client.address, location: client.city || "Main Clinic",
+        lastVisit: new Date().toISOString().split("T")[0], status: "healthy" as const,
+        sex: form.sex, color: "Unknown", microchip: "", allergies: [], ownerId: client.id,
+      }, "Staff");
+      syncPatientToClientCRM({
+        patientId: newPt.id, patientName: newPt.name,
+        ownerName: client.name, ownerPhone: client.phone,
+        ownerEmail: client.email, ownerAddress: client.address, species: form.species,
+      });
+      window.dispatchEvent(new CustomEvent("acf:links:update"));
+      toast.success(`${form.name} added to ${client.name}'s household`);
+      setForm({ name: "", species: "dog", breed: "", dob: "", sex: "unknown" });
+      onSuccess();
+      onClose();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Sheet open={open} onOpenChange={v => !v && onClose()}>
+      <SheetContent className="sm:max-w-[460px] flex flex-col" side="right">
+        <SheetHeader className="space-y-1 pb-4 border-b border-border/20">
+          <SheetTitle className="flex items-center gap-2 text-base">
+            <PawPrint className="h-5 w-5 text-primary" strokeWidth={1.5} />
+            Add Patient to Household
+          </SheetTitle>
+          <SheetDescription className="flex items-center gap-2 text-xs">
+            <span className="px-2 py-0.5 rounded-full bg-primary/10 text-primary font-mono font-semibold">{client.id}</span>
+            Linking to <span className="font-semibold text-foreground ml-1">{client.name}</span>
+          </SheetDescription>
+        </SheetHeader>
+        <div className="flex-1 overflow-y-auto py-5 space-y-4">
+          <div className="space-y-1.5">
+            <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Pet Name *</Label>
+            <Input value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
+              placeholder="e.g. Max, Luna, Whiskers..." className="h-10" autoFocus />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Species *</Label>
+              <Select value={form.species} onValueChange={v => setForm(p => ({ ...p, species: v }))}>
+                <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {(["dog","cat","bird","rabbit","reptile","fish","hamster","horse","other"]).map(s => (
+                    <SelectItem key={s} value={s}>{(SPECIES_EMOJI[s] ?? "🐾")} {s.charAt(0).toUpperCase() + s.slice(1)}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Sex</Label>
+              <Select value={form.sex} onValueChange={v => setForm(p => ({ ...p, sex: v }))}>
+                <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="male">Male</SelectItem>
+                  <SelectItem value="female">Female</SelectItem>
+                  <SelectItem value="unknown">Unknown</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Breed</Label>
+            <Input value={form.breed} onChange={e => setForm(p => ({ ...p, breed: e.target.value }))}
+              placeholder="e.g. Golden Retriever, Persian..." className="h-10" />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Date of Birth</Label>
+            <Input type="date" value={form.dob} onChange={e => setForm(p => ({ ...p, dob: e.target.value }))} className="h-10" />
+          </div>
+          <div className="rounded-2xl bg-muted/40 p-4 space-y-2.5">
+            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Auto-linked owner</p>
+            <div className="flex items-center gap-3">
+              <div className={`h-9 w-9 rounded-xl bg-gradient-to-br ${avatarGrad(client.id)} flex items-center justify-center text-white text-xs font-bold shrink-0`}>
+                {initials(client.name)}
+              </div>
+              <div>
+                <p className="font-semibold text-sm">{client.name}</p>
+                <p className="text-[11px] text-muted-foreground">{client.phone || client.email || "No contact"}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <SheetFtr className="flex-col gap-2 pt-4 border-t border-border/20">
+          <Button onClick={handleSubmit} disabled={saving || !form.name.trim()} className="w-full gap-2 h-10">
+            <PawPrint className="h-4 w-4" strokeWidth={1.5} />
+            {saving ? "Registering..." : "Register Patient"}
+          </Button>
+          <Button variant="ghost" onClick={onClose} className="w-full h-9 text-sm">Cancel</Button>
+        </SheetFtr>
+      </SheetContent>
+    </Sheet>
+  );
+}
+
 // ─── Right Panel — Household ──────────────────────────────────────────────────
 
-function HouseholdPanel({ clientId, links, navigate }: {
-  clientId: string; links: ClientPatientLink[];
-  navigate: (path: string) => void;
+function HouseholdPanel({ clientId, client, links, navigate, onLinksChange }: {
+  clientId: string; client: Client; links: ClientPatientLink[];
+  navigate: (path: string) => void; onLinksChange: () => void;
 }) {
+  const [addOpen, setAddOpen] = useState(false);
   const patients = useMemo(() => getPatients(), []);
   const enriched = useMemo(() =>
     links.map(l => ({ link: l, patient: patients.find(p => p.id === l.patientId || (p as any).patientId === l.patientId) ?? null })),
@@ -617,14 +761,15 @@ function HouseholdPanel({ clientId, links, navigate }: {
           <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest flex items-center gap-1.5">
             <Heart className="h-3.5 w-3.5 text-rose-500" strokeWidth={1.5} /> Household · {links.length}
           </p>
-          <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => navigate("/patients/add")}
+          <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => setAddOpen(true)}
+            title="Add new patient"
             className="h-6 w-6 rounded-lg bg-muted/60 flex items-center justify-center hover:bg-primary/10 transition-colors">
             <Plus className="h-3.5 w-3.5 text-muted-foreground" strokeWidth={1.5} />
           </motion.button>
         </div>
         <div className="p-4 space-y-4">
           {enriched.length === 0
-            ? <EmptyHousehold onAdd={() => navigate("/patients/add")} />
+            ? <EmptyHousehold onAdd={() => setAddOpen(true)} />
             : enriched.map(({ link, patient }) => (
                 <div key={link.id}>
                   <PatientMiniCard link={link} patient={patient}
@@ -661,6 +806,8 @@ function HouseholdPanel({ clientId, links, navigate }: {
           </div>
         </div>
       )}
+      <AddPatientSheet open={addOpen} onClose={() => setAddOpen(false)} client={client}
+        onSuccess={onLinksChange} />
     </aside>
   );
 }
@@ -740,6 +887,14 @@ export default function ClientProfile() {
   useEffect(() => { seedDemoClients(); reload(); }, [reload]);
 
   useEffect(() => {
+    const bc = new BroadcastChannel("acf_patients");
+    bc.onmessage = () => reload();
+    const handler = () => reload();
+    window.addEventListener("acf:links:update", handler);
+    return () => { bc.close(); window.removeEventListener("acf:links:update", handler); };
+  }, [reload]);
+
+  useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "k") { e.preventDefault(); setCmdOpen(v => !v); }
     };
@@ -804,8 +959,8 @@ export default function ClientProfile() {
       {/* 3-column grid */}
       <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr_290px] gap-6 items-start">
         <ProfilePanel client={client} links={links} onEdit={() => setEditOpen(true)} onCmd={() => setCmdOpen(true)} />
-        <CenterPanel clientId={client.id} clientName={client.name} />
-        <HouseholdPanel clientId={client.id} links={links} navigate={navigate} />
+        <CenterPanel client={client} />
+        <HouseholdPanel clientId={client.id} client={client} links={links} navigate={navigate} onLinksChange={reload} />
       </div>
 
       <CommandPalette open={cmdOpen} onClose={() => setCmdOpen(false)} actions={cmdActions} />

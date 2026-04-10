@@ -5,9 +5,13 @@ import { createDemoAppointments, saveAppointments } from "./appointmentStore";
 import { saveRoles, saveGroups, saveUsers, sampleRoles, sampleGroups, sampleUsers } from "./roleStore";
 import { getAccountScopedKey } from "./accountStore";
 import { generateMockInventory, clearInventoryData, loadInventory, saveInventoryItem } from "./inventoryStore";
-import { generateMockTreatments, clearTreatmentsData } from "./treatmentStore";
+import { generateMockTreatments, clearTreatmentsData, broadcastTreatmentsUpdate } from "./treatmentStore";
 import { saveHospRecord, broadcastHospUpdate, type HospRecord } from "./hospitalizationStore";
 import { upsertClinicalRecord, broadcastClinicalRecordUpdate } from "./clinicalRecordStore";
+import { seedDemoStaffProfiles } from "./staffProfileStore";
+import { saveInvoices, type Invoice } from "./billingStore";
+import { pushFromEvent } from "./notificationStore";
+import { broadcast } from "./realtimeEngine";
 import type { InventoryItem } from "@/data/inventory";
 
 export function clearAllData() {
@@ -308,9 +312,176 @@ export function seedMockData() {
   // Seed Clinical Records linked to the seeded patients
   seedMockClinicalRecords(patients);
 
+  // Seed Staff Profiles (for Profile Gate)
+  seedDemoStaffProfiles();
+
+  // Seed Billing Invoices (15 invoices with varied statuses, M-Pesa TxIDs, KES amounts)
+  seedMockInvoices(patients);
+
+  // Seed Audit Events (30 fake events across all 5 tabs into acf_live_feed)
+  generateMockAuditEvents();
+
+  // Seed Notifications (3 unread notifications for each role)
+  seedMockNotifications();
+
+  // Final broadcast that all seeding is complete
+  broadcastTreatmentsUpdate();
+  broadcastHospUpdate();
+  broadcastClinicalRecordUpdate();
+
   // Mark as initialized
   localStorage.setItem(getAccountScopedKey("vetcare_sample_patients_initialized"), "true");
   localStorage.setItem(getAccountScopedKey("vetcare_mock_data_seeded"), "true");
 
   window.location.reload();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MOCK BILLING INVOICES
+// ═══════════════════════════════════════════════════════════════════════════
+export function seedMockInvoices(patients: Array<{ id?: string; name?: string; species?: string; breed?: string; owner?: string; phone?: string }>): void {
+  if (typeof window === "undefined") return;
+
+  const statuses: Invoice["status"][] = ["paid", "pending", "overdue", "draft"];
+  const paymentMethods: Invoice["paymentMethod"][] = ["mpesa", "cash", "insurance", "card"];
+  const services = [
+    ["Consultation", "Vaccination"],
+    ["Deworming", "Clinical Exam"],
+    ["Surgery", "Post-op Care"],
+    ["Lab Tests", "Consultation"],
+    ["Emergency Treatment"],
+    ["Annual Checkup", "Vaccination", "Deworming"],
+    ["Ultrasound", "Consultation"],
+    ["Dental Cleaning"],
+    ["Neutering", "Pain Management"],
+    ["Wound Dressing", "Antibiotics"],
+  ];
+
+  const invoices: Invoice[] = [];
+  const now = new Date();
+
+  for (let i = 0; i < 15; i++) {
+    const patient = patients[i % patients.length];
+    const status = statuses[i % statuses.length];
+    const paymentMethod = status === "paid" ? paymentMethods[i % paymentMethods.length] : null;
+    const total = [1500, 2500, 4200, 1800, 6500, 3200, 8500, 1200, 5500, 2800, 3900, 1500, 7200, 2100, 4800][i];
+    const daysAgo = Math.floor(Math.random() * 30);
+    const createdAt = new Date(now);
+    createdAt.setDate(createdAt.getDate() - daysAgo);
+
+    const invoice: Invoice = {
+      id: `inv-${Date.now()}-${i}`,
+      number: `INV-${String(1000 + i).slice(1)}`,
+      patientId: patient?.id || `patient-${i}`,
+      petName: patient?.name || `Pet ${i + 1}`,
+      species: patient?.species || "Dog",
+      breed: patient?.breed || "Mixed",
+      clientName: patient?.owner || `Client ${i + 1}`,
+      clientPhone: patient?.phone || `+2547${String(Math.random()).slice(2, 11)}`,
+      attendingVet: ["Dr. Wanjiku", "Dr. Mwangi", "Dr. Otieno", "Dr. Achieng"][i % 4],
+      services: services[i % services.length],
+      lineItems: services[i % services.length].map((s, idx) => ({
+        id: `line-${i}-${idx}`,
+        name: s,
+        qty: 1,
+        unitPrice: Math.floor(total / services[i % services.length].length),
+      })),
+      subtotal: total,
+      vatRate: 0.16,
+      vatAmount: Math.floor(total * 0.16),
+      total: Math.floor(total * 1.16),
+      status,
+      paymentMethod,
+      mpesaTxId: paymentMethod === "mpesa" ? `MP${Date.now().toString().slice(-8)}${i}` : undefined,
+      isLocked: status === "paid",
+      createdAt: createdAt.toISOString(),
+      dueAt: new Date(createdAt.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+      paidAt: status === "paid" ? new Date(createdAt.getTime() + 2 * 24 * 60 * 60 * 1000).toISOString() : undefined,
+      notes: i % 3 === 0 ? "Follow-up required in 7 days" : undefined,
+    };
+
+    invoices.push(invoice);
+  }
+
+  saveInvoices(invoices);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MOCK AUDIT EVENTS (30 events across all 5 tabs)
+// ═══════════════════════════════════════════════════════════════════════════
+export function generateMockAuditEvents(): void {
+  if (typeof window === "undefined") return;
+
+  const eventTypes = [
+    { type: "PATIENT_ADMITTED", actor: "Dr. Wanjiku", role: "Vet", patient: "Biscuit" },
+    { type: "PATIENT_DISCHARGED", actor: "Nurse Achieng", role: "Nurse", patient: "Max" },
+    { type: "VITALS_UPDATED", actor: "Dr. Mwangi", role: "Vet", patient: "Luna" },
+    { type: "LAB_READY", actor: "Lab Tech", role: "System", patient: "Rocky" },
+    { type: "RX_DISPENSED", actor: "Pharmacist Kim", role: "Pharmacist", patient: "Bella" },
+    { type: "BILLING_LOCKED", actor: "Faith", role: "Receptionist", patient: "Charlie" },
+    { type: "FEEDING_DUE", actor: "System", role: "System", patient: "Daisy" },
+    { type: "WELLNESS_CHECK", actor: "Dr. Otieno", role: "Vet", patient: "Milo" },
+    { type: "APPOINTMENT_CONFIRMED", actor: "System", role: "System", patient: "Coco" },
+    { type: "INVOICE_CREATED", actor: "Faith", role: "Receptionist", patient: "Simba" },
+    { type: "INVOICE_PAID", actor: "System", role: "System", patient: "Simba" },
+    { type: "STOCK_UPDATED", actor: "Admin", role: "SuperAdmin", patient: "" },
+    { type: "LOGIN", actor: "Dr. Wanjiku", role: "Vet", patient: "" },
+    { type: "ROLE_SWITCH", actor: "Super Admin", role: "SuperAdmin", patient: "" },
+    { type: "DATA_EXPORT", actor: "Dr. Mwangi", role: "Vet", patient: "" },
+  ];
+
+  const events = [];
+  const now = Date.now();
+
+  for (let i = 0; i < 30; i++) {
+    const template = eventTypes[i % eventTypes.length];
+    const timestamp = new Date(now - Math.floor(Math.random() * 7 * 24 * 60 * 60 * 1000)).toISOString();
+    
+    events.push({
+      id: `evt-${Date.now()}-${i}`,
+      type: template.type,
+      payload: {
+        patientName: template.patient || `Patient ${i + 1}`,
+        invoiceNumber: template.type.includes("INVOICE") ? `INV-${1000 + i}` : undefined,
+        ward: template.type.includes("ADMITTED") ? "Ward A" : undefined,
+        amount: template.type === "BILLING_LOCKED" ? [1500, 2500, 4200, 6500][i % 4] : undefined,
+        medication: template.type === "RX_DISPENSED" ? ["Amoxicillin", "Meloxicam", "Cerenia"][i % 3] : undefined,
+      },
+      actorRole: template.role,
+      actorName: template.actor,
+      clinicId: "demo-clinic",
+      timestamp,
+    });
+  }
+
+  localStorage.setItem("acf_live_feed", JSON.stringify(events));
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MOCK NOTIFICATIONS (3 unread per role)
+// ═══════════════════════════════════════════════════════════════════════════
+export function seedMockNotifications(): void {
+  if (typeof window === "undefined") return;
+
+  const NOTIF_KEY = "acf_notifications";
+  const roles = ["SuperAdmin", "Vet", "Nurse", "Receptionist", "Pharmacist"];
+  
+  const notifications = [];
+  
+  for (const role of roles) {
+    for (let i = 0; i < 3; i++) {
+      notifications.push({
+        id: `notif-${role}-${i}`,
+        eventType: ["PATIENT_ADMITTED", "VITALS_UPDATED", "BILLING_LOCKED"][i],
+        title: ["Patient Admitted", "Vitals Recorded", "Invoice Finalised"][i],
+        body: `Notification ${i + 1} for ${role}`,
+        targetRoles: [role],
+        read: false,
+        timestamp: new Date(Date.now() - i * 3600000).toISOString(),
+        patientName: ["Biscuit", "Max", "Luna"][i],
+      });
+    }
+  }
+
+  localStorage.setItem(NOTIF_KEY, JSON.stringify(notifications));
 }

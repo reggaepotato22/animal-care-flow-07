@@ -4,6 +4,14 @@ import { logChange } from "@/lib/audit";
 import { useAccount } from "@/contexts/AccountContext";
 import { getDashboardAccessOverrides, subscribeToDashboardAccessOverrides, type DashboardControlledPermission } from "@/lib/dashboardAccessStore";
 import { getAccountScopedKey, getActiveAccountId } from "@/lib/accountStore";
+import type { StaffProfile } from "@/lib/staffProfileStore";
+
+const LOCK_KEY = "acf_profile_locked";
+const ACTIVE_PROFILE_KEY = "acf_active_profile";
+
+function readLock(): boolean {
+  try { return localStorage.getItem(LOCK_KEY) === "true"; } catch { return false; }
+}
 
 const ROLE_BASE_KEY = "acf_role";
 
@@ -29,6 +37,9 @@ interface RoleContextValue {
   permissions: Permission[];
   setRole: (role: Role, changedBy?: string) => void;
   has: (perm: Permission) => boolean;
+  isProfileLocked: boolean;
+  lockProfile: (profile: StaffProfile) => void;
+  unlockProfile: () => void;
 }
 
 const RoleContext = createContext<RoleContextValue | null>(null);
@@ -36,6 +47,7 @@ const RoleContext = createContext<RoleContextValue | null>(null);
 export function RoleProvider({ children }: { children: React.ReactNode }) {
   const { activeAccountId } = useAccount();
   const [role, setRoleState] = useState<Role>(() => readRole(getActiveAccountId()));
+  const [isProfileLocked, setIsProfileLocked] = useState<boolean>(readLock);
   const [dashboardOverrides, setDashboardOverrides] = useState(() => getDashboardAccessOverrides(activeAccountId));
   const permissions = useMemo(() => ROLE_PERMISSIONS[role], [role]);
 
@@ -76,7 +88,24 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
     return permissions.includes(perm);
   };
 
-  const value: RoleContextValue = { role, permissions, setRole, has };
+  const lockProfile = (profile: StaffProfile) => {
+    setRole(profile.role, profile.name);
+    setIsProfileLocked(true);
+    try {
+      localStorage.setItem(LOCK_KEY, "true");
+      localStorage.setItem(ACTIVE_PROFILE_KEY, JSON.stringify(profile));
+    } catch {}
+  };
+
+  const unlockProfile = () => {
+    setIsProfileLocked(false);
+    try {
+      localStorage.removeItem(LOCK_KEY);
+      localStorage.removeItem(ACTIVE_PROFILE_KEY);
+    } catch {}
+  };
+
+  const value: RoleContextValue = { role, permissions, setRole, has, isProfileLocked, lockProfile, unlockProfile };
   return <RoleContext.Provider value={value}>{children}</RoleContext.Provider>;
 }
 

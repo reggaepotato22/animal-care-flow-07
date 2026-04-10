@@ -20,6 +20,7 @@ import { ScheduleSurgeryDialog } from "@/components/ScheduleSurgeryDialog";
 import { useToast } from "@/hooks/use-toast";
 import { useRole } from "@/contexts/RoleContext";
 import { cn } from "@/lib/utils";
+import { broadcast, EVENTS } from "@/lib/realtimeEngine";
 import {
   getHospRecord, subscribeToHospitalization, addHospTask, updateHospTask,
   completeHospTask, addVitalsEntry, addFlowsheetRow, updateCarePlan,
@@ -219,9 +220,20 @@ export default function HospitalizationWorkspace() {
   const handleDischarge = useCallback(() => {
     if (!id||!canDischarge) return;
     updateHospWorkspaceStatus(id, "DISCHARGED", role);
+    // Broadcast PATIENT_DISCHARGED → notifies Receptionist + Pharmacist
+    try {
+      broadcast({
+        type: EVENTS.PATIENT_DISCHARGED,
+        payload: { patientName: rec?.petName ?? "", patientId: rec?.patientId ?? "" },
+        actorRole: role,
+        actorName: role,
+        clinicId: "clinic-demo",
+        timestamp: new Date().toISOString(),
+      });
+    } catch {}
     toast({ title:"Patient discharged" });
     navigate("/hospitalization");
-  }, [id, canDischarge, role, toast, navigate]);
+  }, [id, canDischarge, role, toast, navigate, rec]);
 
   // ── Guard ─────────────────────────────────────────────────────────────────────
   if (!rec) return (

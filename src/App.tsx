@@ -51,7 +51,7 @@ import { EncounterProvider } from "@/contexts/EncounterContext";
 import { NotificationProvider } from "@/contexts/NotificationContext";
 import WorkflowSettings from "./pages/WorkflowSettings";
 import AppearanceSettings from "./pages/AppearanceSettings";
-import Audit from "./pages/Audit";
+import AuditTrail from "./pages/admin/AuditTrail";
 import Billing from "./pages/Billing";
 import { RoleProvider } from "@/contexts/RoleContext";
 import { ThemeProvider } from "@/components/ThemeProvider";
@@ -64,6 +64,8 @@ import { AccountProvider } from "@/contexts/AccountContext";
 import { TutorialProvider } from "@/contexts/TutorialContext";
 import Landing from "./pages/Landing";
 import FieldMode from "./pages/FieldMode";
+import SelectProfile from "./pages/SelectProfile";
+import LiveFeed from "./pages/admin/LiveFeed";
 import Pricing from "./pages/Pricing";
 import { FeedbackProvider } from "@/contexts/FeedbackContext";
 import { MobileClinicPrompt } from "@/components/MobileClinicPrompt";
@@ -113,7 +115,7 @@ function ProtectedRoutes() {
         <Route path="/treatments" element={<Treatments />} />
         <Route path="/inventory" element={<Inventory />} />
         <Route path="/triage" element={<Triage />} />
-        <Route path="/audit" element={<Audit />} />
+        <Route path="/audit" element={<AuditTrail />} />
         <Route path="/billing" element={<Billing />} />
         <Route path="/staff" element={<Staff />} />
         <Route path="/reports" element={<Reports />} />
@@ -127,6 +129,7 @@ function ProtectedRoutes() {
         <Route path="/workflow-settings" element={<WorkflowSettings />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="/settings/communications" element={<SettingsCommunications />} />
+        <Route path="/live-feed" element={<LiveFeed />} />
         <Route path="/generate-link" element={<GenerateLink />} />
         <Route path="/appearance" element={<AppearanceSettings />} />
         <Route path="/profile" element={<UserProfile />} />
@@ -143,6 +146,13 @@ function ProtectedField() {
   const location = useLocation();
   if (!isAuthenticated) return <Navigate to="/login" state={{ from: location }} replace />;
   return <FieldMode />;
+}
+
+function ProtectedSelectProfile() {
+  const { isAuthenticated } = useAuth();
+  const location = useLocation();
+  if (!isAuthenticated) return <Navigate to="/login" state={{ from: location }} replace />;
+  return <SelectProfile />;
 }
 
 function ProtectedAdminLayout() {
@@ -175,6 +185,7 @@ const App = () => (
                     <NotificationProvider>
                     <Routes>
                       <Route path="/field" element={<ProtectedField />} />
+                      <Route path="/select-profile" element={<ProtectedSelectProfile />} />
                       <Route path="/tokensag" element={<TokenGenerator />} />
                       <Route path="/" element={<SmartRoot />} />
                       <Route path="/pricing" element={<Pricing />} />

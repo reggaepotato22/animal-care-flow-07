@@ -1,353 +1,586 @@
-import { useState, useEffect, useMemo } from "react";
-import { UnderDevelopment } from "@/components/UnderDevelopment";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { useState, useEffect, useMemo, useCallback, type ReactNode } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { format } from "date-fns";
+import {
+  getInvoices, markInvoicePaid, lockInvoice, voidInvoice, seedMockInvoices,
+  getBillingStats,
+  type Invoice, type InvoiceStatus, type PaymentMethod,
+} from "@/lib/billingStore";
+import { broadcast, EVENTS } from "@/lib/realtimeEngine";
+import { formatKES } from "@/lib/kenya";
+import { useToast } from "@/hooks/use-toast";
+import { useRole } from "@/contexts/RoleContext";
+import { cn } from "@/lib/utils";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { formatKES, mpesaStkPushPlaceholder } from "@/lib/kenya";
-import { syncPaymentToClient } from "@/lib/clientStore";
-import { Search, Receipt, User, Phone, Stethoscope, Pill, CheckCircle, Clock, XCircle, CreditCard, ChevronRight } from "lucide-react";
-import { format } from "date-fns";
-import { useToast } from "@/hooks/use-toast";
-import { useWorkflowContext } from "@/contexts/WorkflowContext";
-import { useFeedback } from "@/contexts/FeedbackContext";
-import { useNotifications } from "@/contexts/NotificationContext";
+import { Separator } from "@/components/ui/separator";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+} from "@/components/ui/table";
 
-const BILLING_KEY = "acf_billing_records";
+import {
+  Search, Plus, TrendingUp, Clock, CheckCircle2, AlertCircle,
+  FileText, MoreVertical, Copy, Check, MessageCircle, Lock,
+  Phone, Mail, Banknote, Printer,
+} from "lucide-react";
 
-interface BillingRecord {
-  id: string;
-  patientId: string;
-  petName: string;
-  ownerName: string;
-  encounterId?: string;
-  veterinarian?: string;
-  consultationFee: number;
-  itemTotal: number;
-  total: number;
-  status: "pending" | "paid" | "cancelled";
-  items?: Array<{ name: string; unitPrice?: number; quantity?: number; price?: number }>;
-  createdAt: string;
-  paidAt?: string;
-}
-
-function loadBilling(): BillingRecord[] {
-  try {
-    const raw = localStorage.getItem(BILLING_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch { return []; }
-}
-
-function saveBilling(records: BillingRecord[]) {
-  localStorage.setItem(BILLING_KEY, JSON.stringify(records));
-}
-
-const STATUS_STYLES = {
-  pending:   { badge: "bg-amber-100 text-amber-800 border-amber-200",   icon: Clock,        label: "Pending" },
-  paid:      { badge: "bg-emerald-100 text-emerald-800 border-emerald-200", icon: CheckCircle, label: "Paid" },
-  cancelled: { badge: "bg-red-100 text-red-800 border-red-200",          icon: XCircle,      label: "Cancelled" },
+// ─── Constants ────────────────────────────────────────────────────────────────
+const SPECIES_EMOJI: Record<string, string> = {
+  Cat: "🐱", Dog: "🐕", Rabbit: "🐰", Bird: "🐦", Reptile: "🦎",
 };
+
+const STATUS_CFG: Record<InvoiceStatus, { label: string; cls: string; icon: ReactNode }> = {
+  paid:    { label: "Paid",    cls: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800", icon: <CheckCircle2 className="h-3 w-3" /> },
+  pending: { label: "Pending", cls: "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 border-amber-200 dark:border-amber-800", icon: <Clock className="h-3 w-3" /> },
+  overdue: { label: "Overdue", cls: "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300 border-red-200 dark:border-red-800", icon: <AlertCircle className="h-3 w-3" /> },
+  draft:   { label: "Draft",   cls: "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 border-zinc-200 dark:border-zinc-700", icon: <FileText className="h-3 w-3" /> },
+};
+
+const PAY_CFG: Record<string, { label: string; cls: string }> = {
+  mpesa:     { label: "M-Pesa",     cls: "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300" },
+  cash:      { label: "Cash",       cls: "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300" },
+  insurance: { label: "Insurance",  cls: "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300" },
+  card:      { label: "Card",       cls: "bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300" },
+};
+
+// ─── Sub-components ───────────────────────────────────────────────────────────
+function StatusBadge({ status }: { status: InvoiceStatus }) {
+  const cfg = STATUS_CFG[status];
+  return (
+    <Badge variant="outline" className={cn("flex items-center gap-1 text-[11px] px-2 py-0.5 font-semibold border", cfg.cls)}>
+      {cfg.icon}{cfg.label}
+    </Badge>
+  );
+}
+
+function PayBadge({ method }: { method: PaymentMethod }) {
+  if (!method) return <span className="text-xs text-muted-foreground">—</span>;
+  const cfg = PAY_CFG[method] ?? { label: method, cls: "bg-zinc-100 text-zinc-700" };
+  return <span className={cn("text-[11px] font-semibold px-2 py-0.5 rounded-full", cfg.cls)}>{cfg.label}</span>;
+}
+
+function CopyTxId({ txId }: { txId?: string }) {
+  const [copied, setCopied] = useState(false);
+  if (!txId) return <span className="text-xs text-muted-foreground">—</span>;
+  const doCopy = () => {
+    navigator.clipboard.writeText(txId).catch(() => {});
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
+  return (
+    <button onClick={doCopy} className="flex items-center gap-1 font-mono text-[11px] text-muted-foreground hover:text-foreground transition-colors group">
+      <span>{txId}</span>
+      {copied ? <Check className="h-3 w-3 text-primary" /> : <Copy className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />}
+    </button>
+  );
+}
+
+// ─── Stats cards ──────────────────────────────────────────────────────────────
+function StatsCards({ invoices }: { invoices: Invoice[] }) {
+  const s = useMemo(() => getBillingStats(invoices), [invoices]);
+  const cards = [
+    {
+      label: "Total Billed",
+      value: formatKES(s.totalBilled),
+      sub: `+12% ↑ vs last month`,
+      icon: <TrendingUp className="h-5 w-5" />,
+      accent: "text-primary",
+      bg: "bg-primary/10 dark:bg-primary/20",
+    },
+    {
+      label: "Paid",
+      value: formatKES(s.totalPaid),
+      sub: `${s.countPaid} invoices cleared`,
+      icon: <CheckCircle2 className="h-5 w-5" />,
+      accent: "text-emerald-600",
+      bg: "bg-emerald-50 dark:bg-emerald-900/20",
+    },
+    {
+      label: "Pending",
+      value: formatKES(s.totalPending),
+      sub: `${s.countPending} invoice${s.countPending !== 1 ? "s" : ""} awaiting payment`,
+      icon: <Clock className="h-5 w-5" />,
+      accent: "text-amber-600",
+      bg: "bg-amber-50 dark:bg-amber-900/20",
+    },
+    {
+      label: "Overdue",
+      value: formatKES(s.totalOverdue),
+      sub: `${s.countOverdue} invoice${s.countOverdue !== 1 ? "s" : ""} past due date`,
+      icon: <AlertCircle className="h-5 w-5" />,
+      accent: "text-red-600",
+      bg: "bg-red-50 dark:bg-red-900/20",
+    },
+  ];
+  return (
+    <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
+      {cards.map((c, i) => (
+        <motion.div
+          key={c.label}
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: i * 0.07 }}
+          className="bg-card border border-border rounded-2xl p-5 flex items-start justify-between shadow-sm"
+        >
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{c.label}</p>
+            <p className={cn("text-2xl font-bold mt-1.5", c.accent)}>{c.value}</p>
+            <p className="text-[11px] text-muted-foreground mt-1">{c.sub}</p>
+          </div>
+          <div className={cn("p-2.5 rounded-xl", c.bg, c.accent)}>{c.icon}</div>
+        </motion.div>
+      ))}
+    </div>
+  );
+}
+
+// ─── Invoice detail slide-over ─────────────────────────────────────────────────
+function InvoiceSlideOver({ invoice, onClose, onLocked, onMarkPaid }: {
+  invoice: Invoice | null;
+  onClose: () => void;
+  onLocked: (inv: Invoice) => void;
+  onMarkPaid: (id: string, method: PaymentMethod, tx?: string) => void;
+}) {
+  const { toast } = useToast();
+  const { role } = useRole();
+  if (!invoice) return null;
+  const cfg = STATUS_CFG[invoice.status];
+
+  const handleLock = () => {
+    const updated = lockInvoice(invoice.id);
+    if (!updated) return;
+    try {
+      broadcast({
+        type: EVENTS.BILLING_LOCKED,
+        payload: { patientName: invoice.petName, invoiceId: invoice.id, amount: formatKES(invoice.total) },
+        actorRole: role,
+        actorName: "Front Desk",
+        clinicId: "clinic-demo",
+        timestamp: new Date().toISOString(),
+      });
+    } catch {}
+    onLocked(updated);
+    toast({ title: "Invoice Locked", description: `${invoice.number} is now locked and sent to Pharmacy.` });
+  };
+
+  const handlePrint = () => window.print();
+
+  const waMsg = encodeURIComponent(
+    `Hi ${invoice.clientName}, your invoice ${invoice.number} for ${invoice.petName} is ${formatKES(invoice.total)}. ` +
+    `Please make payment via M-Pesa. Thank you — InnoVet Pro Clinic.`
+  );
+
+  return (
+    <Sheet open={!!invoice} onOpenChange={open => !open && onClose()}>
+      <SheetContent side="right" className="w-full sm:w-[560px] sm:max-w-[560px] overflow-y-auto p-0">
+        {/* Header */}
+        <SheetHeader className="px-6 pt-6 pb-4 border-b border-border sticky top-0 bg-background z-10">
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="text-xs text-muted-foreground font-medium">{invoice.number}</p>
+              <SheetTitle className="text-xl font-bold mt-0.5">
+                Invoice · <span className={cn("inline-flex items-center gap-1", cfg.cls.split(" ").slice(2).join(" "))}>{invoice.petName}</span>
+              </SheetTitle>
+            </div>
+            <StatusBadge status={invoice.status} />
+          </div>
+        </SheetHeader>
+
+        <div className="px-6 py-5 space-y-6">
+          {/* Client + Patient info */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="bg-muted/40 rounded-xl p-4 space-y-2">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Client</p>
+              <p className="font-semibold text-sm">{invoice.clientName}</p>
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <Phone className="h-3 w-3" />{invoice.clientPhone}
+              </div>
+              {invoice.clientEmail && (
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <Mail className="h-3 w-3" />{invoice.clientEmail}
+                </div>
+              )}
+            </div>
+            <div className="bg-muted/40 rounded-xl p-4 space-y-2">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Patient</p>
+              <p className="font-semibold text-sm">
+                {SPECIES_EMOJI[invoice.species] ?? "🐾"} {invoice.petName}
+              </p>
+              <p className="text-xs text-muted-foreground">{invoice.species} · {invoice.breed}</p>
+              <p className="text-xs text-muted-foreground">Dr. {invoice.attendingVet}</p>
+            </div>
+          </div>
+
+          {/* Invoice meta */}
+          <div className="flex items-center gap-4 text-xs text-muted-foreground">
+            <span>Created {format(new Date(invoice.createdAt), "dd MMM yyyy")}</span>
+            <span>·</span>
+            <span>Due {format(new Date(invoice.dueAt), "dd MMM yyyy")}</span>
+            {invoice.paidAt && <><span>·</span><span className="text-emerald-600 font-medium">Paid {format(new Date(invoice.paidAt), "dd MMM yyyy")}</span></>}
+          </div>
+
+          <Separator />
+
+          {/* Line items */}
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3">Line Items</p>
+            <div className="rounded-xl border border-border overflow-hidden">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-muted/50">
+                    <TableHead className="text-xs h-8">Service</TableHead>
+                    <TableHead className="text-xs h-8 text-center w-12">Qty</TableHead>
+                    <TableHead className="text-xs h-8 text-right">Unit Price</TableHead>
+                    <TableHead className="text-xs h-8 text-right">Total</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {invoice.lineItems.map(li => (
+                    <TableRow key={li.id}>
+                      <TableCell className="text-sm py-2.5">{li.name}</TableCell>
+                      <TableCell className="text-sm py-2.5 text-center">{li.qty}</TableCell>
+                      <TableCell className="text-sm py-2.5 text-right">{formatKES(li.unitPrice)}</TableCell>
+                      <TableCell className="text-sm py-2.5 text-right font-medium">{formatKES(li.qty * li.unitPrice)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+
+            {/* Totals */}
+            <div className="mt-3 space-y-1.5 text-sm">
+              <div className="flex justify-between text-muted-foreground">
+                <span>Subtotal</span><span>{formatKES(invoice.subtotal)}</span>
+              </div>
+              {invoice.vatRate > 0 && (
+                <div className="flex justify-between text-muted-foreground">
+                  <span>VAT ({Math.round(invoice.vatRate * 100)}%)</span>
+                  <span>{formatKES(invoice.vatAmount)}</span>
+                </div>
+              )}
+              <Separator className="my-2" />
+              <div className="flex justify-between font-bold text-base">
+                <span>Grand Total</span>
+                <span className="text-primary">{formatKES(invoice.total)}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* M-Pesa reference */}
+          {invoice.mpesaTxId && (
+            <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl p-4 space-y-2">
+              <p className="text-xs font-bold uppercase tracking-wider text-green-700 dark:text-green-400">M-Pesa Reference</p>
+              <div className="flex items-center gap-2">
+                <span className="font-mono font-bold text-base text-green-800 dark:text-green-300">{invoice.mpesaTxId}</span>
+                <CopyTxId txId={invoice.mpesaTxId} />
+              </div>
+              {/* QR placeholder */}
+              <div className="mt-2 h-24 w-24 bg-white dark:bg-zinc-800 rounded-lg border border-green-200 dark:border-green-700 flex items-center justify-center text-[10px] text-muted-foreground font-mono">
+                QR Code
+              </div>
+            </div>
+          )}
+
+          {/* Actions */}
+          <div className="space-y-2 pt-2">
+            {!invoice.isLocked && invoice.status !== "paid" && (
+              <Button
+                className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
+                data-tutorial="lock-invoice-btn"
+                onClick={handleLock}
+              >
+                <Lock className="h-4 w-4 mr-2" />
+                Lock Invoice
+              </Button>
+            )}
+            {invoice.status === "pending" && (
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={() => onMarkPaid(invoice.id, "cash")}
+              >
+                <Banknote className="h-4 w-4 mr-2" />
+                Mark as Paid (Cash)
+              </Button>
+            )}
+            <div className="flex gap-2">
+              <Button variant="outline" className="flex-1" onClick={handlePrint}>
+                <Printer className="h-4 w-4 mr-2" />
+                Download PDF
+              </Button>
+              <Button variant="outline" className="flex-1" asChild>
+                <a href={`https://wa.me/${invoice.clientPhone.replace(/[^0-9]/g, "")}?text=${waMsg}`} target="_blank" rel="noreferrer">
+                  <MessageCircle className="h-4 w-4 mr-2" />
+                  WhatsApp
+                </a>
+              </Button>
+            </div>
+          </div>
+        </div>
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+// ─── Main page ────────────────────────────────────────────────────────────────
+const TAB_VALUES = ["all", "paid", "pending", "overdue", "draft"] as const;
+type TabValue = typeof TAB_VALUES[number];
 
 export default function Billing() {
   const { toast } = useToast();
-  const { setStep } = useWorkflowContext();
-  const { triggerSurvey } = useFeedback();
-  const { addNotification } = useNotifications();
-  const [records, setRecords] = useState<BillingRecord[]>(() => loadBilling());
+  const [invoices, setInvoices] = useState<Invoice[]>(() => {
+    seedMockInvoices();
+    return getInvoices();
+  });
+  const [tab, setTab]       = useState<TabValue>("all");
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"all" | BillingRecord["status"]>("all");
-  const [selected, setSelected] = useState<BillingRecord | null>(null);
-  const [payDialog, setPayDialog] = useState(false);
-  const [phone, setPhone] = useState("+2547XXXXXXXX");
-  const [payStatus, setPayStatus] = useState<"idle" | "waiting" | "success">("idle");
+  const [selected, setSelected] = useState<Invoice | null>(null);
 
-  // Re-sync when localStorage changes (cross-tab)
+  // Cross-tab sync
   useEffect(() => {
-    const onStorage = () => setRecords(loadBilling());
+    const onStorage = () => setInvoices(getInvoices());
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
   }, []);
 
   const filtered = useMemo(() => {
-    return records.filter(r => {
-      const matchSearch = !search ||
-        r.petName.toLowerCase().includes(search.toLowerCase()) ||
-        r.ownerName.toLowerCase().includes(search.toLowerCase()) ||
-        (r.veterinarian || "").toLowerCase().includes(search.toLowerCase());
-      const matchStatus = statusFilter === "all" || r.status === statusFilter;
-      return matchSearch && matchStatus;
-    });
-  }, [records, search, statusFilter]);
+    let list = tab === "all" ? invoices : invoices.filter(i => i.status === tab);
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      list = list.filter(i =>
+        i.petName.toLowerCase().includes(q) ||
+        i.clientName.toLowerCase().includes(q) ||
+        i.number.toLowerCase().includes(q) ||
+        (i.mpesaTxId ?? "").toLowerCase().includes(q)
+      );
+    }
+    return list;
+  }, [invoices, tab, search]);
 
-  const stats = useMemo(() => ({
-    total: records.length,
-    pending: records.filter(r => r.status === "pending").length,
-    paid: records.filter(r => r.status === "paid").length,
-    revenue: records.filter(r => r.status === "paid").reduce((s, r) => s + r.total, 0),
-    outstanding: records.filter(r => r.status === "pending").reduce((s, r) => s + r.total, 0),
-  }), [records]);
+  const handleMarkPaid = useCallback((id: string, method: PaymentMethod, tx?: string) => {
+    const updated = markInvoicePaid(id, method, tx);
+    if (!updated) return;
+    setInvoices(getInvoices());
+    setSelected(prev => prev?.id === id ? updated : prev);
+    try {
+      broadcast({
+        type: EVENTS.BILLING_LOCKED,
+        payload: { patientName: updated.petName, invoiceId: updated.id, amount: formatKES(updated.total) },
+        actorRole: "Receptionist", actorName: "Front Desk",
+        clinicId: "clinic-demo", timestamp: new Date().toISOString(),
+      });
+    } catch {}
+    toast({ title: "✓ Payment Recorded", description: `${updated.petName}'s invoice marked as paid.` });
+  }, [toast]);
 
-  const markPaid = (bill: BillingRecord) => {
-    const updated = records.map(r =>
-      r.id === bill.id ? { ...r, status: "paid" as const, paidAt: new Date().toISOString() } : r
-    );
-    saveBilling(updated);
-    setRecords(updated);
-    if (selected?.id === bill.id) setSelected({ ...bill, status: "paid", paidAt: new Date().toISOString() });
-    // Move patient workflow to COMPLETED
-    if (bill.patientId) setStep(bill.patientId, "COMPLETED");
-    toast({ title: "✓ Payment Recorded", description: `${bill.petName}'s invoice marked as paid.` });
-    // Sync payment to CRM client timeline
-    syncPaymentToClient({
-      patientId: bill.patientId,
-      patientName: bill.petName,
-      amount: bill.total,
-      description: `Invoice paid — ${bill.ownerName} · ${bill.items?.map(i => i.name).join(", ") ?? "Services"}`,
-    });
-    // Cross-role notification — Receptionist + SuperAdmin see payment confirmed
-    addNotification({
-      type: "success",
-      message: `Payment confirmed — ${bill.petName} (${bill.ownerName}) · ${formatKES(bill.total)}. Ready for discharge.`,
-      patientId: bill.patientId,
-      patientName: bill.petName,
-      step: "COMPLETED",
-      targetRoles: ["Receptionist", "SuperAdmin"],
-    });
-    triggerSurvey("invoice_finalized");
-  };
+  const handleLocked = useCallback((inv: Invoice) => {
+    setInvoices(getInvoices());
+    setSelected(inv);
+  }, []);
 
-  const openMpesa = (bill: BillingRecord) => {
-    setSelected(bill);
-    setPhone("+2547XXXXXXXX");
-    setPayStatus("idle");
-    setPayDialog(true);
-  };
+  const handleVoid = useCallback((id: string) => {
+    voidInvoice(id);
+    setInvoices(getInvoices());
+    setSelected(prev => prev?.id === id ? null : prev);
+    toast({ title: "Invoice Voided" });
+  }, [toast]);
 
-  const handleMpesa = async () => {
-    if (!selected) return;
-    setPayStatus("waiting");
-    await mpesaStkPushPlaceholder({ phone, amount: selected.total, accountReference: `INV-${selected.id.slice(-6)}`, description: "Vet services" });
-    setTimeout(() => {
-      setPayStatus("success");
-      markPaid(selected);
-      setTimeout(() => setPayDialog(false), 1500);
-    }, 2000);
-  };
+  const tabCount = useCallback((t: TabValue) =>
+    t === "all" ? invoices.length : invoices.filter(i => i.status === t).length,
+  [invoices]);
 
   return (
-    <UnderDevelopment pageName="Billing & Invoices">
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Billing & Invoices</h1>
-          <p className="text-muted-foreground">Patient invoices from consultations and treatments</p>
-        </div>
-      </div>
-
-      {/* Stats cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {[
-          { label: "Total Invoices", value: stats.total, icon: Receipt, color: "text-blue-600" },
-          { label: "Pending", value: stats.pending, icon: Clock, color: "text-amber-600" },
-          { label: "Paid", value: stats.paid, icon: CheckCircle, color: "text-emerald-600" },
-          { label: "Outstanding", value: formatKES(stats.outstanding), icon: CreditCard, color: "text-red-600" },
-        ].map(s => (
-          <Card key={s.label}>
-            <CardContent className="pt-5 pb-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">{s.label}</p>
-                  <p className={`text-2xl font-bold mt-1 ${s.color}`}>{s.value}</p>
-                </div>
-                <s.icon className={`h-8 w-8 ${s.color} opacity-30`} />
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      <div className="flex gap-6 flex-col lg:flex-row">
-        {/* Patient list */}
-        <Card className="flex-1 lg:max-w-md">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">All Invoices</CardTitle>
-            <div className="flex gap-2 mt-2">
-              <div className="relative flex-1">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                <Input placeholder="Search patient or vet..." value={search} onChange={e => setSearch(e.target.value)} className="pl-8 h-8 text-sm" />
-              </div>
-              <select
-                className="text-xs border rounded-md px-2 bg-background"
-                value={statusFilter}
-                onChange={e => setStatusFilter(e.target.value as any)}
-              >
-                <option value="all">All</option>
-                <option value="pending">Pending</option>
-                <option value="paid">Paid</option>
-                <option value="cancelled">Cancelled</option>
-              </select>
-            </div>
-          </CardHeader>
-          <CardContent className="p-0">
-            {filtered.length === 0 ? (
-              <div className="py-12 text-center text-muted-foreground text-sm">
-                <Receipt className="h-10 w-10 mx-auto mb-3 opacity-20" />
-                {records.length === 0 ? "No billing records yet. They are created automatically after saving a consultation record." : "No results match your filter."}
-              </div>
-            ) : (
-              <div className="divide-y">
-                {filtered.map(bill => {
-                  const s = STATUS_STYLES[bill.status] || STATUS_STYLES.pending;
-                  return (
-                    <button
-                      key={bill.id}
-                      className={`w-full text-left px-4 py-3 hover:bg-muted/40 transition-colors flex items-center gap-3 ${selected?.id === bill.id ? "bg-muted/60 border-l-2 border-l-primary" : ""}`}
-                      onClick={() => setSelected(bill)}
-                    >
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="font-semibold text-sm truncate">{bill.petName}</span>
-                          <Badge variant="outline" className={`text-[10px] px-1.5 py-0.5 ${s.badge}`}>{s.label}</Badge>
-                        </div>
-                        <p className="text-xs text-muted-foreground truncate">{bill.ownerName}</p>
-                        <p className="text-xs text-muted-foreground">{format(new Date(bill.createdAt), "dd MMM yyyy, HH:mm")}</p>
-                      </div>
-                      <div className="text-right shrink-0">
-                        <p className="text-sm font-bold">{formatKES(bill.total)}</p>
-                        <ChevronRight className="h-3.5 w-3.5 text-muted-foreground mt-1 ml-auto" />
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Invoice detail */}
-        <Card className="flex-1">
-          {!selected ? (
-            <div className="h-full flex items-center justify-center py-20">
-              <div className="text-center text-muted-foreground">
-                <Receipt className="h-12 w-12 mx-auto mb-3 opacity-20" />
-                <p className="text-sm">Select a patient invoice to view details</p>
-              </div>
-            </div>
-          ) : (
-            <>
-              <CardHeader className="border-b pb-4">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <CardTitle className="text-lg">{selected.petName}</CardTitle>
-                    <CardDescription className="mt-0.5">{selected.ownerName}</CardDescription>
-                  </div>
-                  <Badge variant="outline" className={`text-xs px-2.5 py-1 ${STATUS_STYLES[selected.status]?.badge}`}>
-                    {STATUS_STYLES[selected.status]?.label}
-                  </Badge>
-                </div>
-                <div className="mt-3 grid grid-cols-2 gap-3 text-xs text-muted-foreground">
-                  <div className="flex items-center gap-1.5"><User className="h-3.5 w-3.5" /> Owner: <span className="text-foreground font-medium">{selected.ownerName || "—"}</span></div>
-                  <div className="flex items-center gap-1.5"><Stethoscope className="h-3.5 w-3.5" /> Vet: <span className="text-foreground font-medium">{selected.veterinarian || "—"}</span></div>
-                  <div className="flex items-center gap-1.5"><Receipt className="h-3.5 w-3.5" /> Invoice #: <span className="text-foreground font-mono font-medium">{selected.id.slice(-8).toUpperCase()}</span></div>
-                  <div className="flex items-center gap-1.5"><Clock className="h-3.5 w-3.5" /> Date: <span className="text-foreground font-medium">{format(new Date(selected.createdAt), "dd MMM yyyy")}</span></div>
-                </div>
-              </CardHeader>
-
-              <CardContent className="pt-4 space-y-4">
-                {/* Line items */}
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Charges</p>
-                  <div className="rounded-md border overflow-hidden">
-                    <Table>
-                      <TableHeader>
-                        <TableRow className="bg-muted/40">
-                          <TableHead className="text-xs h-8">Description</TableHead>
-                          <TableHead className="text-xs h-8 text-right">Qty</TableHead>
-                          <TableHead className="text-xs h-8 text-right">Unit Price</TableHead>
-                          <TableHead className="text-xs h-8 text-right">Total</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {/* Consultation fee row */}
-                        <TableRow>
-                          <TableCell className="text-sm py-2.5">
-                            <div className="flex items-center gap-1.5"><Stethoscope className="h-3.5 w-3.5 text-primary" /> Consultation Fee</div>
-                          </TableCell>
-                          <TableCell className="text-right text-sm py-2.5">1</TableCell>
-                          <TableCell className="text-right text-sm py-2.5">{formatKES(selected.consultationFee)}</TableCell>
-                          <TableCell className="text-right text-sm font-medium py-2.5">{formatKES(selected.consultationFee)}</TableCell>
-                        </TableRow>
-                        {/* Treatment / prescription items */}
-                        {(selected.items || []).map((item, idx) => {
-                          const qty = item.quantity || 1;
-                          const unit = item.unitPrice || item.price || 0;
-                          return (
-                            <TableRow key={idx}>
-                              <TableCell className="text-sm py-2.5">
-                                <div className="flex items-center gap-1.5"><Pill className="h-3.5 w-3.5 text-purple-500" /> {item.name}</div>
-                              </TableCell>
-                              <TableCell className="text-right text-sm py-2.5">{qty}</TableCell>
-                              <TableCell className="text-right text-sm py-2.5">{formatKES(unit)}</TableCell>
-                              <TableCell className="text-right text-sm font-medium py-2.5">{formatKES(unit * qty)}</TableCell>
-                            </TableRow>
-                          );
-                        })}
-                        {/* Totals */}
-                        <TableRow className="bg-muted/20 font-semibold border-t-2">
-                          <TableCell colSpan={3} className="text-sm py-3 text-right pr-4">Total Due</TableCell>
-                          <TableCell className="text-right text-base font-bold py-3 text-primary">{formatKES(selected.total)}</TableCell>
-                        </TableRow>
-                      </TableBody>
-                    </Table>
-                  </div>
-                </div>
-
-                {selected.status === "paid" && selected.paidAt && (
-                  <div className="flex items-center gap-2 text-sm text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-md px-3 py-2">
-                    <CheckCircle className="h-4 w-4" />
-                    Paid on {format(new Date(selected.paidAt), "dd MMM yyyy, HH:mm")}
-                  </div>
-                )}
-
-                {selected.status === "pending" && (
-                  <div className="flex gap-2">
-                    <Button className="flex-1" onClick={() => openMpesa(selected)}>
-                      <Phone className="h-4 w-4 mr-2" /> Pay via M-Pesa
-                    </Button>
-                    <Button variant="outline" className="flex-1" onClick={() => markPaid(selected)}>
-                      <CheckCircle className="h-4 w-4 mr-2" /> Mark as Paid (Cash)
-                    </Button>
-                  </div>
-                )}
-              </CardContent>
-            </>
-          )}
-        </Card>
-      </div>
-
-      {/* M-Pesa dialog */}
-      <Dialog open={payDialog} onOpenChange={setPayDialog}>
-        <DialogContent className="sm:max-w-[380px]">
-          <DialogHeader>
-            <DialogTitle>M-Pesa Payment</DialogTitle>
-            <DialogDescription>Enter phone number to send STK push for {formatKES(selected?.total ?? 0)}</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <Input value={phone} onChange={e => setPhone(e.target.value)} placeholder="+2547XXXXXXXX" />
-            {payStatus === "waiting" && <p className="text-sm text-muted-foreground animate-pulse">⏳ Waiting for customer PIN...</p>}
-            {payStatus === "success" && <p className="text-sm text-emerald-600 font-semibold">✓ Payment successful!</p>}
-            {payStatus === "idle" && (
-              <Button className="w-full" onClick={handleMpesa}>
-                <Phone className="h-4 w-4 mr-2" /> Send STK Push
-              </Button>
-            )}
+    <TooltipProvider>
+      <div className="space-y-6 p-0">
+        {/* ── Page header ── */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">Billing & Invoices</h1>
+            <p className="text-sm text-muted-foreground mt-0.5">KES invoices, M-Pesa payments, and financial records</p>
           </div>
-        </DialogContent>
-      </Dialog>
-    </div>
-    </UnderDevelopment>
+          <Button className="bg-primary hover:bg-primary/90 text-primary-foreground gap-2" onClick={() => toast({ title: "New Invoice", description: "Invoice builder coming soon." })}>
+            <Plus className="h-4 w-4" /> New Invoice
+          </Button>
+        </div>
+
+        {/* ── Stats cards ── */}
+        <StatsCards invoices={invoices} />
+
+        {/* ── Tabs + search ── */}
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
+          <Tabs value={tab} onValueChange={v => setTab(v as TabValue)}>
+            <TabsList className="h-9">
+              {TAB_VALUES.map(t => (
+                <TabsTrigger key={t} value={t} className="capitalize text-xs px-3 gap-1.5">
+                  {t === "all" ? "All Invoices" : t.charAt(0).toUpperCase() + t.slice(1)}
+                  <span className={cn(
+                    "text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center",
+                    t === tab ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+                  )}>
+                    {tabCount(t)}
+                  </span>
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </Tabs>
+          <div className="relative w-full sm:w-64">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+            <Input
+              placeholder="Search client, patient, TxID…"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="pl-8 h-9 text-sm"
+              data-tutorial="nav-billing"
+            />
+          </div>
+        </div>
+
+        {/* ── Table ── */}
+        <div className="rounded-2xl border border-border bg-card shadow-sm overflow-hidden">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-muted/50 hover:bg-muted/50">
+                <TableHead className="text-xs font-semibold uppercase tracking-wider h-10 pl-4">Client</TableHead>
+                <TableHead className="text-xs font-semibold uppercase tracking-wider h-10">Patient</TableHead>
+                <TableHead className="text-xs font-semibold uppercase tracking-wider h-10 hidden lg:table-cell">Services</TableHead>
+                <TableHead className="text-xs font-semibold uppercase tracking-wider h-10 text-right">Amount</TableHead>
+                <TableHead className="text-xs font-semibold uppercase tracking-wider h-10 hidden md:table-cell">Date</TableHead>
+                <TableHead className="text-xs font-semibold uppercase tracking-wider h-10 hidden lg:table-cell">Payment</TableHead>
+                <TableHead className="text-xs font-semibold uppercase tracking-wider h-10 hidden xl:table-cell">M-Pesa TxID</TableHead>
+                <TableHead className="text-xs font-semibold uppercase tracking-wider h-10">Status</TableHead>
+                <TableHead className="text-xs font-semibold uppercase tracking-wider h-10 text-right pr-4">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              <AnimatePresence>
+                {filtered.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={9} className="py-16 text-center text-muted-foreground text-sm">
+                      <FileText className="h-10 w-10 mx-auto mb-3 opacity-20" />
+                      No invoices {tab !== "all" ? `with status "${tab}"` : ""} found.
+                    </TableCell>
+                  </TableRow>
+                ) : filtered.map((inv, i) => (
+                  <motion.tr
+                    key={inv.id}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: i * 0.03 }}
+                    className={cn(
+                      "border-b border-border/60 hover:bg-muted/30 transition-colors cursor-pointer",
+                      selected?.id === inv.id && "bg-primary/5 border-l-2 border-l-primary"
+                    )}
+                    onClick={() => setSelected(inv)}
+                  >
+                    {/* Client */}
+                    <TableCell className="py-3 pl-4">
+                      <div className="flex items-center gap-2.5">
+                        <div className="h-8 w-8 rounded-full bg-primary/15 text-primary flex items-center justify-center text-sm font-bold shrink-0">
+                          {inv.clientName.charAt(0)}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold truncate max-w-[130px]">{inv.clientName}</p>
+                          <p className="text-[11px] text-muted-foreground flex items-center gap-1">
+                            <Phone className="h-2.5 w-2.5" />{inv.clientPhone}
+                          </p>
+                        </div>
+                      </div>
+                    </TableCell>
+                    {/* Patient */}
+                    <TableCell className="py-3">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-base">{SPECIES_EMOJI[inv.species] ?? "🐾"}</span>
+                        <div>
+                          <p className="text-sm font-medium">{inv.petName}</p>
+                          <p className="text-[11px] text-muted-foreground">{inv.breed}</p>
+                        </div>
+                      </div>
+                    </TableCell>
+                    {/* Services */}
+                    <TableCell className="py-3 hidden lg:table-cell">
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className="text-xs text-muted-foreground truncate max-w-[180px] block cursor-default">
+                            {inv.services.join(", ")}
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-xs text-xs">{inv.services.join(" · ")}</TooltipContent>
+                      </Tooltip>
+                    </TableCell>
+                    {/* Amount */}
+                    <TableCell className="py-3 text-right font-bold text-sm">{formatKES(inv.total)}</TableCell>
+                    {/* Date */}
+                    <TableCell className="py-3 text-xs text-muted-foreground hidden md:table-cell whitespace-nowrap">
+                      {format(new Date(inv.createdAt), "dd MMM yyyy")}
+                    </TableCell>
+                    {/* Payment method */}
+                    <TableCell className="py-3 hidden lg:table-cell">
+                      <PayBadge method={inv.paymentMethod} />
+                    </TableCell>
+                    {/* M-Pesa TxID */}
+                    <TableCell className="py-3 hidden xl:table-cell" onClick={e => e.stopPropagation()}>
+                      <CopyTxId txId={inv.mpesaTxId} />
+                    </TableCell>
+                    {/* Status */}
+                    <TableCell className="py-3">
+                      <StatusBadge status={inv.status} />
+                    </TableCell>
+                    {/* Actions */}
+                    <TableCell className="py-3 pr-4 text-right" onClick={e => e.stopPropagation()}>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-7 w-7">
+                            <MoreVertical className="h-3.5 w-3.5" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-44">
+                          <DropdownMenuItem onClick={() => setSelected(inv)}>
+                            <FileText className="h-3.5 w-3.5 mr-2" /> View / PDF
+                          </DropdownMenuItem>
+                          <DropdownMenuItem asChild>
+                            <a
+                              href={`https://wa.me/${inv.clientPhone.replace(/[^0-9]/g, "")}?text=${encodeURIComponent(`Hi ${inv.clientName}, your invoice ${inv.number} for ${inv.petName} is ${formatKES(inv.total)}. Thank you — InnoVet Pro.`)}`}
+                              target="_blank" rel="noreferrer"
+                            >
+                              <MessageCircle className="h-3.5 w-3.5 mr-2" /> Send to Client
+                            </a>
+                          </DropdownMenuItem>
+                          {inv.status !== "paid" && (
+                            <DropdownMenuItem onClick={() => handleMarkPaid(inv.id, "cash")}>
+                              <CheckCircle2 className="h-3.5 w-3.5 mr-2" /> Mark Paid
+                            </DropdownMenuItem>
+                          )}
+                          <DropdownMenuItem onClick={() => handleVoid(inv.id)} className="text-destructive focus:text-destructive">
+                            <AlertCircle className="h-3.5 w-3.5 mr-2" /> Void
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </motion.tr>
+                ))}
+              </AnimatePresence>
+            </TableBody>
+          </Table>
+        </div>
+
+        {/* ── Slide-over detail ── */}
+        <InvoiceSlideOver
+          invoice={selected}
+          onClose={() => setSelected(null)}
+          onLocked={handleLocked}
+          onMarkPaid={handleMarkPaid}
+        />
+      </div>
+    </TooltipProvider>
   );
 }

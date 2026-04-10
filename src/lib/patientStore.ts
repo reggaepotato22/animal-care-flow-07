@@ -1,6 +1,7 @@
 import { PatientRow } from "@/data/patients";
 import { logCreate, logUpdate, logDelete } from "./audit";
-import { getAccountScopedKey } from "@/lib/accountStore";
+import { getAccountScopedKey, getActiveAccountId } from "@/lib/accountStore";
+import { broadcast, EVENTS } from "@/lib/realtimeEngine";
 
 const PATIENTS_STORAGE_KEY_BASE = "vetcare_patients";
 const SAMPLE_PATIENTS_INITIALIZED_KEY_BASE = "vetcare_sample_patients_initialized";
@@ -329,7 +330,19 @@ export function addPatient(patient: Omit<PatientRow, "id" | "patientId">, userNa
     changedBy: userName,
     reason: "New patient registered",
   });
-  
+
+  // Real-time broadcast → notifies Vet + Nurse
+  try {
+    broadcast({
+      type: EVENTS.PATIENT_ADMITTED,
+      payload: { patientName: newPatient.name, patientId: newPatient.patientId, species: newPatient.species ?? "" },
+      actorRole: "System",
+      actorName: userName,
+      clinicId: getActiveAccountId(),
+      timestamp: new Date().toISOString(),
+    });
+  } catch {}
+
   return newPatient;
 }
 

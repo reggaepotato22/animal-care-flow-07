@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { UnderDevelopment } from "@/components/UnderDevelopment";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -71,117 +70,115 @@ export default function Postmortem() {
   };
 
   return (
-    <UnderDevelopment pageName="Post-Mortem Reports">
-      <div className="space-y-6">
-        <div className="flex justify-between items-start">
-          <div>
-            <h1 className="text-3xl font-bold">Post-Mortem Records</h1>
-            <p className="text-muted-foreground">
-              View and manage post-mortem examination reports and findings
-            </p>
-          </div>
-          
-          <Button 
-            className="flex items-center gap-2"
-            onClick={() => navigate("/postmortem/new")}
-          >
-            <Plus className="h-4 w-4" />
-            New Post-Mortem Report
-          </Button>
+    <div className="space-y-6">
+      <div className="flex justify-between items-start">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Post-Mortem Records</h1>
+          <p className="text-muted-foreground">
+            View and manage post-mortem examination reports and findings
+          </p>
         </div>
-
-        {/* Search and Filters */}
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex gap-4">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search by pet name, owner, report ID, or cause of death..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
-              
-              <Select value={selectedManner} onValueChange={setSelectedManner}>
-                <SelectTrigger className="w-48">
-                  <SelectValue placeholder="Filter by manner" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Manners</SelectItem>
-                  <SelectItem value="natural">Natural</SelectItem>
-                  <SelectItem value="accidental">Accidental</SelectItem>
-                  <SelectItem value="euthanasia">Euthanasia</SelectItem>
-                  <SelectItem value="undetermined">Undetermined</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Records Table */}
-        <Card>
-          <CardContent className="p-0 overflow-x-auto">
-            <Table>
-              <TableBody>
-                {filteredRecords.map((record) => (
-                  <TableRow 
-                    key={record.id} 
-                    className="hover:bg-muted/50 cursor-pointer"
-                    onClick={() => navigate(`/postmortem/${record.id}`)}
-                  >
-                    <TableCell className="w-28 font-mono text-sm font-medium">
-                      {record.reportId}
-                    </TableCell>
-                    <TableCell className="w-24 font-medium">
-                      {record.petName}
-                    </TableCell>
-                    <TableCell className="w-32">
-                      {record.patientName}
-                    </TableCell>
-                    <TableCell className="w-40">
-                      <div className="truncate">
-                        {record.species} ({record.breed})
-                      </div>
-                    </TableCell>
-                    <TableCell className="w-32">
-                      <div className="flex flex-col text-sm">
-                        <span>{new Date(record.dateOfDeath).toLocaleDateString()}</span>
-                        <span className="text-muted-foreground text-xs">{record.timeOfDeath}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell className="w-32">
-                      <div className="truncate">
-                        {record.examiningVeterinarian}
-                      </div>
-                    </TableCell>
-                    <TableCell className="w-28">
-                      <Badge className={getMannerColor(record.mannerOfDeath)}>
-                        {record.mannerOfDeath}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="w-24">
-                      <Badge className={getBodyConditionColor(record.bodyCondition)}>
-                        {record.bodyCondition.replace('_', ' ')}
-                      </Badge>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-
-        {filteredRecords.length === 0 && (
-          <Card>
-            <CardContent className="text-center py-12">
-              <FileSearch className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-              <p className="text-muted-foreground">No post-mortem records found matching your criteria.</p>
-            </CardContent>
-          </Card>
-        )}
+        
+        <Button 
+          className="flex items-center gap-2"
+          onClick={() => navigate("/postmortem/new")}
+        >
+          <Plus className="h-4 w-4" />
+          New Post-Mortem Report
+        </Button>
       </div>
-    </UnderDevelopment>
+
+      {/* Search and Filters */}
+      <Card>
+        <CardContent className="p-4">
+          <div className="flex gap-4">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search by pet name, owner, report ID, or cause of death..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+            
+            <Select value={selectedManner} onValueChange={setSelectedManner}>
+              <SelectTrigger className="w-48">
+                <SelectValue placeholder="Filter by manner" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Manners</SelectItem>
+                <SelectItem value="natural">Natural</SelectItem>
+                <SelectItem value="accidental">Accidental</SelectItem>
+                <SelectItem value="euthanasia">Euthanasia</SelectItem>
+                <SelectItem value="undetermined">Undetermined</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Records Table */}
+      <Card>
+        <CardContent className="p-0 overflow-x-auto">
+          <Table>
+            <TableBody>
+              {filteredRecords.map((record) => (
+                <TableRow 
+                  key={record.id} 
+                  className="hover:bg-muted/50 cursor-pointer"
+                  onClick={() => navigate(`/postmortem/${record.id}`)}
+                >
+                  <TableCell className="w-28 font-mono text-sm font-medium">
+                    {record.reportId}
+                  </TableCell>
+                  <TableCell className="w-24 font-medium">
+                    {record.petName}
+                  </TableCell>
+                  <TableCell className="w-32">
+                    {record.patientName}
+                  </TableCell>
+                  <TableCell className="w-40">
+                    <div className="truncate">
+                      {record.species} ({record.breed})
+                    </div>
+                  </TableCell>
+                  <TableCell className="w-32">
+                    <div className="flex flex-col text-sm">
+                      <span>{new Date(record.dateOfDeath).toLocaleDateString()}</span>
+                      <span className="text-muted-foreground text-xs">{record.timeOfDeath}</span>
+                    </div>
+                  </TableCell>
+                  <TableCell className="w-32">
+                    <div className="truncate">
+                      {record.examiningVeterinarian}
+                    </div>
+                  </TableCell>
+                  <TableCell className="w-28">
+                    <Badge className={getMannerColor(record.mannerOfDeath)}>
+                      {record.mannerOfDeath}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="w-24">
+                    <Badge className={getBodyConditionColor(record.bodyCondition)}>
+                      {record.bodyCondition.replace('_', ' ')}
+                    </Badge>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      {filteredRecords.length === 0 && (
+        <Card>
+          <CardContent className="text-center py-12">
+            <FileSearch className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+            <p className="text-muted-foreground">No post-mortem records found matching your criteria.</p>
+          </CardContent>
+        </Card>
+      )}
+    </div>
   );
 }

@@ -2,340 +2,402 @@ import { createContext, useContext, useState, useCallback, useRef, useEffect, Re
 import { generateMockInventory, clearInventoryData, loadInventory } from "@/lib/inventoryStore";
 import { generateMockTreatments, clearTreatmentsData } from "@/lib/treatmentStore";
 import { add20DemoDrugs } from "@/lib/dataSeed";
+import { subscribe, broadcast, EVENTS, type RealtimeEvent } from "@/lib/realtimeEngine";
 
+// ─── Step Type ────────────────────────────────────────────────────────────────
 export interface TutorialStep {
-  id: number;
+  id: string;
+  forRole: string;
   title: string;
-  description: string;
-  target?: string;
-  position?: "center" | "top" | "bottom" | "left" | "right";
-  /** Role to switch to when this step becomes active */
-  role?: string;
-  /** Route to navigate to when this step becomes active */
+  body: string;
   route?: string;
-  /** Colour accent for the role badge */
-  roleColor?: string;
-  /** If true, tutorial auto-detects a click on the target element and advances */
+  spotlight?: string;
+  position?: "center" | "top" | "bottom" | "left" | "right";
+  roleColor: string;
+  icon: string;
+  waitForEvent?: string;
+  waitLabel?: string;
+  broadcastOnEnter?: { type: string; payload: Record<string, unknown> };
   requiresAction?: boolean;
-  /** Instruction shown in the click-prompt badge before the user clicks */
   actionLabel?: string;
+  isDone?: boolean;
 }
 
-export const TUTORIAL_STEPS: TutorialStep[] = [
-  // ── STEP 1: Welcome ────────────────────────────────────────────────────────
+// ─── Role metadata ────────────────────────────────────────────────────────────
+export const ROLE_META: Record<string, { color: string; label: string; icon: string }> = {
+  Receptionist: { color: "bg-sky-500",     label: "Receptionist",  icon: "📋" },
+  Vet:          { color: "bg-blue-600",    label: "Veterinarian",  icon: "🩺" },
+  Pharmacist:   { color: "bg-purple-500",  label: "Pharmacist",    icon: "💊" },
+  Nurse:        { color: "bg-amber-500",   label: "Attendant",     icon: "🐾" },
+  SuperAdmin:   { color: "bg-emerald-500", label: "Super Admin",   icon: "🛡️" },
+};
+
+// ─── All tutorial paths ───────────────────────────────────────────────────────
+export const ALL_TUTORIAL_STEPS: TutorialStep[] = [
+  // ════════════════════════════════════════════════════════════
+  // RECEPTIONIST PATH — 8 steps
+  // ════════════════════════════════════════════════════════════
   {
-    id: 1,
-    title: "Welcome to InnoVetPro",
-    description: "This guided tour walks you through the full clinic workflow — from registering a new patient all the way to discharge and billing. We'll step through every role: Receptionist → Attendant → Vet → Pharmacist → back to Receptionist. Let's begin!",
+    id: "rec-1", forRole: "Receptionist", roleColor: "bg-sky-500", icon: "👋",
+    title: "Welcome, Receptionist!",
+    body: "You're the first point of contact. This tutorial walks you through registering patients, checking them in, generating invoices, and reviewing client profiles.",
+    route: "/dashboard",
     position: "center",
-    role: "Receptionist",
-    route: "/patients",
-    roleColor: "bg-sky-500",
   },
-
-  // ── STEP 2: Register new patient ──────────────────────────────────────────
   {
-    id: 2,
-    title: "Receptionist — Add a New Patient",
-    description: "As Receptionist, your first job is registering the animal. Click the '+ Add Patient' button (highlighted) to open the registration form. You'll capture the pet's name, species, breed, age, and the owner's contact details.",
-    target: "nav-registered-patients",
-    position: "right",
-    role: "Receptionist",
+    id: "rec-2", forRole: "Receptionist", roleColor: "bg-sky-500", icon: "🐾",
+    title: "Register a New Patient",
+    body: "Head to Registered Patients and click the highlighted '+ Add Patient' button to open the registration form.",
     route: "/patients",
-    roleColor: "bg-sky-500",
-    requiresAction: true,
-    actionLabel: "Click 'Registered Patients' in the sidebar, then click '+ Add Patient' →",
-  },
-
-  // ── STEP 3: Click Add Patient button ──────────────────────────────────────
-  {
-    id: 3,
-    title: "Receptionist — Register a New Patient",
-    description: "You're on the Registered Patients page. Click the green 'Register Patient' button (highlighted) to open the patient form. The tutorial will minimise while you fill in the details — it will reopen automatically once you save.",
-    target: "btn-add-patient",
+    spotlight: "add-patient-btn",
     position: "left",
-    role: "Receptionist",
-    route: "/patients",
-    roleColor: "bg-sky-500",
-  },
-
-  // ── STEP 4: Search for your new patient ──────────────────────────────────
-  {
-    id: 4,
-    title: "Receptionist — Find Your Patient",
-    description: "Great, the patient is registered! Now search for them in the search bar below. Type the name of the patient you just added — the list will filter automatically.",
-    target: "search-patients",
-    position: "bottom",
-    role: "Receptionist",
-    route: "/patients",
-    roleColor: "bg-sky-500",
-  },
-
-  // ── STEP 5: Click the patient card ──────────────────────────────────────
-  {
-    id: 5,
-    title: "Receptionist — Open Patient Profile",
-    description: "You can see your patient in the list. Click on their card to open the full patient profile where you can manage visits and view medical history.",
-    target: "patient-card-first",
-    position: "bottom",
-    role: "Receptionist",
-    route: "/patients",
-    roleColor: "bg-sky-500",
     requiresAction: true,
-    actionLabel: "Click the patient card to open their profile →",
+    actionLabel: "Click the highlighted 'Add Patient' button →",
   },
-
-  // ── STEP 6: Scroll to Encounters & click New Visit ─────────────────────
   {
-    id: 6,
-    title: "Receptionist — Create a New Visit",
-    description: "You're on the patient profile. Scroll down to the 'Encounters & Medical History' section. Click the 'New Visit' button (highlighted) to create a visit for today.",
-    target: "btn-new-visit",
-    position: "left",
-    role: "Receptionist",
-    roleColor: "bg-sky-500",
-  },
-
-  // ── STEP 7: Fill the New Visit form (tutorial minimises) ───────────────
-  {
-    id: 7,
-    title: "Receptionist — Fill Visit Details",
-    description: "The New Visit dialog is open. Fill in the encounter type, reason for visit, chief complaint, and attending veterinarian. Click 'Create Visit' when done — the tutorial will minimise while you fill the form and will reopen once you save.",
-    target: "btn-new-visit",
-    position: "left",
-    role: "Receptionist",
-    roleColor: "bg-sky-500",
-  },
-
-  // ── STEP 8: Check in patient ──────────────────────────────────────────────
-  {
-    id: 8,
-    title: "Receptionist — Check In the Patient",
-    description: "With the visit created, check the patient in. On the patient profile or in Appointments, click 'Check In'. This moves them to WAITING status and they appear on the Live Queue dashboard. The Attendant can now see them for triage.",
-    target: "live-queue",
-    position: "bottom",
-    role: "Receptionist",
-    route: "/dashboard",
-    roleColor: "bg-sky-500",
-  },
-
-  // ── STEP 9: Attendant sees queue ──────────────────────────────────────────
-  {
-    id: 9,
-    title: "Attendant — Today's Appointments",
-    description: "Role switched to Attendant (Nurse). The dashboard shows all patients checked in today. Scroll down to 'Today's Appointments' — you'll see the patient you just checked in with status WAITING. Click 'Triage' on their card to begin the triage process.",
-    target: "live-queue",
-    position: "bottom",
-    role: "Nurse",
-    route: "/dashboard",
-    roleColor: "bg-amber-500",
-    requiresAction: true,
-    actionLabel: "Scroll to Today's Appointments → click 'Triage' for the patient →",
-  },
-
-  // ── STEP 10: Triage ────────────────────────────────────────────────────────
-  {
-    id: 10,
-    title: "Attendant — Triage the Patient",
-    description: "The Triage page has opened. Record the patient's vitals: Temperature (°C), Heart Rate (bpm), Respiratory Rate (bpm), and Weight (kg). You can also note their chief complaint. Once vitals are saved, click 'Complete Triage' — this triggers a notification to the Vet that the patient is ready for consultation.",
-    target: "triage-page",
-    position: "right",
-    role: "Nurse",
+    id: "rec-3", forRole: "Receptionist", roleColor: "bg-sky-500", icon: "🗓️",
+    title: "Check In to the Triage Queue",
+    body: "Once a patient is registered, navigate to Triage to add them to the waiting queue. The Attendant will then pick them up.",
     route: "/triage",
-    roleColor: "bg-amber-500",
-    requiresAction: true,
-    actionLabel: "Record vitals and click 'Complete Triage' →",
-  },
-
-  // ── STEP 11: Start consultation ────────────────────────────────────────────
-  {
-    id: 11,
-    title: "Attendant → Vet — Start Consultation",
-    description: "Triage is complete. You can start the consultation as the Attendant (if working alongside the Vet) or the Vet can take over from their own login. We're switching to Vet role now. In the patient profile, click 'Start Consultation' (or 'New Record') — this opens the full clinical record.",
-    target: "nav-registered-patients",
+    spotlight: "triage-page",
     position: "right",
-    role: "Vet",
-    route: "/patients",
-    roleColor: "bg-blue-600",
-    requiresAction: true,
-    actionLabel: "Open patient profile → click 'Start Consultation' →",
   },
-
-  // ── STEP 12: Overview tab ──────────────────────────────────────────────────
   {
-    id: 12,
-    title: "Vet — Clinical Record: Overview",
-    description: "The clinical record is now open. The Overview tab shows a summary of the current visit: patient info, today's vitals from triage, chief complaint, and active encounter status. Review this before examining the patient — it gives you the full picture at a glance.",
+    id: "rec-4", forRole: "Receptionist", roleColor: "bg-sky-500", icon: "⏳",
+    title: "Waiting for Vitals Update…",
+    body: "The Attendant is recording the patient's vitals on another device. Once submitted, you'll be automatically moved to the next step.",
+    route: "/triage",
     position: "center",
-    role: "Vet",
-    route: "/patients",
-    roleColor: "bg-blue-600",
+    waitForEvent: EVENTS.VITALS_UPDATED,
+    waitLabel: "⏳ Waiting for the Attendant to complete triage on another tab…",
   },
-
-  // ── STEP 13: History tab ──────────────────────────────────────────────────
   {
-    id: 13,
-    title: "Vet — Clinical Record: History",
-    description: "Click the 'History' tab. Here you document the patient's medical history: previous diagnoses, surgeries, chronic conditions, allergies, and vaccination history. For returning patients, past visit records appear here automatically. This context is critical for accurate diagnosis.",
-    position: "center",
-    role: "Vet",
-    route: "/patients",
-    roleColor: "bg-blue-600",
-  },
-
-  // ── STEP 14: Physical Exam ────────────────────────────────────────────────
-  {
-    id: 14,
-    title: "Vet — Clinical Record: Physical Exam",
-    description: "On the 'Physical Exam' tab, record your findings system by system: cardiovascular, respiratory, gastrointestinal, musculoskeletal, neurological, skin & coat, eyes, ears, and oral cavity. Use the structured fields or free-text. Abnormal findings are flagged in red for easy review.",
-    position: "center",
-    role: "Vet",
-    route: "/patients",
-    roleColor: "bg-blue-600",
-  },
-
-  // ── STEP 15: Clinical Notes ───────────────────────────────────────────────
-  {
-    id: 15,
-    title: "Vet — Clinical Record: Clinical Notes",
-    description: "The 'Clinical Notes' tab is your SOAP note area — Subjective, Objective, Assessment, Plan. Write your differential diagnoses and working diagnosis here. These notes are time-stamped, form the legal medical record, and are visible to all roles with clinical access.",
-    position: "center",
-    role: "Vet",
-    route: "/patients",
-    roleColor: "bg-blue-600",
-  },
-
-  // ── STEP 16: Diagnostics ──────────────────────────────────────────────────
-  {
-    id: 16,
-    title: "Vet — Clinical Record: Diagnostics",
-    description: "On the 'Diagnostics' tab, order lab tests (CBC, biochemistry, urinalysis, culture & sensitivity, cytology, imaging). Lab orders are sent to the lab queue. When results come back, they attach directly to this record. You can also upload external diagnostic images.",
-    position: "center",
-    role: "Vet",
-    route: "/patients",
-    roleColor: "bg-blue-600",
-  },
-
-  // ── STEP 17: Treatment + Inventory ───────────────────────────────────────
-  {
-    id: 17,
-    title: "Vet — Clinical Record: Treatment + Inventory",
-    description: "The 'Treatment' tab is where you add procedures performed (IV fluid placement, wound suturing, injections). Each treatment line is linked to an inventory item — when you add a treatment, the system checks stock. If an item is low or out of stock, a warning appears. This is how Inventory stays accurate in real time.",
-    target: "nav-inventory",
-    position: "right",
-    role: "Vet",
-    route: "/inventory",
-    roleColor: "bg-blue-600",
-  },
-
-  // ── STEP 18: Medications ──────────────────────────────────────────────────
-  {
-    id: 18,
-    title: "Vet — Clinical Record: Medications",
-    description: "On the 'Medications' tab, add drugs administered in-clinic (IV antibiotics, anti-emetics, pain relief). Each drug entry auto-decrements from pharmacy inventory — no double-entry needed. Dosage, route, and frequency are recorded here and passed to the Pharmacist's dispensing queue.",
-    position: "center",
-    role: "Vet",
-    route: "/patients",
-    roleColor: "bg-blue-600",
-  },
-
-  // ── STEP 19: Vaccinations ─────────────────────────────────────────────────
-  {
-    id: 19,
-    title: "Vet — Clinical Record: Vaccinations",
-    description: "The 'Vaccinations' tab records any vaccines given this visit (Rabies, DA2PP, Bordetella, FELV etc.). The system tracks due dates and automatically schedules a reminder to the owner before the next booster is due — reducing missed vaccination appointments.",
-    position: "center",
-    role: "Vet",
-    route: "/patients",
-    roleColor: "bg-blue-600",
-  },
-
-  // ── STEP 20: Prescriptions ────────────────────────────────────────────────
-  {
-    id: 20,
-    title: "Vet — Clinical Record: Prescriptions",
-    description: "Finally, the 'Prescriptions' tab lets you write take-home medication scripts. Add drug name, dose, frequency, duration, and dispensing instructions. These are handed to the Pharmacist for dispensing. A PDF prescription can be generated and sent to the owner. Click 'Complete Consultation' when all tabs are done.",
-    position: "center",
-    role: "Vet",
-    route: "/patients",
-    roleColor: "bg-blue-600",
-  },
-
-  // ── STEP 21: Pharmacist ───────────────────────────────────────────────────
-  {
-    id: 21,
-    title: "Pharmacist — Dispense Medications",
-    description: "Role switched to Pharmacist. The prescribed medications from the Vet now appear in the dispensing queue. Verify each item: check the drug, dose, and patient name. Click 'Dispense' to confirm — this auto-decrements stock from Inventory. If any item is out of stock, you'll be alerted to source an alternative.",
-    target: "nav-inventory",
-    position: "right",
-    role: "Pharmacist",
-    route: "/inventory",
-    roleColor: "bg-purple-500",
-    requiresAction: true,
-    actionLabel: "Click Inventory in the sidebar to see stock levels →",
-  },
-
-  // ── STEP 22: Billing (disabled note) ─────────────────────────────────────
-  {
-    id: 22,
-    title: "Receptionist — Billing (Preview)",
-    description: "Role switched back to Receptionist. The Billing module is currently being set up for your clinic — it will show the full invoice: consultation fee, procedures, medications, and any applicable taxes. Payment can be collected via M-Pesa STK Push, cash, or insurance. Billing will be enabled in your plan once activated.",
-    target: "nav-billing",
-    position: "right",
-    role: "Receptionist",
+    id: "rec-5", forRole: "Receptionist", roleColor: "bg-sky-500", icon: "🧾",
+    title: "Billing Unlocked — Generate the Invoice",
+    body: "Vitals are in! Head to Billing to generate the invoice for this visit — consultation, procedures, and medications are all auto-populated.",
     route: "/billing",
-    roleColor: "bg-sky-500",
+    spotlight: "nav-billing",
+    position: "right",
   },
-
-  // ── STEP 23: Discharge ────────────────────────────────────────────────────
   {
-    id: 23,
-    title: "Receptionist — Discharge the Patient",
-    description: "Once payment is confirmed (or pre-authorized), the Receptionist clicks 'Discharge'. The patient's encounter is closed, a discharge summary is generated, and the owner receives a copy via SMS or email. The patient's record is archived and available for future visits. That's the full workflow!",
-    target: "live-queue",
-    position: "bottom",
-    role: "Receptionist",
-    route: "/dashboard",
-    roleColor: "bg-sky-500",
+    id: "rec-6", forRole: "Receptionist", roleColor: "bg-sky-500", icon: "🔒",
+    title: "Lock the Invoice",
+    body: "Review the invoice, then click 'Lock Invoice' (highlighted) to finalise it. This triggers a notification to the Pharmacist to prepare the prescription.",
+    route: "/billing",
+    spotlight: "lock-invoice-btn",
+    position: "left",
+    requiresAction: true,
+    actionLabel: "Click the highlighted 'Lock Invoice' button →",
   },
-
-  // ── STEP 24: Complete ─────────────────────────────────────────────────────
   {
-    id: 24,
-    title: "Tour Complete — You're Ready!",
-    description: "You've completed the full InnoVetPro clinic workflow. Your team can switch roles anytime from the profile menu (top right). Use 'Generate Demo Data' on the dashboard to populate the system with sample patients and explore all features. Welcome aboard!",
+    id: "rec-7", forRole: "Receptionist", roleColor: "bg-sky-500", icon: "👤",
+    title: "Review the Client CRM Profile",
+    body: "After billing, open the Clients section to review the owner's history, communication preferences, and linked pets.",
+    route: "/clients",
     position: "center",
-    role: "SuperAdmin",
+  },
+  {
+    id: "rec-8", forRole: "Receptionist", roleColor: "bg-sky-500", icon: "🎉",
+    title: "You're a Pro Receptionist! 🎉",
+    body: "You've mastered the reception workflow — patient registration, triage queue, invoicing, and client management. The clinic runs smoothly because of you!",
     route: "/dashboard",
-    roleColor: "bg-emerald-500",
+    position: "center",
+    isDone: true,
+  },
+
+  // ════════════════════════════════════════════════════════════
+  // VET PATH — 8 steps
+  // ════════════════════════════════════════════════════════════
+  {
+    id: "vet-1", forRole: "Vet", roleColor: "bg-blue-600", icon: "👋",
+    title: "Welcome, Doctor!",
+    body: "This tutorial guides you through the clinical workflow — reviewing triaged patients, recording SOAP notes, linking prescriptions, and managing hospitalized patients.",
+    route: "/dashboard",
+    position: "center",
+  },
+  {
+    id: "vet-2", forRole: "Vet", roleColor: "bg-blue-600", icon: "📋",
+    title: "A Patient is in the Queue",
+    body: "Open the Triage page to see patients ready for consultation. Select a patient card to begin reviewing their intake.",
+    route: "/triage",
+    spotlight: "triage-page",
+    position: "right",
+  },
+  {
+    id: "vet-3", forRole: "Vet", roleColor: "bg-blue-600", icon: "📁",
+    title: "Review Patient History",
+    body: "Before consulting, check the patient's medical history — previous diagnoses, vaccinations, allergies, and prior visit records are all here.",
+    route: "/patients",
+    position: "center",
+  },
+  {
+    id: "vet-4", forRole: "Vet", roleColor: "bg-blue-600", icon: "🎙️",
+    title: "Dictate Your SOAP Note",
+    body: "Open a new clinical record and click the microphone icon (highlighted) to dictate your Subjective, Objective, Assessment, and Plan note hands-free.",
+    route: "/records/new",
+    spotlight: "dictate-btn",
+    position: "left",
+    requiresAction: true,
+    actionLabel: "Click the mic icon to start dictation →",
+  },
+  {
+    id: "vet-5", forRole: "Vet", roleColor: "bg-blue-600", icon: "💊",
+    title: "Link a Prescription to Inventory",
+    body: "On the Prescriptions tab, add a drug and link it to the inventory (highlighted). This auto-queues it for the Pharmacist and tracks stock levels.",
+    route: "/records/new",
+    spotlight: "rx-link-btn",
+    position: "left",
+    requiresAction: true,
+    actionLabel: "Click the highlighted 'Link to Inventory' button →",
+  },
+  {
+    id: "vet-6", forRole: "Vet", roleColor: "bg-blue-600", icon: "⏳",
+    title: "Waiting for Pharmacist…",
+    body: "The Pharmacist is dispensing the prescription. This step advances automatically once they confirm dispensing.",
+    route: "/patients",
+    position: "center",
+    waitForEvent: EVENTS.RX_DISPENSED,
+    waitLabel: "⏳ Waiting for Pharmacist to dispense the prescription…",
+  },
+  {
+    id: "vet-7", forRole: "Vet", roleColor: "bg-blue-600", icon: "🏥",
+    title: "Mark Patient for Discharge",
+    body: "The medication is dispensed. Head to Hospitalization and mark this patient as ready for discharge — this notifies the Receptionist to close the billing.",
+    route: "/hospitalization",
+    position: "center",
+  },
+  {
+    id: "vet-8", forRole: "Vet", roleColor: "bg-blue-600", icon: "🩺",
+    title: "Outstanding Clinical Work, Doc! 🩺",
+    body: "You've completed the full clinical loop — triage review, SOAP notes, prescriptions, and discharge. The system handled all the routing automatically!",
+    route: "/dashboard",
+    position: "center",
+    isDone: true,
+  },
+
+  // ════════════════════════════════════════════════════════════
+  // PHARMACIST PATH — 6 steps
+  // ════════════════════════════════════════════════════════════
+  {
+    id: "phar-1", forRole: "Pharmacist", roleColor: "bg-purple-500", icon: "📦",
+    title: "Check Current Stock Levels",
+    body: "Start by reviewing the current inventory. Low-stock and out-of-stock items are flagged in red — restock before dispensing if needed.",
+    route: "/inventory",
+    position: "center",
+  },
+  {
+    id: "phar-2", forRole: "Pharmacist", roleColor: "bg-purple-500", icon: "⏳",
+    title: "Waiting for Invoice to be Locked…",
+    body: "The Receptionist is finalising the invoice. Once they lock it, your dispensing queue will be activated.",
+    route: "/inventory",
+    position: "center",
+    waitForEvent: EVENTS.BILLING_LOCKED,
+    waitLabel: "⏳ Waiting for Receptionist to lock the invoice…",
+  },
+  {
+    id: "phar-3", forRole: "Pharmacist", roleColor: "bg-purple-500", icon: "📝",
+    title: "Review the Prescription",
+    body: "Head to Treatments to review the Vet's prescription — drug name, dose, route, frequency, and duration are all listed.",
+    route: "/treatments",
+    position: "center",
+  },
+  {
+    id: "phar-4", forRole: "Pharmacist", roleColor: "bg-purple-500", icon: "💉",
+    title: "Dispense the Medication",
+    body: "Back in Inventory, find the prescribed item and click the highlighted 'Dispense' button. Stock will be auto-decremented.",
+    route: "/inventory",
+    spotlight: "dispense-btn",
+    position: "left",
+    requiresAction: true,
+    actionLabel: "Click the highlighted 'Dispense' button →",
+  },
+  {
+    id: "phar-5", forRole: "Pharmacist", roleColor: "bg-purple-500", icon: "📡",
+    title: "Notifying the Vet…",
+    body: "Broadcasting RX_DISPENSED — the Vet will be notified automatically that the prescription is ready for the patient.",
+    route: "/inventory",
+    position: "center",
+    broadcastOnEnter: { type: EVENTS.RX_DISPENSED, payload: { patientName: "Demo Patient", medication: "Amoxicillin 250mg" } },
+  },
+  {
+    id: "phar-6", forRole: "Pharmacist", roleColor: "bg-purple-500", icon: "💊",
+    title: "Dispensing Complete! 💊",
+    body: "The medication has been dispensed, inventory updated, and the Vet notified. The patient is ready for pickup. Great work!",
+    route: "/dashboard",
+    position: "center",
+    isDone: true,
+  },
+
+  // ════════════════════════════════════════════════════════════
+  // ATTENDANT (Nurse) PATH — 5 steps
+  // ════════════════════════════════════════════════════════════
+  {
+    id: "att-1", forRole: "Nurse", roleColor: "bg-amber-500", icon: "🏥",
+    title: "View Admitted Patients",
+    body: "The Hospitalization board shows all currently admitted patients. Each card shows the patient's status, care plan, and pending tasks.",
+    route: "/hospitalization",
+    position: "center",
+  },
+  {
+    id: "att-2", forRole: "Nurse", roleColor: "bg-amber-500", icon: "❤️",
+    title: "Log a Wellness Check",
+    body: "Open a patient workspace and click the highlighted 'Wellness Check' button to log an observation. This gets recorded in the patient's event timeline.",
+    route: "/hospitalization",
+    spotlight: "wellness-btn",
+    position: "left",
+    requiresAction: true,
+    actionLabel: "Click the highlighted 'Wellness Check' button →",
+  },
+  {
+    id: "att-3", forRole: "Nurse", roleColor: "bg-amber-500", icon: "🍽️",
+    title: "Update the Feeding Schedule",
+    body: "Click the highlighted 'Feeding' button (highlighted) to log the feeding and update the schedule. Missed feedings trigger a FEEDING_DUE alert.",
+    route: "/hospitalization",
+    spotlight: "feeding-btn",
+    position: "left",
+    requiresAction: true,
+    actionLabel: "Click the highlighted 'Feeding' button →",
+  },
+  {
+    id: "att-4", forRole: "Nurse", roleColor: "bg-amber-500", icon: "📡",
+    title: "Broadcasting Wellness Check…",
+    body: "Notifying the Vet and SuperAdmin that a wellness check has been completed.",
+    route: "/hospitalization",
+    position: "center",
+    broadcastOnEnter: { type: EVENTS.WELLNESS_CHECK, payload: { patientName: "Demo Patient" } },
+  },
+  {
+    id: "att-5", forRole: "Nurse", roleColor: "bg-amber-500", icon: "🐾",
+    title: "Great Care, Attendant! 🐾",
+    body: "You've logged wellness checks, updated feeding schedules, and kept the care plan current. The patients are in great hands!",
+    route: "/dashboard",
+    position: "center",
+    isDone: true,
+  },
+
+  // ════════════════════════════════════════════════════════════
+  // NURSE PATH — 6 steps (vitals, monitoring, progress notes)
+  // ════════════════════════════════════════════════════════════
+  {
+    id: "nur-1", forRole: "Nurse", roleColor: "bg-pink-500", icon: "👋",
+    title: "Welcome, Nurse!",
+    body: "This tutorial covers your core workflow: recording patient vitals, monitoring hospitalized animals, and writing progress notes.",
+    route: "/triage",
+    position: "center",
+  },
+  {
+    id: "nur-2", forRole: "Nurse", roleColor: "bg-pink-500", icon: "🌡️",
+    title: "Record Patient Vitals",
+    body: "On the Triage page, select a patient from the queue. Enter their temperature, heart rate, respiratory rate, and weight.",
+    route: "/triage",
+    spotlight: "triage-page",
+    position: "right",
+    requiresAction: true,
+    actionLabel: "Select a patient and record their vitals →",
+  },
+  {
+    id: "nur-3", forRole: "Nurse", roleColor: "bg-pink-500", icon: "✅",
+    title: "Complete Triage",
+    body: "Once all vitals are entered, click 'Complete Triage'. This broadcasts a VITALS_UPDATED event — the Vet is automatically notified.",
+    route: "/triage",
+    spotlight: "triage-page",
+    position: "right",
+  },
+  {
+    id: "nur-4", forRole: "Nurse", roleColor: "bg-pink-500", icon: "📊",
+    title: "Monitor the Flowsheet",
+    body: "In the Hospitalization workspace, the Flowsheet tab tracks vitals over time. Add new rows for each monitoring interval.",
+    route: "/hospitalization",
+    position: "center",
+  },
+  {
+    id: "nur-5", forRole: "Nurse", roleColor: "bg-pink-500", icon: "📝",
+    title: "Write a Progress Note",
+    body: "Under the Notes tab, add a progress note describing the patient's condition. Notes are time-stamped and visible to the full clinical team.",
+    route: "/hospitalization",
+    position: "center",
+  },
+  {
+    id: "nur-6", forRole: "Nurse", roleColor: "bg-pink-500", icon: "🏅",
+    title: "Excellent Nursing Care! 🏅",
+    body: "You've recorded vitals, updated the flowsheet, and written progress notes. Your monitoring keeps the care team informed and patients safe.",
+    route: "/dashboard",
+    position: "center",
+    isDone: true,
+  },
+
+  // ════════════════════════════════════════════════════════════
+  // SUPERADMIN PATH — 5 steps
+  // ════════════════════════════════════════════════════════════
+  {
+    id: "sa-1", forRole: "SuperAdmin", roleColor: "bg-emerald-500", icon: "🛡️",
+    title: "Welcome, Super Admin!",
+    body: "This tutorial covers the admin-only tools: staff management, the live activity feed, reports, audit trails, and system settings.",
+    route: "/dashboard",
+    position: "center",
+  },
+  {
+    id: "sa-2", forRole: "SuperAdmin", roleColor: "bg-emerald-500", icon: "👥",
+    title: "Manage Staff Accounts",
+    body: "Head to Staff Management to create new staff accounts, assign roles, and set permissions. Each staff member gets their own login profile.",
+    route: "/staff",
+    position: "center",
+  },
+  {
+    id: "sa-3", forRole: "SuperAdmin", roleColor: "bg-emerald-500", icon: "📡",
+    title: "Live Activity Feed",
+    body: "The Live Feed shows every real-time event across all roles and devices — patient admissions, vitals, prescriptions, billing. Filter by Clinical, Financial, or Comms.",
+    route: "/live-feed",
+    position: "center",
+  },
+  {
+    id: "sa-4", forRole: "SuperAdmin", roleColor: "bg-emerald-500", icon: "📊",
+    title: "Reports & Audit Trail",
+    body: "Reports gives you clinic analytics — visit volumes, revenue, inventory burn rate. The Audit Trail shows every data change with who made it and when.",
+    route: "/audit",
+    position: "center",
+  },
+  {
+    id: "sa-5", forRole: "SuperAdmin", roleColor: "bg-emerald-500", icon: "⚙️",
+    title: "Clinic Settings",
+    body: "Configure everything in Settings — clinic profile, billing (VAT, KRA PIN, KES), workflow steps, WhatsApp/SMS integrations, appearance, and data management.",
+    route: "/settings",
+    position: "center",
+    isDone: true,
   },
 ];
 
+// ─── Context Interface ─────────────────────────────────────────────────────────
 interface TutorialContextValue {
   isActive: boolean;
-  step: number;
   currentStep: TutorialStep | null;
-  totalSteps: number;
-  startTutorial: () => void;
+  stepIndex: number;
+  totalStepsForRole: number;
+  activeRole: string | null;
+  isWaiting: boolean;
+  recentEvents: RealtimeEvent[];
+  startTutorial: (role: string) => void;
   nextStep: () => void;
   prevStep: () => void;
   skipTutorial: () => void;
-  goToStep: (n: number) => void;
+  /** legacy compat */
+  step: number;
+  totalSteps: number;
 }
 
 const TutorialContext = createContext<TutorialContextValue | null>(null);
 
+// ─── Provider ─────────────────────────────────────────────────────────────────
 export function TutorialProvider({ children }: { children: ReactNode }) {
-  // Pure React state — intentionally NOT persisted, so it resets on every page refresh
-  // Start as inactive so the app loads normally; user clicks the tour button to begin
-  const [isActive, setIsActive] = useState(false);
-  const [step, setStep] = useState(1);
-  // Track whether the tutorial itself seeded inventory so we can clean up after
-  const tutorialSeededRef = useRef(false);
+  const [isActive, setIsActive]         = useState(false);
+  const [activeRole, setActiveRole]     = useState<string | null>(null);
+  const [stepIndex, setStepIndex]       = useState(0);
+  const [isWaiting, setIsWaiting]       = useState(false);
+  const [recentEvents, setRecentEvents] = useState<RealtimeEvent[]>([]);
+  const tutorialSeededRef               = useRef(false);
+  const unsubWaitRef                    = useRef<(() => void) | null>(null);
 
-  // Seed inventory on initial mount (tutorial auto-starts with isActive=true).
-  // Only mark as tutorial-seeded if inventory was actually empty before we seeded it
-  // — so we never wipe data the user already had.
+  // Seed inventory on mount if empty
   useEffect(() => {
     const wasEmpty = loadInventory().length === 0;
     generateMockInventory();
@@ -345,24 +407,58 @@ export function TutorialProvider({ children }: { children: ReactNode }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const currentStep = isActive
-    ? TUTORIAL_STEPS.find(s => s.id === step) ?? null
+  const stepsForRole = activeRole
+    ? ALL_TUTORIAL_STEPS.filter(s => s.forRole === activeRole)
+    : [];
+
+  const currentStep = isActive && stepsForRole.length > 0
+    ? stepsForRole[stepIndex] ?? null
     : null;
 
-  /** Re-launch tutorial: seed inventory if currently empty, reset to step 1. */
-  const startTutorial = useCallback(() => {
-    const wasEmpty = loadInventory().length === 0;
-    generateMockInventory();
-    add20DemoDrugs();
-    generateMockTreatments();
-    tutorialSeededRef.current = wasEmpty;
-    setStep(1);
-    setIsActive(true);
-  }, []);
+  // Fire broadcastOnEnter when a step has it
+  useEffect(() => {
+    if (!isActive || !currentStep?.broadcastOnEnter) return;
+    const { type, payload } = currentStep.broadcastOnEnter;
+    try {
+      broadcast({
+        type,
+        payload,
+        actorRole: activeRole ?? "System",
+        actorName: `${activeRole ?? "System"} (Tutorial)`,
+        clinicId: "clinic-demo",
+        timestamp: new Date().toISOString(),
+      });
+    } catch {}
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isActive, stepIndex]);
 
-  /** Clear tutorial-seeded data and close overlay. */
+  // waitForEvent: subscribe and advance when event fires
+  useEffect(() => {
+    if (unsubWaitRef.current) { unsubWaitRef.current(); unsubWaitRef.current = null; }
+    if (!isActive || !currentStep?.waitForEvent) { setIsWaiting(false); return; }
+
+    setIsWaiting(true);
+    const targetType = currentStep.waitForEvent;
+
+    unsubWaitRef.current = subscribe((event) => {
+      setRecentEvents(prev => [event, ...prev].slice(0, 3));
+      if (event.type === targetType) {
+        setIsWaiting(false);
+        if (unsubWaitRef.current) { unsubWaitRef.current(); unsubWaitRef.current = null; }
+        setStepIndex(prev => prev + 1);
+      }
+    });
+    return () => { if (unsubWaitRef.current) { unsubWaitRef.current(); unsubWaitRef.current = null; } };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isActive, stepIndex, activeRole]);
+
   const endTutorial = useCallback(() => {
     setIsActive(false);
+    setActiveRole(null);
+    setStepIndex(0);
+    setIsWaiting(false);
+    setRecentEvents([]);
+    if (unsubWaitRef.current) { unsubWaitRef.current(); unsubWaitRef.current = null; }
     if (tutorialSeededRef.current) {
       clearInventoryData();
       clearTreatmentsData();
@@ -370,45 +466,47 @@ export function TutorialProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const startTutorial = useCallback((role: string) => {
+    const wasEmpty = loadInventory().length === 0;
+    generateMockInventory();
+    add20DemoDrugs();
+    generateMockTreatments();
+    tutorialSeededRef.current = wasEmpty;
+    setActiveRole(role);
+    setStepIndex(0);
+    setIsWaiting(false);
+    setRecentEvents([]);
+    setIsActive(true);
+  }, []);
+
   const nextStep = useCallback(() => {
-    setStep(prev => {
-      if (prev >= TUTORIAL_STEPS.length) {
-        setIsActive(false);
-        if (tutorialSeededRef.current) {
-          clearInventoryData();
-          clearTreatmentsData();
-          tutorialSeededRef.current = false;
-        }
-        return prev;
-      }
+    setStepIndex(prev => {
+      const steps = ALL_TUTORIAL_STEPS.filter(s => s.forRole === activeRole);
+      if (prev >= steps.length - 1) { endTutorial(); return prev; }
       return prev + 1;
     });
-  }, []);
+  }, [activeRole, endTutorial]);
 
   const prevStep = useCallback(() => {
-    setStep(prev => Math.max(1, prev - 1));
-  }, []);
-
-  const skipTutorial = endTutorial;
-
-  const goToStep = useCallback((n: number) => {
-    if (n >= 1 && n <= TUTORIAL_STEPS.length) {
-      setStep(n);
-      setIsActive(true);
-    }
+    setStepIndex(prev => Math.max(0, prev - 1));
   }, []);
 
   return (
     <TutorialContext.Provider value={{
       isActive,
-      step,
       currentStep,
-      totalSteps: TUTORIAL_STEPS.length,
+      stepIndex,
+      totalStepsForRole: stepsForRole.length,
+      activeRole,
+      isWaiting,
+      recentEvents,
       startTutorial,
       nextStep,
       prevStep,
-      skipTutorial,
-      goToStep,
+      skipTutorial: endTutorial,
+      // legacy compat
+      step: stepIndex + 1,
+      totalSteps: stepsForRole.length,
     }}>
       {children}
     </TutorialContext.Provider>

@@ -24,18 +24,22 @@ import {
   BarChart,
   ClipboardList,
   Truck,
+  LogOut,
+  Radio,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useRole } from "@/contexts/RoleContext";
 import { useAccount } from "@/contexts/AccountContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { hasFeature } from "@/lib/accountStore";
+import { useNavigate } from "react-router-dom";
 
+// ─── Workflow Navigation (left sidebar) ───────────────────────────────────────
 const navigationItems = [
-  { name: "Field Mode",          href: "/field",                  icon: Truck },
   { name: "Dashboard",           href: "/dashboard",              icon: LayoutDashboard },
   { name: "Registered Patients", href: "/patients",               icon: ClipboardList },
-  { name: "Clients (CRM)",        href: "/clients",                icon: Users2 },
+  { name: "Clients (CRM)",       href: "/clients",                icon: Users2 },
   { name: "Appointments",        href: "/appointments",           icon: Calendar },
   { name: "Triage",              href: "/triage",                 icon: Activity },
   { name: "Labs",                href: "/labs",                   icon: Beaker },
@@ -45,13 +49,16 @@ const navigationItems = [
   { name: "Inventory",           href: "/inventory",              icon: Package },
   { name: "Billing",             href: "/billing",                icon: CreditCard },
   { name: "Postmortem",          href: "/postmortem",             icon: FileText },
-  { name: "Staff Management",    href: "/staff",                  icon: UsersIcon },
   { name: "Reports",             href: "/reports",                icon: BarChart },
   { name: "Audit Trails",        href: "/audit",                  icon: ScrollText },
-  { name: "Workflow Settings",   href: "/workflow-settings",      icon: Settings2 },
-  { name: "Communications",      href: "/settings/communications",icon: Mail },
-  { name: "Appearance",          href: "/appearance",             icon: Palette },
-  { name: "Clinic Settings",     href: "/admin/settings",         icon: ScrollText },
+  { name: "Live Feed",           href: "/admin/live-feed",        icon: Radio },
+  { name: "Staff Management",    href: "/staff",                  icon: UsersIcon },
+  { name: "Field Mode",          href: "/field",                  icon: Truck },
+];
+
+// ─── Settings Navigation (top-right profile dropdown) ─────────────────────────
+export const settingsItems = [
+  { name: "Settings",        href: "/settings",               icon: Settings2 },
 ];
 
 function InnoVetProLogo({ collapsed }: { collapsed: boolean }) {
@@ -82,8 +89,10 @@ export function Navigation({ mobileOpen = false, onMobileClose }: NavigationProp
     typeof window !== "undefined" ? window.innerWidth < 1280 : false
   );
   const [skipTriage, setSkipTriage] = useState(getSkipTriageSetting);
-  const { has } = useRole();
+  const { has, unlockProfile } = useRole();
   const { activeAccount } = useAccount();
+  const { logout } = useAuth();
+  const navigate = useNavigate();
 
   useEffect(() => {
     const onStorage = (e: StorageEvent) => {
@@ -130,12 +139,10 @@ export function Navigation({ mobileOpen = false, onMobileClose }: NavigationProp
           .filter((item) => {
             if (item.name === "Field Mode")          return has("can_triage");
             if (item.name === "Audit Trails")        return has("can_view_audit") && hasFeature("audit_logs", activeAccount);
+            if (item.name === "Live Feed")           return has("can_view_audit"); // SuperAdmin only
+            if (item.name === "Reports")             return has("can_view_audit") && hasFeature("audit_logs", activeAccount);
             if (item.name === "Clinic Settings")     return has("can_manage_users");
             if (item.name === "Staff Management")    return has("can_manage_users");
-            if (item.name === "Reports")             return has("can_view_audit") && hasFeature("audit_logs", activeAccount);
-            if (item.name === "Workflow Settings")   return true;
-            if (item.name === "Communications")      return has("can_manage_users");
-            if (item.name === "Appearance")          return true;
             if (item.name === "Inventory")           return has("can_manage_inventory") && hasFeature("inventory", activeAccount);
             if (item.name === "Billing")             return has("can_access_billing");
             if (item.name === "Triage")              return !skipTriage && has("can_triage");
@@ -170,7 +177,9 @@ export function Navigation({ mobileOpen = false, onMobileClose }: NavigationProp
                 )
               }
             >
-              <item.icon className={cn("h-4.5 w-4.5 shrink-0", !collapsed && "mr-3")} style={{ width: "1.125rem", height: "1.125rem" }} />
+              <span className={cn("flex items-center justify-center shrink-0", collapsed ? "w-5" : "min-w-[40px]")}>
+                <item.icon style={{ width: "1.125rem", height: "1.125rem" }} />
+              </span>
               {!collapsed && <span className="truncate">{item.name}</span>}
               {collapsed && (
                 <div className="absolute left-full ml-2 px-2 py-1 bg-popover text-popover-foreground text-xs rounded-md shadow-lg opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50 border border-border">
@@ -181,8 +190,8 @@ export function Navigation({ mobileOpen = false, onMobileClose }: NavigationProp
           ))}
       </div>
 
-      {/* Admin Footer */}
-      <div className="p-3 border-t border-[hsl(var(--sidebar-border))]">
+      {/* Footer */}
+      <div className="p-3 border-t border-[hsl(var(--sidebar-border))] space-y-1">
         <NavLink
           to="/admin"
           className={({ isActive }) => cn(
@@ -193,9 +202,32 @@ export function Navigation({ mobileOpen = false, onMobileClose }: NavigationProp
             collapsed && "justify-center"
           )}
         >
-          <Shield className={cn("h-4 w-4 shrink-0", !collapsed && "mr-2")} />
+          <span className={cn("flex items-center justify-center shrink-0", collapsed ? "w-5" : "min-w-[40px]")}>
+            <Shield style={{ width: "1rem", height: "1rem" }} />
+          </span>
           {!collapsed && <span>Admin portal</span>}
         </NavLink>
+        <button
+          onClick={() => {
+            unlockProfile();
+            logout();
+            try {
+              localStorage.removeItem("acf_profile_locked");
+              localStorage.removeItem("acf_active_profile");
+            } catch {}
+            navigate("/login", { replace: true });
+          }}
+          className={cn(
+            "w-full flex items-center px-3 py-2 rounded-lg text-xs font-medium transition-all",
+            "text-[hsl(var(--sidebar-foreground))]/40 hover:text-red-400 hover:bg-red-500/10",
+            collapsed && "justify-center"
+          )}
+        >
+          <span className={cn("flex items-center justify-center shrink-0", collapsed ? "w-5" : "min-w-[40px]")}>
+            <LogOut style={{ width: "1rem", height: "1rem" }} />
+          </span>
+          {!collapsed && <span>Sign out</span>}
+        </button>
       </div>
     </nav>
   );

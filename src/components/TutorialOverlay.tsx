@@ -1,77 +1,39 @@
 import React, { useEffect, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import { AppLogo } from "@/components/AppLogo";
-import { useTutorial } from "@/contexts/TutorialContext";
-import { useRole } from "@/contexts/RoleContext";
+import { useTutorial, ROLE_META } from "@/contexts/TutorialContext";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { X, ChevronRight, ChevronLeft, BookOpen, CheckSquare, Minimize2 } from "lucide-react";
-import type { Role } from "@/lib/rbac";
+import { X, ChevronRight, ChevronLeft, BookOpen, CheckSquare, Loader2, Radio } from "lucide-react";
 
-// ── Spotlight helpers ────────────────────────────────────────────────────────
+// ─── Spotlight helpers ────────────────────────────────────────────────────────
 interface TargetRect { top: number; left: number; width: number; height: number }
 const MODAL_W = 420;
-const MODAL_H = 500;
-const GAP     = 14;
-const PAD     = 8;
-
-function findTarget(target?: string): TargetRect | null {
-  if (!target) return null;
-  const el = document.querySelector<HTMLElement>(`[data-tutorial="${target}"]`);
-  if (!el) return null;
-  const r = el.getBoundingClientRect();
-  return { top: r.top, left: r.left, width: r.width, height: r.height };
-}
+const MODAL_H = 520;
+const GAP = 14;
+const PAD = 8;
 
 function modalStyle(rect: TargetRect | null, pos: string): React.CSSProperties {
-  // No target → true screen-center
-  if (!rect) {
-    return { position: "fixed", top: "50%", left: "50%", transform: "translate(-50%,-50%)" };
-  }
-  // Has a target — ALWAYS position near it, never overlay it.
-  // "center" is treated as "bottom" when a target exists.
-  const effectivePos = pos === "center" ? "bottom" : pos;
-  const vw = window.innerWidth;
-  const vh = window.innerHeight;
+  if (!rect) return { position: "fixed", top: "50%", left: "50%", transform: "translate(-50%,-50%)" };
+  const ep = pos === "center" ? "bottom" : pos;
+  const vw = window.innerWidth, vh = window.innerHeight;
   let top = 0, left = 0;
-
-  if (effectivePos === "right") {
+  if (ep === "right") {
     left = rect.left + rect.width + GAP;
-    top  = rect.top + rect.height / 2 - MODAL_H / 2;
-    // Not enough room on right? try left
+    top = rect.top + rect.height / 2 - MODAL_H / 2;
     if (left + MODAL_W > vw - GAP) left = rect.left - MODAL_W - GAP;
-    // Still off-screen (narrow sidebar)? fall below
-    if (left < GAP) {
-      left = Math.max(GAP, rect.left + rect.width / 2 - MODAL_W / 2);
-      top  = rect.top + rect.height + GAP;
-    }
-  } else if (effectivePos === "left") {
+    if (left < GAP) { left = Math.max(GAP, rect.left + rect.width / 2 - MODAL_W / 2); top = rect.top + rect.height + GAP; }
+  } else if (ep === "left") {
     left = rect.left - MODAL_W - GAP;
-    top  = rect.top + rect.height / 2 - MODAL_H / 2;
-    // Not enough room on left? try right
+    top = rect.top + rect.height / 2 - MODAL_H / 2;
     if (left < GAP) left = rect.left + rect.width + GAP;
-    // Still off-screen? fall below
-    if (left + MODAL_W > vw - GAP) {
-      left = Math.max(GAP, rect.left + rect.width / 2 - MODAL_W / 2);
-      top  = rect.top + rect.height + GAP;
-    }
-  } else if (effectivePos === "bottom") {
-    top  = rect.top + rect.height + GAP;
+    if (left + MODAL_W > vw - GAP) { left = Math.max(GAP, rect.left + rect.width / 2 - MODAL_W / 2); top = rect.top + rect.height + GAP; }
+  } else {
+    top = rect.top + rect.height + GAP;
     left = rect.left + rect.width / 2 - MODAL_W / 2;
-    // Not enough room below? try above
     if (top + MODAL_H > vh - GAP) top = rect.top - MODAL_H - GAP;
     left = Math.max(GAP, Math.min(left, vw - MODAL_W - GAP));
-  } else if (effectivePos === "top") {
-    top  = rect.top - MODAL_H - GAP;
-    left = rect.left + rect.width / 2 - MODAL_W / 2;
-    if (top < GAP) top = rect.top + rect.height + GAP;
-    left = Math.max(GAP, Math.min(left, vw - MODAL_W - GAP));
-  } else {
-    // fallback: below
-    top  = rect.top + rect.height + GAP;
-    left = Math.max(GAP, Math.min(rect.left + rect.width / 2 - MODAL_W / 2, vw - MODAL_W - GAP));
   }
-
   top = Math.max(GAP, Math.min(top, vh - MODAL_H - GAP));
   return { position: "fixed", top, left };
 }
@@ -82,122 +44,74 @@ function SpotlightRing({ rect }: { rect: TargetRect }) {
       className="pointer-events-none"
       style={{
         position: "fixed",
-        top:    rect.top  - PAD,
-        left:   rect.left - PAD,
-        width:  rect.width  + PAD * 2,
-        height: rect.height + PAD * 2,
-        borderRadius: 10,
-        zIndex: 9998,
+        top: rect.top - PAD, left: rect.left - PAD,
+        width: rect.width + PAD * 2, height: rect.height + PAD * 2,
+        borderRadius: 10, zIndex: 9998,
         boxShadow: [
-          "0 0 0 9999px rgba(0,0,0,0.58)",
+          "0 0 0 9999px rgba(0,0,0,0.60)",
           "0 0 0 3px hsl(var(--primary))",
-          "0 0 18px 4px hsl(var(--primary)/0.45)",
+          "0 0 20px 6px hsl(var(--primary)/0.4)",
         ].join(", "),
-        transition: "top 0.25s ease, left 0.25s ease, width 0.25s ease, height 0.25s ease",
+        transition: "all 0.25s ease",
         animation: "tutorial-pulse 2s ease-in-out infinite",
       }}
     />
   );
 }
 
-
-function InnoVetProMark() {
-  return <AppLogo imgHeight={36} showText textClassName="text-lg font-bold" className="mb-4" />;
-}
-
-// Section labels for progress display (maps step → section name)
-const STEP_SECTIONS: Record<number, string> = {
-  1: "Welcome", 2: "Register", 3: "Register", 4: "Register", 5: "Register",
-  6: "Register", 7: "Register", 8: "Register",
-  9: "Triage", 10: "Triage",
-  11: "Consultation", 12: "Consultation", 13: "Consultation", 14: "Consultation",
-  15: "Consultation", 16: "Consultation", 17: "Consultation", 18: "Consultation",
-  19: "Consultation", 20: "Consultation",
-  21: "Pharmacy", 22: "Billing", 23: "Discharge", 24: "Complete",
-};
-
-const SECTIONS = ["Welcome","Register","Triage","Consultation","Pharmacy","Billing","Discharge","Complete"];
-
-function SectionProgress({ total, current }: { total: number; current: number }) {
-  const currentSection = STEP_SECTIONS[current] ?? "";
-  const sectionIdx = SECTIONS.indexOf(currentSection);
+// ─── Progress bar ─────────────────────────────────────────────────────────────
+function StepProgressBar({ current, total, roleColor }: { current: number; total: number; roleColor: string }) {
+  const pct = total > 1 ? (current / (total - 1)) * 100 : 100;
   return (
-    <div className="space-y-1.5">
-      <div className="flex gap-1">
-        {SECTIONS.map((s, i) => (
-          <div
-            key={s}
-            className={cn(
-              "flex-1 h-1.5 rounded-full transition-all duration-300",
-              i < sectionIdx ? "bg-primary" :
-              i === sectionIdx ? "bg-primary/70" :
-              "bg-muted-foreground/20"
-            )}
-          />
-        ))}
+    <div className="space-y-1">
+      <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
+        <motion.div
+          className={cn("h-full rounded-full", roleColor)}
+          initial={{ width: 0 }}
+          animate={{ width: `${pct}%` }}
+          transition={{ duration: 0.4, ease: "easeOut" }}
+        />
       </div>
       <div className="flex items-center justify-between">
-        <span className="text-[10px] font-semibold text-primary uppercase tracking-wider">
-          {currentSection}
-        </span>
-        <span className="text-[10px] text-muted-foreground">
-          {current} / {total}
-        </span>
+        <span className="text-[10px] text-muted-foreground">Step {current + 1} of {total}</span>
+        <span className="text-[10px] text-muted-foreground">{Math.round(pct)}% complete</span>
       </div>
     </div>
   );
 }
 
-// Step-specific illustrations
-function StepIllustration({ stepId }: { stepId: number }) {
-  const illustrations: Record<number, React.ReactNode> = {
-    1: (
-      <div className="flex items-end justify-center gap-3 py-4">
-        <svg width="36" height="48" viewBox="0 0 10 14" fill="none" className="text-primary/60">
-          <path d="M1 5C1 3 2 1 5 1C8 1 9 3 9 5C9 8 7.5 10 5 10C2.5 10 1 8 1 5Z" fill="currentColor"/>
-          <path d="M1 2L2.5 4M9 2L7.5 4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
-          <path d="M3 11L3 13M7 11L7 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-        </svg>
-        <svg width="30" height="56" viewBox="0 0 9 16" fill="none" className="text-primary/80">
-          <path d="M2 5C2 3 3 1.5 4.5 1.5C6 1.5 7 3 7 5C7 7.5 6 9 4.5 9C3 9 2 7.5 2 5Z" fill="currentColor"/>
-          <path d="M2.5 2L2 0.5M6.5 2L7 0.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
-          <path d="M2.5 10L2 13M6.5 10L7 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-        </svg>
-        <svg width="48" height="48" viewBox="0 0 13 14" fill="none" className="text-primary">
-          <path d="M2 6C2 3.5 3.5 1.5 6.5 1.5C9.5 1.5 11 3.5 11 6C11 9 9 11 6.5 11C4 11 2 9 2 6Z" fill="currentColor"/>
-          <path d="M10.5 2L12 1M2.5 3L1 1.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
-          <path d="M3.5 12L3 13.5M9.5 12L10 13.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-        </svg>
+// ─── Waiting state ────────────────────────────────────────────────────────────
+function WaitingState({ label, recentEvents }: { label: string; recentEvents: import("@/lib/realtimeEngine").RealtimeEvent[] }) {
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-3 p-3 rounded-xl bg-amber-50/80 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800">
+        <Loader2 className="h-5 w-5 text-amber-600 animate-spin shrink-0" />
+        <p className="text-sm text-amber-700 dark:text-amber-300 font-medium">{label}</p>
       </div>
-    ),
-    5: (
-      <div className="flex items-center justify-center gap-2 py-3">
-        {["Attendant", "Vet", "Pharmacist"].map((role, i) => (
-          <div key={role} className="flex items-center gap-2">
-            <div className={cn(
-              "px-3 py-1.5 rounded-lg text-xs font-semibold text-white",
-              i === 0 ? "bg-amber-500" : i === 1 ? "bg-blue-500" : "bg-purple-500"
-            )}>
-              {role}
+      {recentEvents.length > 0 && (
+        <div className="space-y-1.5">
+          <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+            <Radio className="h-3 w-3" /> Live events
+          </p>
+          {recentEvents.map(e => (
+            <div key={e.id} className="flex items-center gap-2 text-[11px] text-muted-foreground bg-muted/40 rounded-lg px-2.5 py-1.5">
+              <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse shrink-0" />
+              <span className="font-mono font-semibold text-foreground">{e.type}</span>
+              <span className="opacity-60">· {e.actorName}</span>
             </div>
-            {i < 2 && <ChevronRight className="h-3 w-3 text-muted-foreground" />}
-          </div>
-        ))}
-      </div>
-    ),
-  };
-  return illustrations[stepId] ? (
-    <div className="bg-muted/40 rounded-xl mb-4">{illustrations[stepId]}</div>
-  ) : null;
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
+// ─── Main overlay ─────────────────────────────────────────────────────────────
 export function TutorialOverlay() {
-  const { isActive, step, currentStep, totalSteps, nextStep, prevStep, skipTutorial } = useTutorial();
-  const { setRole } = useRole();
+  const { isActive, currentStep, stepIndex, totalStepsForRole, activeRole, isWaiting, recentEvents, nextStep, prevStep, skipTutorial } = useTutorial();
   const navigate = useNavigate();
   const [targetRect, setTargetRect] = useState<TargetRect | null>(null);
   const [stepDone, setStepDone] = useState(false);
-  const [isMinimized, setIsMinimized] = useState(false);
   const [isMobile, setIsMobile] = useState(() =>
     typeof window !== "undefined" ? window.innerWidth < 640 : false
   );
@@ -208,321 +122,234 @@ export function TutorialOverlay() {
     return () => window.removeEventListener("resize", onResize);
   }, []);
 
-  // Reset action-gate + minimized state whenever step changes
-  useEffect(() => { setStepDone(false); setIsMinimized(false); }, [step]);
-
-  // Auto-switch role + navigate whenever the active step changes
+  // Navigate + reset per step
   useEffect(() => {
+    setStepDone(false);
     if (!isActive || !currentStep) return;
-    if (currentStep.role) setRole(currentStep.role as Role, "Tutorial");
     if (currentStep.route) navigate(currentStep.route, { replace: false });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isActive, step]);
+  }, [isActive, stepIndex]);
 
-  // Find + measure target element on each step change
-  // Also elevate the target's z-index so it sits above the spotlight overlay and is clickable
+  // Spotlight measurement
   useEffect(() => {
-    if (!isActive || !currentStep?.target) { setTargetRect(null); return; }
+    if (!isActive || !currentStep?.spotlight) { setTargetRect(null); return; }
     let el: HTMLElement | null = null;
-    let origPosition = "";
-    let origZIndex = "";
+    let origPos = "", origZ = "";
     const id = window.setTimeout(() => {
-      el = document.querySelector<HTMLElement>(`[data-tutorial="${currentStep.target}"]`);
+      el = document.querySelector<HTMLElement>(`[data-tutorial="${currentStep.spotlight}"]`);
       if (el) {
-        const rect = el.getBoundingClientRect();
-        setTargetRect({ top: rect.top, left: rect.left, width: rect.width, height: rect.height });
+        const r = el.getBoundingClientRect();
+        setTargetRect({ top: r.top, left: r.left, width: r.width, height: r.height });
         el.scrollIntoView({ behavior: "smooth", block: "nearest" });
-        // Elevate target above the spotlight overlay so clicks reach it
-        origPosition = el.style.position;
-        origZIndex = el.style.zIndex;
-        el.style.position = "relative";
-        el.style.zIndex = "9998";
-      } else {
-        setTargetRect(null);
-      }
+        origPos = el.style.position; origZ = el.style.zIndex;
+        el.style.position = "relative"; el.style.zIndex = "9998";
+      } else { setTargetRect(null); }
     }, 200);
     return () => {
       window.clearTimeout(id);
-      if (el) {
-        el.style.position = origPosition;
-        el.style.zIndex = origZIndex;
-      }
+      if (el) { el.style.position = origPos; el.style.zIndex = origZ; }
     };
-  }, [isActive, step, currentStep]);
+  }, [isActive, stepIndex, currentStep]);
 
-  // Auto-detect click on spotlighted element for action-required steps
+  // requiresAction: auto-advance on click
   useEffect(() => {
-    if (!isActive || !currentStep?.requiresAction || !currentStep?.target) return;
+    if (!isActive || !currentStep?.requiresAction || !currentStep?.spotlight) return;
     let el: HTMLElement | null = null;
     let fired = false;
-    const handleClick = () => {
-      if (fired) return;
-      fired = true;
-      setStepDone(true);
-      window.setTimeout(() => nextStep(), 650);
-    };
+    const onClick = () => { if (fired) return; fired = true; setStepDone(true); window.setTimeout(() => nextStep(), 650); };
     const id = window.setTimeout(() => {
-      el = document.querySelector<HTMLElement>(`[data-tutorial="${currentStep.target}"]`);
-      if (el) el.addEventListener("click", handleClick);
+      el = document.querySelector<HTMLElement>(`[data-tutorial="${currentStep.spotlight}"]`);
+      if (el) el.addEventListener("click", onClick);
     }, 200);
-    return () => { window.clearTimeout(id); if (el) el.removeEventListener("click", handleClick); };
+    return () => { window.clearTimeout(id); if (el) el.removeEventListener("click", onClick); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isActive, step]);
-
-  // ── Step 3: minimize when btn-add-patient is clicked ─────────────────────────────────
-  useEffect(() => {
-    if (!isActive || step !== 3) return;
-    let el: HTMLElement | null = null;
-    const handleBtnClick = () => { setIsMinimized(true); };
-    const id = window.setTimeout(() => {
-      el = document.querySelector<HTMLElement>('[data-tutorial="btn-add-patient"]');
-      if (el) el.addEventListener("click", handleBtnClick);
-    }, 200);
-    return () => { window.clearTimeout(id); if (el) el.removeEventListener("click", handleBtnClick); };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isActive, step]);
-
-  // ── Step 3: restore + mark done when patient form is saved ─────────────────────
-  useEffect(() => {
-    if (!isActive || step !== 3) return;
-    const handler = () => { setIsMinimized(false); setStepDone(true); };
-    window.addEventListener("tutorial:patient-saved", handler);
-    return () => window.removeEventListener("tutorial:patient-saved", handler);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isActive, step]);
-
-  // ── Step 4: auto-advance when user types in the search bar ──────────────────
-  useEffect(() => {
-    if (!isActive || step !== 4) return;
-    let el: HTMLInputElement | null = null;
-    const handleInput = () => {
-      if (el && el.value.trim().length >= 2) {
-        window.setTimeout(() => nextStep(), 600);
-      }
-    };
-    const id = window.setTimeout(() => {
-      el = document.querySelector<HTMLInputElement>('[data-tutorial="search-patients"] input, [data-tutorial="search-patients"]');
-      if (el) el.addEventListener("input", handleInput);
-    }, 300);
-    return () => { window.clearTimeout(id); if (el) el.removeEventListener("input", handleInput); };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isActive, step]);
-
-  // ── Step 6: auto-scroll to encounters section & minimize when New Visit is clicked ──
-  useEffect(() => {
-    if (!isActive || step !== 6) return;
-    // Auto-scroll to the encounters section
-    const scrollId = window.setTimeout(() => {
-      const section = document.querySelector<HTMLElement>('[data-tutorial="btn-new-visit"]');
-      if (section) section.scrollIntoView({ behavior: "smooth", block: "center" });
-    }, 400);
-    // Listen for New Visit button click → minimize + advance
-    let el: HTMLElement | null = null;
-    const handleClick = () => {
-      setIsMinimized(true);
-      window.setTimeout(() => nextStep(), 300);
-    };
-    const findId = window.setTimeout(() => {
-      el = document.querySelector<HTMLElement>('[data-tutorial="btn-new-visit"]');
-      if (el) el.addEventListener("click", handleClick);
-    }, 300);
-    return () => { window.clearTimeout(scrollId); window.clearTimeout(findId); if (el) el.removeEventListener("click", handleClick); };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isActive, step]);
-
-  // ── Step 7: stay minimized while user fills the New Visit dialog ──────────────
-  useEffect(() => {
-    if (!isActive || step !== 7) return;
-    setIsMinimized(true);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isActive, step]);
-
-  // ── Step 7: restore + advance when visit is saved ─────────────────────────────
-  useEffect(() => {
-    if (!isActive || step !== 7) return;
-    const handler = () => { setIsMinimized(false); setStepDone(true); window.setTimeout(() => nextStep(), 600); };
-    window.addEventListener("tutorial:visit-saved", handler);
-    return () => window.removeEventListener("tutorial:visit-saved", handler);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isActive, step]);
+  }, [isActive, stepIndex]);
 
   if (!isActive || !currentStep) return null;
 
-  // ── Minimized pill (shown while user fills the Add Patient form) ──────────────
-  if (isMinimized) {
-    return (
-      <button
-        onClick={() => setIsMinimized(false)}
-        className="fixed bottom-6 right-6 z-[9999] flex items-center gap-2 px-4 py-2.5 rounded-full bg-primary text-primary-foreground shadow-xl text-xs font-semibold animate-in slide-in-from-bottom duration-300 hover:bg-primary/90 transition-colors"
-        title="Click to reopen tutorial"
-      >
-        <BookOpen className="h-3.5 w-3.5 shrink-0" />
-        <span>{step === 7 ? "Tutorial paused — fill the visit form" : "Tutorial paused — fill the patient form"}</span>
-        <Minimize2 className="h-3 w-3 opacity-60" />
-      </button>
-    );
-  }
-
-  const isFirst    = step === 1;
-  const isLast     = step === totalSteps;
-  const hasTarget  = !!targetRect;
-  const pos        = currentStep.position ?? "center";
-  const needsAction = !!currentStep.requiresAction;
-  // Steps 3 & 7: must save the form first (stepDone=true), then user clicks Mark Complete
-  // Step 4: auto-advances on search input, no manual proceed
-  const canProceed = (step === 3 || step === 7) ? stepDone : step === 4 ? false : (!needsAction || stepDone);
-
-  const mobileModalStyle: React.CSSProperties = isMobile
+  const roleMeta = ROLE_META[activeRole ?? ""] ?? ROLE_META.SuperAdmin;
+  const isFirst = stepIndex === 0;
+  const isLast = currentStep.isDone === true;
+  const pos = currentStep.position ?? "center";
+  const hasTarget = !!targetRect;
+  const canProceed = !currentStep.requiresAction || stepDone;
+  const mobileStyle: React.CSSProperties = isMobile
     ? { position: "fixed", bottom: 0, left: 0, right: 0, top: "auto", transform: "none" }
     : {};
 
   return (
     <>
-      {/* Backdrop */}
-      {!hasTarget && (
-        <div className="fixed inset-0 z-[9997] bg-black/50 backdrop-blur-[2px]" aria-hidden="true" />
-      )}
-
-      {/* Spotlight ring */}
+      {!hasTarget && <div className="fixed inset-0 z-[9997] bg-black/55 backdrop-blur-[2px]" aria-hidden="true" />}
       {!isMobile && hasTarget && targetRect && <SpotlightRing rect={targetRect} />}
 
-      {/* ── Modal card ─────────────────────────────────────────────────────── */}
-      <div
-        className={cn(
-          "fixed z-[9999] bg-background border border-border shadow-2xl flex flex-col",
-          // Mobile: full-width bottom sheet, capped height
-          "max-sm:w-full max-sm:rounded-t-2xl max-sm:rounded-b-none max-sm:border-b-0 max-sm:border-x-0",
-          "max-sm:max-h-[85vh]",
-          // sm+: floating card, fixed width, scrollable
-          "sm:w-[420px] sm:rounded-2xl sm:max-h-[90vh]",
-          !hasTarget && !isMobile && "animate-in fade-in zoom-in-95 duration-200",
-          isMobile && "animate-in slide-in-from-bottom duration-300"
-        )}
-        style={isMobile ? mobileModalStyle : modalStyle(targetRect, pos)}
-        role="dialog"
-        aria-modal="true"
-        aria-label={`Tutorial step ${step} of ${totalSteps}`}
-      >
-        {/* ── Sticky header ── */}
-        <div className="flex-none px-5 pt-5 pb-3 border-b border-border/60">
-          {/* Logo on step 1 */}
-          {isFirst && <InnoVetProMark />}
-
-          {/* Role badge + close */}
-          <div className="flex items-center justify-between mb-3">
-            {currentStep.role ? (
-              <span className={cn(
-                "text-[10px] font-bold text-white px-2.5 py-1 rounded-full",
-                currentStep.roleColor ?? "bg-primary"
-              )}>
-                {currentStep.role === "Nurse" ? "Attendant" : currentStep.role}
-              </span>
-            ) : <span />}
-            <button
-              onClick={skipTutorial}
-              className="h-7 w-7 rounded-full flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-              aria-label="Skip tutorial"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-
-          {/* Section progress strip */}
-          <SectionProgress total={totalSteps} current={step} />
-        </div>
-
-        {/* ── Scrollable body ── */}
-        <div className="flex-1 overflow-y-auto overscroll-contain px-5 py-4 space-y-3">
-          {/* Step illustration (steps 1 & 8 only) */}
-          <StepIllustration stepId={step} />
-
-          <h2 className="text-base font-bold text-foreground leading-snug">
-            {currentStep.title}
-          </h2>
-          <p className="text-sm text-muted-foreground leading-relaxed">
-            {currentStep.description}
-          </p>
-
-          {/* Action prompt */}
-          {(needsAction || step === 3 || step === 4 || step === 7 || stepDone) && (
-            <div className={cn(
-              "flex items-start gap-2.5 px-3 py-2.5 rounded-lg border text-xs font-medium leading-snug transition-all duration-300",
-              stepDone
-                ? "border-primary/50 bg-primary/10 text-primary"
-                : "border-amber-400/60 bg-amber-50/60 dark:bg-amber-950/30 dark:border-amber-500/40 text-amber-700 dark:text-amber-300"
-            )}>
-              {stepDone
-                ? <CheckSquare className="h-4 w-4 shrink-0 mt-0.5 text-primary" />
-                : <ChevronRight className="h-4 w-4 shrink-0 mt-0.5 animate-pulse" />}
-              <span>
-                {stepDone
-                  ? (step === 7 ? "Visit created! Moving to next step…" : "Patient saved! Click 'Mark Complete' below to continue to the next step.")
-                  : step === 3
-                    ? "Click the highlighted 'Register Patient' button — the tutorial will minimise while you fill the form."
-                    : step === 4
-                      ? "Type the name of the patient you just registered in the search bar above."
-                      : step === 7
-                        ? "Fill the visit form and click 'Create Visit' — the tutorial will resume automatically."
-                        : (currentStep.actionLabel ?? "Click the highlighted element to continue →")}
-              </span>
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={currentStep.id}
+          initial={{ opacity: 0, y: 20, scale: 0.97 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: -10, scale: 0.97 }}
+          transition={{ type: "spring", stiffness: 300, damping: 28 }}
+          className={cn(
+            "fixed z-[9999] bg-background border border-border shadow-2xl flex flex-col",
+            "max-sm:w-full max-sm:rounded-t-2xl max-sm:rounded-b-none max-sm:border-b-0 max-sm:border-x-0 max-sm:max-h-[88vh]",
+            "sm:w-[420px] sm:rounded-2xl sm:max-h-[90vh]",
+          )}
+          style={isMobile ? mobileStyle : modalStyle(targetRect, pos)}
+          role="dialog"
+          aria-modal="true"
+        >
+          {/* ── Header ── */}
+          <div className="flex-none px-5 pt-4 pb-3 border-b border-border/60 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="text-base">{roleMeta.icon}</span>
+                <span className={cn("text-[10px] font-bold text-white px-2.5 py-1 rounded-full", currentStep.roleColor)}>
+                  {roleMeta.label} Tutorial
+                </span>
+                <span className="text-[10px] text-muted-foreground">
+                  — Step {stepIndex + 1} of {totalStepsForRole}
+                </span>
+              </div>
+              <button
+                onClick={skipTutorial}
+                className="h-7 w-7 rounded-full flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                aria-label="Skip tutorial"
+              >
+                <X className="h-4 w-4" />
+              </button>
             </div>
-          )}
-        </div>
-
-        {/* ── Sticky footer: navigation ── */}
-        <div className="flex-none px-5 pb-5 pt-3 border-t border-border/60 space-y-2">
-          <div className="flex items-center gap-2">
-            {!isFirst && (
-              <Button variant="outline" size="sm" className="h-9 px-4" onClick={prevStep}>
-                <ChevronLeft className="h-4 w-4 mr-1" />
-                Back
-              </Button>
-            )}
-            <Button
-              size="sm"
-              disabled={!isLast && !canProceed}
-              className={cn(
-                "flex-1 h-9 font-semibold",
-                canProceed || isLast
-                  ? "bg-primary hover:bg-primary/90 text-primary-foreground"
-                  : "bg-muted text-muted-foreground cursor-not-allowed opacity-60"
-              )}
-              onClick={isLast ? skipTutorial : nextStep}
-            >
-              {isLast ? "Get Started" : isFirst ? (
-                <>Start Tour <ChevronRight className="h-4 w-4 ml-1" /></>
-              ) : step === 3 ? (
-                <><CheckSquare className="h-4 w-4 mr-1" />Mark Complete</>
-              ) : (
-                <>Next <ChevronRight className="h-4 w-4 ml-1" /></>
-              )}
-            </Button>
+            <StepProgressBar current={stepIndex} total={totalStepsForRole} roleColor={currentStep.roleColor} />
           </div>
-          {!isLast && (
-            <button
-              onClick={skipTutorial}
-              className="w-full text-[11px] text-muted-foreground hover:text-foreground transition-colors"
-            >
-              Skip tutorial
-            </button>
-          )}
-        </div>
-      </div>
+
+          {/* ── Body ── */}
+          <div className="flex-1 overflow-y-auto overscroll-contain px-5 py-4 space-y-3">
+            <div className="text-2xl">{currentStep.icon}</div>
+            <h2 className="text-base font-bold text-foreground leading-snug">{currentStep.title}</h2>
+            <p className="text-sm text-muted-foreground leading-relaxed">{currentStep.body}</p>
+
+            {/* Waiting state */}
+            {isWaiting && (
+              <WaitingState
+                label={currentStep.waitLabel ?? "⏳ Waiting for an event from another user…"}
+                recentEvents={recentEvents}
+              />
+            )}
+
+            {/* Action prompt */}
+            {!isWaiting && currentStep.requiresAction && (
+              <div className={cn(
+                "flex items-start gap-2.5 px-3 py-2.5 rounded-lg border text-xs font-medium leading-snug transition-all duration-300",
+                stepDone
+                  ? "border-primary/50 bg-primary/10 text-primary"
+                  : "border-amber-400/60 bg-amber-50/60 dark:bg-amber-950/30 dark:border-amber-500/40 text-amber-700 dark:text-amber-300"
+              )}>
+                {stepDone
+                  ? <CheckSquare className="h-4 w-4 shrink-0 mt-0.5 text-primary" />
+                  : <ChevronRight className="h-4 w-4 shrink-0 mt-0.5 animate-pulse" />}
+                <span>{stepDone ? "Done! Click Next to continue." : (currentStep.actionLabel ?? "Click the highlighted element to continue →")}</span>
+              </div>
+            )}
+
+            {/* broadcastOnEnter notice */}
+            {currentStep.broadcastOnEnter && (
+              <div className="flex items-center gap-2 text-xs text-primary bg-primary/10 rounded-lg px-3 py-2 border border-primary/20">
+                <Radio className="h-3.5 w-3.5 animate-pulse" />
+                Broadcasting event to all users…
+              </div>
+            )}
+          </div>
+
+          {/* ── Footer ── */}
+          <div className="flex-none px-5 pb-5 pt-3 border-t border-border/60 space-y-2">
+            <div className="flex items-center gap-2">
+              {!isFirst && !isWaiting && (
+                <Button variant="outline" size="sm" className="h-9 px-4" onClick={prevStep}>
+                  <ChevronLeft className="h-4 w-4 mr-1" /> Back
+                </Button>
+              )}
+              {!isWaiting && (
+                <Button
+                  size="sm"
+                  disabled={!isLast && !canProceed}
+                  className={cn(
+                    "flex-1 h-9 font-semibold",
+                    canProceed || isLast
+                      ? "bg-primary hover:bg-primary/90 text-primary-foreground"
+                      : "bg-muted text-muted-foreground cursor-not-allowed opacity-60"
+                  )}
+                  onClick={isLast ? skipTutorial : nextStep}
+                >
+                  {isLast ? "Finish 🎉" : isFirst ? <>Start <ChevronRight className="h-4 w-4 ml-1" /></> : <>Next <ChevronRight className="h-4 w-4 ml-1" /></>}
+                </Button>
+              )}
+              {isWaiting && (
+                <Button size="sm" variant="outline" className="flex-1 h-9" onClick={nextStep}>
+                  Skip wait <ChevronRight className="h-4 w-4 ml-1" />
+                </Button>
+              )}
+            </div>
+            {!isLast && (
+              <button onClick={skipTutorial} className="w-full text-[11px] text-muted-foreground hover:text-foreground transition-colors">
+                Skip tutorial
+              </button>
+            )}
+          </div>
+        </motion.div>
+      </AnimatePresence>
     </>
   );
 }
 
-// Small re-launch button shown after tutorial is dismissed
+// ─── Re-launch button — now shows role selector ───────────────────────────────
+const ROLE_OPTIONS = [
+  { role: "Receptionist", label: "Receptionist", icon: "📋", color: "bg-sky-500" },
+  { role: "Vet",          label: "Veterinarian", icon: "🩺", color: "bg-blue-600" },
+  { role: "Pharmacist",   label: "Pharmacist",   icon: "💊", color: "bg-purple-500" },
+  { role: "Nurse",        label: "Attendant",    icon: "🐾", color: "bg-amber-500" },
+  { role: "SuperAdmin",   label: "Super Admin",  icon: "🛡️", color: "bg-emerald-500" },
+];
+
 export function TutorialRelaunchButton() {
   const { isActive, startTutorial } = useTutorial();
+  const [open, setOpen] = useState(false);
   if (isActive) return null;
   return (
-    <button
-      onClick={startTutorial}
-      title="Restart tutorial"
-      className="fixed bottom-16 right-4 z-50 h-10 w-10 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center hover:bg-primary/90 transition-all hover:scale-105"
-    >
-      <BookOpen className="h-4 w-4" />
-    </button>
+    <>
+      {open && (
+        <div className="fixed inset-0 z-[9990] bg-black/30" onClick={() => setOpen(false)} />
+      )}
+      <div className="fixed bottom-20 right-4 z-[9991] flex flex-col items-end gap-2">
+        <AnimatePresence>
+          {open && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 10 }}
+              className="bg-background border border-border rounded-2xl shadow-2xl p-3 space-y-1.5 min-w-[180px]"
+            >
+              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider px-1 pb-1">Start Tutorial As</p>
+              {ROLE_OPTIONS.map(r => (
+                <button
+                  key={r.role}
+                  onClick={() => { startTutorial(r.role); setOpen(false); }}
+                  className="flex items-center gap-2.5 w-full px-3 py-2 rounded-xl hover:bg-muted transition-colors text-sm"
+                >
+                  <span className="text-base">{r.icon}</span>
+                  <span className="font-medium">{r.label}</span>
+                  <span className={cn("ml-auto h-2 w-2 rounded-full", r.color)} />
+                </button>
+              ))}
+            </motion.div>
+          )}
+        </AnimatePresence>
+        <button
+          onClick={() => setOpen(o => !o)}
+          title="Start role tutorial"
+          className="h-10 w-10 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center hover:bg-primary/90 transition-all hover:scale-105"
+        >
+          <BookOpen className="h-4 w-4" />
+        </button>
+      </div>
+    </>
   );
 }
