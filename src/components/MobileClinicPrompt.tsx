@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Stethoscope, Monitor, Truck, ArrowRight } from "lucide-react";
+import { Monitor, Truck, ArrowRight } from "lucide-react";
 import { AppLogo } from "@/components/AppLogo";
+import { useRole } from "@/contexts/RoleContext";
 
 const CHOICE_KEY = "acf_mobile_mode_choice";
 
@@ -14,7 +15,10 @@ function isMobileDevice(): boolean {
 
 export function MobileClinicPrompt() {
   const navigate = useNavigate();
+  const { has } = useRole();
   const [visible, setVisible] = useState(false);
+
+  const canUseFieldMode = has("can_triage") || has("can_access_billing");
 
   useEffect(() => {
     const alreadyChose = sessionStorage.getItem(CHOICE_KEY);
@@ -28,7 +32,7 @@ export function MobileClinicPrompt() {
   const choose = (mode: "mobile" | "standard") => {
     sessionStorage.setItem(CHOICE_KEY, mode);
     setVisible(false);
-    if (mode === "mobile") navigate("/field", { replace: true });
+    if (mode === "mobile" && canUseFieldMode) navigate("/field", { replace: true });
   };
 
   return (
@@ -46,24 +50,26 @@ export function MobileClinicPrompt() {
 
       {/* Choice cards */}
       <div className="w-full max-w-sm flex flex-col gap-4">
-        {/* Mobile Clinic */}
-        <button
-          onClick={() => choose("mobile")}
-          className="group w-full rounded-2xl border-2 border-primary bg-primary/5 p-5 text-left flex items-start gap-4 transition-all active:scale-[0.98] hover:bg-primary/10 focus:outline-none focus:ring-2 focus:ring-primary"
-        >
-          <div className="h-12 w-12 rounded-xl bg-primary flex items-center justify-center shrink-0">
-            <Truck className="h-6 w-6 text-white" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="font-semibold text-base flex items-center gap-1">
-              Mobile Clinic
-              <ArrowRight className="h-4 w-4 ml-auto text-primary opacity-60 group-hover:opacity-100 transition-opacity" />
+        {/* Mobile Clinic — only shown to eligible roles */}
+        {canUseFieldMode && (
+          <button
+            onClick={() => choose("mobile")}
+            className="group w-full rounded-2xl border-2 border-primary bg-primary/5 p-5 text-left flex items-start gap-4 transition-all active:scale-[0.98] hover:bg-primary/10 focus:outline-none focus:ring-2 focus:ring-primary"
+          >
+            <div className="h-12 w-12 rounded-xl bg-primary flex items-center justify-center shrink-0">
+              <Truck className="h-6 w-6 text-white" />
             </div>
-            <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
-              Simplified field vet mode — large buttons, vitals pad, voice notes &amp; M-Pesa. Ideal for farm visits &amp; house calls.
-            </p>
-          </div>
-        </button>
+            <div className="flex-1 min-w-0">
+              <div className="font-semibold text-base flex items-center gap-1">
+                Mobile Clinic
+                <ArrowRight className="h-4 w-4 ml-auto text-primary opacity-60 group-hover:opacity-100 transition-opacity" />
+              </div>
+              <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
+                Simplified field vet mode — large buttons, vitals pad, voice notes &amp; M-Pesa. Ideal for farm visits &amp; house calls.
+              </p>
+            </div>
+          </button>
+        )}
 
         {/* Standard version */}
         <button

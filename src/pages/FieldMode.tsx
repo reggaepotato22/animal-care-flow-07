@@ -12,6 +12,7 @@ import { VoiceNoteInput } from "@/components/field/VoiceNoteInput";
 import { MpesaFlow } from "@/components/field/MpesaFlow";
 import { getPatients } from "@/lib/patientStore";
 import { seedMockData } from "@/lib/dataSeed";
+import { getActiveToken } from "@/lib/tokenStore";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 type Step = "journey" | "patient" | "exam" | "billing" | "success";
@@ -235,14 +236,22 @@ function PatientStep({ selected, onSelect, onContinue }: {
 
       {patients.length === 0 && (
         <div className="flex flex-col items-center gap-3 py-4">
-          <p className="text-sm text-center text-muted-foreground">No patients yet</p>
-          <button
-            onClick={() => { seedMockData(); }}
-            className="flex items-center gap-2 px-5 py-3 rounded-xl bg-primary text-primary-foreground font-semibold text-sm active:scale-98 shadow-md shadow-primary/30">
-            <DatabaseZap className="h-4 w-4" />
-            Generate Demo Data
-          </button>
-          <p className="text-xs text-muted-foreground/70">Fills the app with sample patients &amp; records</p>
+          <p className="text-sm text-center text-muted-foreground">No patients registered yet</p>
+          {getActiveToken()?.isDemo ? (
+            <>
+              <button
+                onClick={() => { seedMockData(); }}
+                className="flex items-center gap-2 px-5 py-3 rounded-xl bg-primary text-primary-foreground font-semibold text-sm active:scale-98 shadow-md shadow-primary/30">
+                <DatabaseZap className="h-4 w-4" />
+                Generate Demo Data
+              </button>
+              <p className="text-xs text-muted-foreground/70">Fills the app with sample patients &amp; records</p>
+            </>
+          ) : (
+            <p className="text-xs text-muted-foreground text-center px-4">
+              Register your first patient from the <strong>Registered Patients</strong> page, then come back here.
+            </p>
+          )}
         </div>
       )}
 

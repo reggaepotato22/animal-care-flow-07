@@ -32,8 +32,8 @@ import { useAccount } from "@/contexts/AccountContext";
 import { hasFeature } from "@/lib/accountStore";
 
 const navigationItems = [
-  { name: "Field Mode",          href: "/field",                  icon: Truck },
   { name: "Dashboard",           href: "/dashboard",              icon: LayoutDashboard },
+  { name: "Field Mode",          href: "/field",                  icon: Truck },
   { name: "Registered Patients", href: "/patients",               icon: ClipboardList },
   { name: "Clients (CRM)",        href: "/clients",                icon: Users2 },
   { name: "Appointments",        href: "/appointments",           icon: Calendar },
@@ -128,7 +128,7 @@ export function Navigation({ mobileOpen = false, onMobileClose }: NavigationProp
       <div className="flex-1 py-3 overflow-y-auto scrollbar-thin">
         {navigationItems
           .filter((item) => {
-            if (item.name === "Field Mode")          return has("can_triage");
+            if (item.name === "Field Mode")          return has("can_triage") || has("can_access_billing");
             if (item.name === "Audit Trails")        return has("can_view_audit") && hasFeature("audit_logs", activeAccount);
             if (item.name === "Clinic Settings")     return has("can_manage_users");
             if (item.name === "Staff Management")    return has("can_manage_users");

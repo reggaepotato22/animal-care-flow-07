@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { AppLogo } from "@/components/AppLogo";
 import { useTutorial } from "@/contexts/TutorialContext";
 import { useRole } from "@/contexts/RoleContext";
+import { getActiveToken } from "@/lib/tokenStore";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { X, ChevronRight, ChevronLeft, BookOpen, CheckSquare, Minimize2 } from "lucide-react";
@@ -512,14 +513,14 @@ export function TutorialOverlay() {
   );
 }
 
-// Small re-launch button shown after tutorial is dismissed
+// Small re-launch button — only shown on demo accounts after tutorial is dismissed
 export function TutorialRelaunchButton() {
   const { isActive, startTutorial } = useTutorial();
-  if (isActive) return null;
+  if (isActive || getActiveToken()?.isDemo !== true) return null;
   return (
     <button
       onClick={startTutorial}
-      title="Restart tutorial"
+      title="Restart guided tour"
       className="fixed bottom-16 right-4 z-50 h-10 w-10 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center hover:bg-primary/90 transition-all hover:scale-105"
     >
       <BookOpen className="h-4 w-4" />

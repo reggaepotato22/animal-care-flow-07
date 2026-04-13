@@ -22,6 +22,7 @@ import { GlobalSearch } from "@/components/GlobalSearch";
 import { WorkflowProgress } from "@/components/WorkflowProgress";
 import { useNotifications } from "@/contexts/NotificationContext";
 import { cn } from "@/lib/utils";
+import { getActiveToken } from "@/lib/tokenStore";
 
 interface HeaderProps {
   onMobileMenuOpen?: () => void;
@@ -68,7 +69,7 @@ export function Header({ onMobileMenuOpen }: HeaderProps) {
     }
   };
 
-  const isDev = process.env.NODE_ENV === 'development' || true; // Always show for demo
+  const isDev = getActiveToken()?.isDemo === true || process.env.NODE_ENV === 'development';
 
   const ROLE_LABELS: Record<string, string> = {
     SuperAdmin: "Super Admin",

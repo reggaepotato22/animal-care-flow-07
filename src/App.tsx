@@ -53,7 +53,7 @@ import WorkflowSettings from "./pages/WorkflowSettings";
 import AppearanceSettings from "./pages/AppearanceSettings";
 import Audit from "./pages/Audit";
 import Billing from "./pages/Billing";
-import { RoleProvider } from "@/contexts/RoleContext";
+import { RoleProvider, useRole } from "@/contexts/RoleContext";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import PatientJourney from "./pages/PatientJourney";
 import ReferPatient from "./pages/ReferPatient";
@@ -140,8 +140,10 @@ function ProtectedRoutes() {
 
 function ProtectedField() {
   const { isAuthenticated } = useAuth();
+  const { has } = useRole();
   const location = useLocation();
   if (!isAuthenticated) return <Navigate to="/login" state={{ from: location }} replace />;
+  if (!has("can_triage") && !has("can_access_billing")) return <Navigate to="/dashboard" replace />;
   return <FieldMode />;
 }
 

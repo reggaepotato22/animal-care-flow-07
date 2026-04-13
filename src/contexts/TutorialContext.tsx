@@ -2,6 +2,11 @@ import { createContext, useContext, useState, useCallback, useRef, useEffect, Re
 import { generateMockInventory, clearInventoryData, loadInventory } from "@/lib/inventoryStore";
 import { generateMockTreatments, clearTreatmentsData } from "@/lib/treatmentStore";
 import { add20DemoDrugs } from "@/lib/dataSeed";
+import { getActiveToken } from "@/lib/tokenStore";
+
+function isDemoAccount(): boolean {
+  return getActiveToken()?.isDemo === true;
+}
 
 export interface TutorialStep {
   id: number;
@@ -333,15 +338,20 @@ export function TutorialProvider({ children }: { children: ReactNode }) {
   // Track whether the tutorial itself seeded inventory so we can clean up after
   const tutorialSeededRef = useRef(false);
 
-  // Seed inventory on initial mount (tutorial auto-starts with isActive=true).
-  // Only mark as tutorial-seeded if inventory was actually empty before we seeded it
-  // — so we never wipe data the user already had.
+  // Seed inventory on mount ONLY for demo accounts, and auto-start tutorial for first-time demo visitors.
   useEffect(() => {
+    if (!isDemoAccount()) return;
     const wasEmpty = loadInventory().length === 0;
     generateMockInventory();
     add20DemoDrugs();
     generateMockTreatments();
     tutorialSeededRef.current = wasEmpty;
+    // Auto-start tutorial the first time a demo user visits
+    const firstVisitKey = "acf_tutorial_seen";
+    if (!localStorage.getItem(firstVisitKey)) {
+      localStorage.setItem(firstVisitKey, "1");
+      setIsActive(true);
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -349,8 +359,9 @@ export function TutorialProvider({ children }: { children: ReactNode }) {
     ? TUTORIAL_STEPS.find(s => s.id === step) ?? null
     : null;
 
-  /** Re-launch tutorial: seed inventory if currently empty, reset to step 1. */
+  /** Re-launch tutorial: seed inventory if currently empty, reset to step 1. Demo only. */
   const startTutorial = useCallback(() => {
+    if (!isDemoAccount()) return;
     const wasEmpty = loadInventory().length === 0;
     generateMockInventory();
     add20DemoDrugs();
