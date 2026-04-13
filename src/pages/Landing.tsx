@@ -1,17 +1,18 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { AppLogo } from "@/components/AppLogo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { motion, useInView, AnimatePresence } from "framer-motion";
 import {
   ArrowRight, CheckCircle2, Users, ClipboardList,
   Pill, ReceiptText, BarChart3, Shield,
   Star, Activity, Stethoscope, Menu, X,
-  Heart, Syringe, Quote, Clock, Lock,
+  Heart, Quote, Lock,
   Smartphone, Wifi, MapPin, HeadphonesIcon,
+  Brain, Zap, TrendingDown, Play, ChevronRight, Building2,
 } from "lucide-react";
 
 // ── Lead capture ─────────────────────────────────────────────────────────────
@@ -88,43 +89,81 @@ async function submitRequest(email: string, phone: string): Promise<void> {
 
 // ── Data ─────────────────────────────────────────────────────────────
 const TICKER = [
-  "Patient Intake", "Clinical Workflows", "Pharmacy Management", "Smart Billing",
-  "Lab & Diagnostics", "Multi-Role Access", "Live Queue Board", "Audit Trails",
+  "Clinical Notes", "AI Diagnostics", "KES Billing", "Patient Intake",
+  "Pharmacy Management", "Multi-Role Access", "Live Queue Board", "Audit Trails",
   "Hospitalization", "Prescription Management", "PDF Records", "Appointment Scheduling",
+  "Lab & Diagnostics", "Field Vet Mode", "Offline Sync", "M-Pesa Ready",
+];
+
+const HERO_PRODUCTS = [
+  {
+    icon: ClipboardList,
+    iconBg: "bg-[#56B246]/15",
+    iconColor: "text-[#56B246]",
+    title: "Clinical Notes & SOAP",
+    desc: "AI-assisted SOAP notes, e-prescriptions, and diagnosis logging — structured for every veterinary workflow from intake to discharge.",
+    tags: ["AI-Assisted", "SOAP Notes", "e-Prescriptions", "Diagnosis Logging"],
+  },
+  {
+    icon: Brain,
+    iconBg: "bg-indigo-500/15",
+    iconColor: "text-indigo-400",
+    title: "AI Diagnostics Engine",
+    desc: "Intelligent pattern recognition across vitals, lab results, and clinical history. Surface insights faster with an AI co-pilot built for veterinary medicine.",
+    tags: ["Vitals Analysis", "Lab Interpretation", "AI Co-pilot", "Pattern Recognition"],
+  },
+  {
+    icon: ReceiptText,
+    iconBg: "bg-amber-500/15",
+    iconColor: "text-amber-400",
+    title: "Kenyan-Localized Billing",
+    desc: "KES-denominated invoices, M-Pesa integration, multi-branch billing, and real-time revenue dashboards designed for Kenyan veterinary practice.",
+    tags: ["KES Currency", "M-Pesa Ready", "Multi-Branch", "Revenue Reports"],
+  },
 ];
 
 const FEATURES = [
-  { icon: Users,         title: "Patient Intake",        desc: "Register new patients or check in existing ones with a streamlined receptionist flow." },
-  { icon: Stethoscope,   title: "Clinical Workflow",     desc: "Attendant vitals → Vet examination → Pharmacist dispensing, all in one guided flow." },
-  { icon: Pill,          title: "Pharmacy & Inventory",  desc: "Real-time medication dispensing with automatic inventory deduction and low-stock alerts." },
-  { icon: ReceiptText,   title: "Smart Billing",         desc: "Auto-generate invoices at discharge. Mark visits complete and archive in one click." },
-  { icon: BarChart3,     title: "Reports & Analytics",   desc: "Full audit trails, revenue reports, and clinic performance analytics at a glance." },
-  { icon: Shield,        title: "Role-Based Access",     desc: "Fine-grained permissions for Receptionist, Vet, Nurse, Pharmacist, and SuperAdmin." },
-  { icon: ClipboardList, title: "Lab & Diagnostics",     desc: "Order tests, track results, and attach lab reports directly to patient records." },
-  { icon: Activity,      title: "Live Patient Queue",    desc: "Real-time queue board showing every patient’s current stage from intake to discharge." },
-  { icon: Heart,         title: "Patient Journey",       desc: "Full history of every visit, medication, diagnosis and outcome in one timeline view." },
-  { icon: Syringe,       title: "Treatment Tracking",    desc: "Log treatments, injections, and care plans. Link to prescriptions automatically." },
-  { icon: Clock,         title: "Appointments",          desc: "Schedule, reschedule, and send iCal invites. Integrates directly with the queue." },
-  { icon: Lock,          title: "Secure & Private",      desc: "Data isolated per clinic account. Role-restricted views ensure confidentiality." },
+  { icon: Users,         title: "Patient Intake",       desc: "Register or check in patients with a streamlined receptionist flow." },
+  { icon: Stethoscope,   title: "Clinical Workflow",    desc: "Vitals → Examination → Dispensing, all in one guided role-handoff." },
+  { icon: Pill,          title: "Pharmacy & Inventory", desc: "Real-time dispensing with auto inventory deduction and low-stock alerts." },
+  { icon: BarChart3,     title: "Reports & Analytics",  desc: "Full audit trails, revenue reports, and performance analytics at a glance." },
+  { icon: Shield,        title: "Role-Based Access",    desc: "Fine-grained permissions for every role from Receptionist to SuperAdmin." },
+  { icon: ClipboardList, title: "Lab & Diagnostics",    desc: "Order tests, track results, and attach lab reports directly to patient records." },
+  { icon: Activity,      title: "Live Patient Queue",   desc: "Real-time queue showing every patient's stage from intake to discharge." },
+  { icon: Heart,         title: "Patient Journey",      desc: "Full history of every visit, medication, and diagnosis in one timeline view." },
 ];
 
 const WORKFLOW = [
   { num: "01", role: "Receptionist",         color: "bg-amber-500",  icon: Users,       desc: "Register or check in a patient. Assign to today's queue with a single click." },
-  { num: "02", role: "Nurse / Veterinarian", color: "bg-blue-500",   icon: Stethoscope, desc: "Record vitals, perform examination, write diagnosis notes, and issue e-prescriptions." },
-  { num: "03", role: "Pharmacist & Billing", color: "bg-[#56B246]",  icon: Pill,        desc: "Dispense medication, update inventory, generate invoice, and close the visit." },
+  { num: "02", role: "Nurse / Veterinarian", color: "bg-blue-500",   icon: Stethoscope, desc: "Record vitals, perform examination, write SOAP notes, and issue e-prescriptions." },
+  { num: "03", role: "Pharmacist & Billing", color: "bg-[#56B246]",  icon: Pill,        desc: "Dispense medication, update inventory, generate KES invoice, and close the visit." },
 ];
 
 const STATS = [
-  { num: "10K+",  label: "Patients Managed" },
-  { num: "500+",  label: "Clinics Onboarded" },
-  { num: "5",     label: "Staff Roles" },
-  { num: "99.9%", label: "Uptime SLA" },
+  { num: "10K+",  label: "Patients Managed",  icon: Users,    accent: "text-[#56B246]" },
+  { num: "500+",  label: "Clinics Onboarded", icon: Activity, accent: "text-blue-400" },
+  { num: "5",     label: "Staff Roles",        icon: Shield,   accent: "text-violet-400" },
+  { num: "99.9%", label: "Uptime SLA",         icon: Zap,      accent: "text-amber-400" },
 ];
 
 const TESTIMONIALS = [
-  { name: "Dr. Sarah Mitchell",  role: "Chief Veterinarian",  clinic: "Greenfield Animal Hospital", quote: "InnoVetPro transformed how we run our clinic. The workflow automation alone saves us 2+ hours every single day.", stars: 5 },
-  { name: "James Okafor",        role: "Practice Manager",    clinic: "CityVet Clinic",             quote: "The role-based access is brilliant. Each staff member sees exactly what they need \u2014 no clutter, no confusion.", stars: 5 },
-  { name: "Dr. Amara Diallo",    role: "Head of Surgery",     clinic: "PetCare Medical Centre",     quote: "From intake to discharge the flow is completely seamless. I can’t imagine going back to our old paper system.", stars: 5 },
+  { name: "Dr. Sarah Mitchell", role: "Chief Veterinarian", clinic: "Greenfield Animal Hospital", quote: "InnoVetPro transformed how we run our clinic. The workflow automation alone saves us 2+ hours every single day.", stars: 5 },
+  { name: "James Okafor",       role: "Practice Manager",   clinic: "CityVet Clinic",             quote: "The role-based access is brilliant. Each staff member sees exactly what they need — no clutter, no confusion.", stars: 5 },
+  { name: "Dr. Amara Diallo",   role: "Head of Surgery",    clinic: "PetCare Medical Centre",     quote: "From intake to discharge the flow is completely seamless. I can't imagine going back to our old paper system.", stars: 5 },
+];
+
+const EFFICIENCY = [
+  { icon: Zap,          stat: "90%",  label: "faster discharge",     desc: "Automated billing and handoff workflows eliminate manual paperwork bottlenecks at closing." },
+  { icon: BarChart3,    stat: "3×",   label: "more data visibility", desc: "Real-time dashboards surface performance metrics that were invisible in paper-based systems." },
+  { icon: TrendingDown, stat: "40%",  label: "lower admin overhead", desc: "Role-specific views remove irrelevant clutter — every user sees only what they need to act on." },
+  { icon: Brain,        stat: "24/7", label: "AI co-pilot active",   desc: "Continuous AI monitoring of vitals trends and lab patterns for every patient in the system." },
+];
+
+const MOBILITY = [
+  { icon: Smartphone,      title: "Mobile-Optimised Interface", desc: "Responsive layout designed for tablets and phones. Record vitals and notes in the field." },
+  { icon: Wifi,            title: "Offline-First Data Sync",    desc: "Continue working without internet. Actions queue locally and sync when reconnected." },
+  { icon: MapPin,          title: "Multi-Location Support",     desc: "Manage satellite branches and outreach sites from one centralised dashboard." },
+  { icon: HeadphonesIcon,  title: "24/7 Technical Support",     desc: "Our East Africa support team is available around the clock — phone, chat, or email." },
 ];
 
 // ── Decorative components ────────────────────────────────────────────────
@@ -266,13 +305,62 @@ function AccessForm({ center = false }: { center?: boolean }) {
   );
 }
 
-// ── Page ────────────────────────────────────────────────────────────────────────────────
+// ── Scroll-reveal helper ─────────────────────────────────────────────────────
+function FadeUp({ children, delay = 0, className }: { children: ReactNode; delay?: number; className?: string }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const inView = useInView(ref, { once: true, margin: "-80px" });
+  return (
+    <motion.div ref={ref}
+      initial={{ opacity: 0, y: 28 }}
+      animate={inView ? { opacity: 1, y: 0 } : {}}
+      transition={{ duration: 0.6, ease: "easeOut", delay }}
+      className={className}>
+      {children}
+    </motion.div>
+  );
+}
+
+// ── Page ─────────────────────────────────────────────────────────────────────
 export default function Landing() {
   const navigate = useNavigate();
   const { logout } = useAuth();
 
-  // Ensure user is always logged out on the landing page
   useEffect(() => { logout(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
+
+  // ── SEO: title + meta description + JSON-LD schema ──────────────────────
+  useEffect(() => {
+    document.title = "InnoVetPro — AI Veterinary Software Kenya | Practice Management";
+    let meta = document.querySelector<HTMLMetaElement>('meta[name="description"]');
+    if (!meta) { meta = document.createElement("meta"); meta.name = "description"; document.head.appendChild(meta); }
+    meta.content = "InnoVetPro is the leading AI Veterinary Software in Kenya. Cloud veterinary billing (KES), clinical notes, AI diagnostics, and practice management for modern clinics.";
+    const schema = {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "SoftwareApplication",
+          "name": "InnoVetPro",
+          "applicationCategory": "BusinessApplication",
+          "operatingSystem": "Web, iOS, Android",
+          "description": "AI-powered veterinary practice management software for Kenya and East Africa.",
+          "url": "https://innovetpro.com",
+          "offers": { "@type": "Offer", "price": "0", "priceCurrency": "KES" },
+          "aggregateRating": { "@type": "AggregateRating", "ratingValue": "4.9", "reviewCount": "2600" },
+        },
+        {
+          "@type": "Organization",
+          "name": "InnoVetPro",
+          "url": "https://innovetpro.com",
+          "logo": "https://innovetpro.com/logo.png",
+          "contactPoint": { "@type": "ContactPoint", "contactType": "customer support", "areaServed": "KE" },
+        },
+      ],
+    };
+    let script = document.getElementById("innovetpro-schema") as HTMLScriptElement | null;
+    if (!script) { script = document.createElement("script"); script.id = "innovetpro-schema"; script.type = "application/ld+json"; document.head.appendChild(script); }
+    script.textContent = JSON.stringify(schema);
+    return () => { document.getElementById("innovetpro-schema")?.remove(); };
+  }, []);
+
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const goTo = (id: string) => {
@@ -280,434 +368,545 @@ export default function Landing() {
     setMobileOpen(false);
   };
 
-  return (
-    <div className="min-h-screen bg-[#0b1517] text-white font-sans antialiased overflow-x-hidden">
+  const FOOTER_COLS = [
+    {
+      heading: "Products",
+      items: [
+        { label: "Clinical Notes", action: () => goTo("product") },
+        { label: "AI Diagnostics", action: () => goTo("product") },
+        { label: "KES Billing",    action: () => goTo("product") },
+        { label: "Field Vet Mode", action: () => goTo("mobility") },
+      ],
+    },
+    {
+      heading: "Industries",
+      items: [
+        { label: "Small Animal Clinics",   action: () => goTo("access") },
+        { label: "Large Animal / Farm",    action: () => goTo("access") },
+        { label: "Wildlife Conservation",  action: () => goTo("access") },
+        { label: "Mobile Clinics",         action: () => goTo("mobility") },
+      ],
+    },
+    {
+      heading: "Company",
+      items: [
+        { label: "Sign In",        action: () => navigate("/login") },
+        { label: "Request Access", action: () => goTo("access") },
+        { label: "How It Works",   action: () => goTo("workflow") },
+        { label: "Reviews",        action: () => goTo("testimonials") },
+      ],
+    },
+  ];
 
-      {/* ── NAV ── */}
-      <nav className="fixed top-0 inset-x-0 z-50 border-b border-white/[0.06] backdrop-blur-xl bg-[#0b1517]/75">
+  const NAV_ITEMS: [string, string][] = [
+    ["product", "Product"], ["efficiency", "Why InnoVetPro"],
+    ["mobility", "Field Vet"], ["testimonials", "Reviews"], ["access", "Request Access"],
+  ];
+
+  return (
+    <div className="min-h-screen bg-[#080e10] text-white font-sans antialiased overflow-x-hidden">
+
+      {/* ── NAV — Glassmorphism ── */}
+      <nav aria-label="Main navigation"
+        className="fixed top-0 inset-x-0 z-50 backdrop-blur-2xl bg-[#080e10]/60 border-b border-white/[0.06]"
+        style={{ WebkitBackdropFilter: "blur(24px)" }}>
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
-          <AppLogo imgHeight={36} showText textClassName="text-base font-bold text-white" />
-          <div className="hidden md:flex items-center gap-8 text-sm text-white/50">
-            {([["features","Features"],["workflow","How It Works"],["mobility","Field Vet"],["testimonials","Reviews"],["access","Get Access"]] as [string,string][]).map(([id,label]) => (
-              <button key={id} onClick={() => goTo(id)} className="hover:text-white transition-colors">{label}</button>
+          <AppLogo imgHeight={34} showText textClassName="text-sm font-bold text-white" />
+          <div className="hidden md:flex items-center gap-8 text-sm text-white/40">
+            {NAV_ITEMS.map(([id, label]) => (
+              <button key={id} onClick={() => goTo(id)}
+                className="hover:text-white transition-colors duration-200 relative group py-1">
+                {label}
+                <span className="absolute bottom-0 left-0 w-0 h-px bg-[#56B246] group-hover:w-full transition-all duration-300" />
+              </button>
             ))}
           </div>
-          <div className="hidden md:flex items-center gap-3">
+          <div className="hidden md:flex items-center gap-2">
             <Button variant="ghost" size="sm"
-              className="text-white/60 hover:text-white hover:bg-white/10 gap-1.5"
-              onClick={() => navigate("/pricing")}>
-              Pricing
-            </Button>
-            <Button variant="ghost" size="sm"
-              className="text-white/60 hover:text-white hover:bg-white/10 gap-1.5"
+              className="text-white/45 hover:text-white hover:bg-white/[0.06] gap-1.5 text-xs"
               onClick={() => navigate("/login")}>
-              <Lock className="h-3.5 w-3.5" /> Sign In
+              <Lock className="h-3.5 w-3.5" strokeWidth={1.5} /> Sign In
             </Button>
-            <Button size="sm" className="bg-[#56B246] hover:bg-[#56B246]/90 text-white font-semibold gap-1.5"
-              onClick={() => goTo("access")}>
-              Request Access <ArrowRight className="h-3.5 w-3.5" />
-            </Button>
+            <motion.div whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.96 }}>
+              <Button size="sm"
+                className="bg-[#56B246] hover:bg-[#4ca33d] text-white font-semibold gap-1.5 text-xs shadow-lg shadow-[#56B246]/20"
+                onClick={() => goTo("access")}>
+                Request Access <ArrowRight className="h-3.5 w-3.5" />
+              </Button>
+            </motion.div>
           </div>
-          <button className="md:hidden text-white/60 hover:text-white" onClick={() => setMobileOpen(v => !v)}>
+          <button className="md:hidden text-white/55 hover:text-white" aria-label="Toggle menu"
+            onClick={() => setMobileOpen(v => !v)}>
             {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </button>
         </div>
-        {mobileOpen && (
-          <div className="md:hidden border-t border-white/[0.06] bg-[#0b1517] px-6 py-4 space-y-3 text-sm">
-            {([["features","Features"],["workflow","How It Works"],["mobility","Field Vet"],["access","Get Access"]] as [string,string][]).map(([id,label]) => (
-              <button key={id} onClick={() => goTo(id)} className="block text-left text-white/60 hover:text-white">{label}</button>
-            ))}
-            <div className="flex gap-2 pt-2 border-t border-white/[0.06]">
-              <Button variant="outline" size="sm" className="flex-1 border-white/20 text-white bg-transparent"
-                onClick={() => navigate("/login")}>Sign In</Button>
-              <Button size="sm" className="flex-1 bg-[#56B246] text-white" onClick={() => goTo("access")}>Get Access</Button>
-            </div>
-          </div>
-        )}
+        <AnimatePresence>
+          {mobileOpen && (
+            <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.2 }}
+              className="md:hidden overflow-hidden border-t border-white/[0.06] bg-[#080e10]/95 px-6 py-4 space-y-3 text-sm">
+              {NAV_ITEMS.map(([id, label]) => (
+                <button key={id} onClick={() => goTo(id)} className="block text-left text-white/50 hover:text-white transition-colors">{label}</button>
+              ))}
+              <div className="flex gap-2 pt-2 border-t border-white/[0.06]">
+                <Button variant="outline" size="sm" className="flex-1 border-white/20 text-white bg-transparent text-xs" onClick={() => navigate("/login")}>Sign In</Button>
+                <Button size="sm" className="flex-1 bg-[#56B246] text-white text-xs font-semibold" onClick={() => goTo("access")}>Request Access</Button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </nav>
 
       {/* ── HERO ── */}
-      <section className="relative min-h-screen flex items-center pt-16 overflow-hidden">
-        {/* Video bg — add /hero-bg.mp4 to public/ for a real vet video */}
-        <video autoPlay muted loop playsInline
-          className="absolute inset-0 w-full h-full object-cover"
-          style={{ opacity: 0.10 }}>
+      <section aria-label="Hero" className="relative min-h-screen flex items-center pt-16 overflow-hidden">
+        <video autoPlay muted loop playsInline aria-hidden="true"
+          className="absolute inset-0 w-full h-full object-cover opacity-[0.07]"
+          style={{ willChange: "transform" }}>
           <source src="/hero-bg.mp4" type="video/mp4" />
         </video>
 
-        {/* Gradient overlays */}
-        <div className="absolute inset-0 bg-gradient-to-br from-[#0b1517] via-[#0b1517]/95 to-[#0f1f22]/90 pointer-events-none" />
-        <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute top-1/3 left-1/4 w-[600px] h-[600px] bg-[#56B246]/[0.06] rounded-full blur-[140px]" />
-          <div className="absolute bottom-0 right-1/4 w-[400px] h-[400px] bg-blue-600/[0.04] rounded-full blur-[100px]" />
+        {/* Glassmorphism orbs */}
+        <div className="absolute inset-0 pointer-events-none" aria-hidden="true">
+          <div className="absolute top-1/4 left-1/3 w-[700px] h-[700px] bg-[#56B246]/[0.07] rounded-full blur-[160px]" />
+          <div className="absolute bottom-0 right-1/4 w-[500px] h-[500px] bg-indigo-600/[0.05] rounded-full blur-[120px]" />
+          <div className="absolute top-1/2 right-0 w-[300px] h-[300px] bg-[#56B246]/[0.04] rounded-full blur-[80px]" />
         </div>
+        <div className="absolute inset-0 bg-gradient-to-b from-[#080e10]/50 via-transparent to-[#080e10] pointer-events-none" aria-hidden="true" />
 
-        {/* Decorative paw prints */}
-        <PawPrint className="absolute top-32 left-8 w-20 h-20 text-[#56B246]/[0.06] rotate-12 pointer-events-none" />
-        <PawPrint className="absolute bottom-24 left-20 w-12 h-12 text-[#56B246]/[0.04] -rotate-6 pointer-events-none" />
-        <PawPrint className="absolute top-48 right-12 w-16 h-16 text-[#56B246]/[0.05] rotate-45 pointer-events-none" />
-
-        <div className="relative max-w-7xl mx-auto px-6 py-20 grid grid-cols-1 lg:grid-cols-2 gap-16 items-center w-full">
-          {/* Left — text */}
+        <div className="relative max-w-7xl mx-auto px-6 py-24 grid grid-cols-1 lg:grid-cols-2 gap-16 items-center w-full">
+          {/* Left */}
           <div>
-            <div className="inline-flex items-center gap-2 mb-6 px-4 py-1.5 rounded-full bg-[#56B246]/15 border border-[#56B246]/25">
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}
+              className="inline-flex items-center gap-2 mb-8 px-4 py-1.5 rounded-full bg-[#56B246]/10 border border-[#56B246]/20">
               <div className="h-1.5 w-1.5 rounded-full bg-[#56B246] animate-pulse" />
-              <span className="text-[11px] text-[#56B246] font-semibold uppercase tracking-[0.18em]">Veterinary Management Platform</span>
-            </div>
+              <span className="text-[11px] text-[#56B246] font-semibold uppercase tracking-[0.2em]">AI Veterinary Software · Kenya</span>
+            </motion.div>
 
-            <h1 className="text-5xl lg:text-6xl xl:text-7xl font-black leading-[1.06] tracking-tight mb-6">
-              The Smarter Way<br />to Run Your{" "}
-              <span className="relative">
-                <span className="text-[#56B246]">Clinic</span>
-                <svg className="absolute -bottom-2 left-0 w-full" viewBox="0 0 200 12" fill="none">
-                  <path d="M2 8 Q50 2 100 8 Q150 14 198 6" stroke="#56B246" strokeWidth="2.5" strokeLinecap="round" fill="none" opacity="0.5"/>
-                </svg>
-              </span>
-            </h1>
+            <motion.h1 initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.1 }}
+              className="text-5xl lg:text-6xl xl:text-[72px] font-black leading-[1.04] tracking-tight mb-6">
+              Smarter Veterinary<br />
+              <span className="text-[#56B246]">Operations.</span><br />
+              <span className="text-white/75">Powered by AI.</span>
+            </motion.h1>
 
-            <p className="text-base text-white/45 leading-relaxed mb-8 max-w-xl">
-              InnoVetPro brings together patient intake, clinical workflows, pharmacy,
-              billing, and reporting — built exclusively for modern veterinary practices.
-            </p>
+            <motion.p initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.2 }}
+              className="text-base text-white/40 leading-relaxed mb-10 max-w-lg">
+              Modernizing practice management from the ground up — faster decisions, clearer
+              insights, and Kenyan-localized billing built for how you actually work.
+            </motion.p>
 
-            <div className="mb-5">
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.3 }}
+              className="space-y-3 mb-10">
               <AccessForm />
-            </div>
-            <div className="flex items-center gap-4 mt-3">
-              <p className="text-xs text-white/25">Credentials sent within 24 hrs · No credit card required</p>
-              <button
-                onClick={() => navigate("/pricing")}
-                className="text-xs text-[#56B246] hover:text-[#56B246]/80 font-semibold underline underline-offset-2 shrink-0 transition-colors">
-                View Pricing Plans →
-              </button>
-            </div>
+              <div className="flex items-center gap-3 pt-1">
+                <motion.button whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.96 }}
+                  onClick={() => goTo("product")}
+                  className="flex items-center gap-2 text-sm text-white/45 hover:text-white transition-colors group">
+                  <span className="h-8 w-8 rounded-full bg-white/[0.06] border border-white/10 flex items-center justify-center group-hover:bg-white/10 transition-colors shrink-0">
+                    <Play className="h-3 w-3 text-white ml-0.5" aria-hidden="true" />
+                  </span>
+                  Watch Demo
+                </motion.button>
+                <span className="text-white/12">|</span>
+                <p className="text-xs text-white/20">No credit card · 24-hr response · KES billing included</p>
+              </div>
+            </motion.div>
 
             {/* Trust badges */}
-            <div className="flex flex-wrap gap-3 mt-8">
-              <div className="flex items-center gap-2 bg-white/[0.05] border border-white/[0.07] rounded-xl px-4 py-2.5">
-                <div className="flex">{[0,1,2,3,4].map(i => <Star key={i} className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />)}</div>
-                <span className="text-xs text-white font-semibold">4.9 / 5</span>
-                <span className="text-[10px] text-white/30">· 2.6K+ clinics</span>
-              </div>
-              <div className="flex items-center gap-2 bg-white/[0.05] border border-white/[0.07] rounded-xl px-4 py-2.5">
-                <Activity className="h-4 w-4 text-[#56B246]" />
-                <span className="text-xs text-white/70"><span className="text-white font-bold">1,240+</span> patients today</span>
-              </div>
-              <div className="flex items-center gap-2 bg-white/[0.05] border border-white/[0.07] rounded-xl px-4 py-2.5">
-                <Shield className="h-4 w-4 text-blue-400" />
-                <span className="text-xs text-white/70">99.9% uptime</span>
-              </div>
-              <div className="flex items-center gap-2 bg-white/[0.05] border border-white/[0.07] rounded-xl px-4 py-2.5">
-                <HeadphonesIcon className="h-4 w-4 text-purple-400" />
-                <span className="text-xs text-white/70"><span className="text-white font-bold">24/7</span> support</span>
-              </div>
-            </div>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.8, delay: 0.5 }}
+              className="flex flex-wrap gap-2">
+              {[
+                { icon: Star,           text: "4.9 / 5",  sub: "2.6K+ clinics",     color: "text-amber-400", fill: true },
+                { icon: Activity,       text: "1,240+",   sub: "patients today",    color: "text-[#56B246]" },
+                { icon: Shield,         text: "99.9%",    sub: "uptime SLA",        color: "text-blue-400" },
+                { icon: HeadphonesIcon, text: "24/7",     sub: "EA support",        color: "text-purple-400" },
+              ].map(({ icon: Icon, text, sub, color, fill }) => (
+                <div key={sub} className="flex items-center gap-2 bg-white/[0.04] border border-white/[0.06] rounded-xl px-3.5 py-2.5">
+                  <Icon className={cn("h-3.5 w-3.5 shrink-0", color, fill && "fill-amber-400")} aria-hidden="true" />
+                  <span className="text-xs text-white font-semibold">{text}</span>
+                  <span className="text-[10px] text-white/22">{sub}</span>
+                </div>
+              ))}
+            </motion.div>
           </div>
 
           {/* Right — mock app window */}
-          <div className="relative lg:block">
-            <div className="absolute -inset-4 bg-[#56B246]/[0.04] rounded-3xl blur-2xl" />
+          <motion.div initial={{ opacity: 0, x: 40, scale: 0.96 }} animate={{ opacity: 1, x: 0, scale: 1 }}
+            transition={{ duration: 0.8, delay: 0.3, ease: "easeOut" }}
+            className="relative hidden lg:block">
+            <div className="absolute -inset-6 bg-[#56B246]/[0.05] rounded-3xl blur-3xl" aria-hidden="true" />
             <div className="relative">
               <MockAppWindow />
-              {/* Floating notification card */}
-              <div className="absolute -bottom-6 -left-6 bg-[#111e21] border border-[#56B246]/30 rounded-2xl px-4 py-3 shadow-xl flex items-center gap-3">
+              <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 1.1, duration: 0.5 }}
+                className="absolute -bottom-6 -left-6 bg-[#0f1c20]/95 backdrop-blur-xl border border-[#56B246]/25 rounded-2xl px-4 py-3 shadow-2xl flex items-center gap-3">
                 <div className="h-8 w-8 rounded-full bg-[#56B246]/20 flex items-center justify-center shrink-0">
-                  <CheckCircle2 className="h-4 w-4 text-[#56B246]" />
+                  <CheckCircle2 className="h-4 w-4 text-[#56B246]" aria-hidden="true" />
                 </div>
                 <div>
                   <div className="text-xs font-bold text-white">Patient Checked In</div>
-                  <div className="text-[10px] text-white/35">Rocky — German Shepherd · Just now</div>
+                  <div className="text-[10px] text-white/30">Rocky — German Shepherd · Just now</div>
                 </div>
-              </div>
-              {/* Floating vitals card */}
-              <div className="absolute -top-5 -right-5 bg-[#111e21] border border-blue-500/20 rounded-2xl px-4 py-3 shadow-xl">
-                <div className="text-[10px] text-white/35 mb-1">Vitals Recorded</div>
+              </motion.div>
+              <motion.div initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 1.3, duration: 0.5 }}
+                className="absolute -top-5 -right-5 bg-[#0f1c20]/95 backdrop-blur-xl border border-indigo-500/20 rounded-2xl px-4 py-3 shadow-2xl">
+                <div className="text-[10px] text-white/30 mb-1">AI Diagnostics</div>
                 <div className="text-xs font-bold text-white">Temp: 38.5°C · HR: 78 bpm</div>
                 <div className="flex items-center gap-1 mt-1">
-                  <Heart className="h-3 w-3 text-red-400 fill-current" />
-                  <span className="text-[10px] text-red-400">Normal range</span>
+                  <Brain className="h-3 w-3 text-[#56B246]" aria-hidden="true" />
+                  <span className="text-[10px] text-[#56B246]">Normal — no concerns</span>
                 </div>
-              </div>
+              </motion.div>
             </div>
-          </div>
+          </motion.div>
         </div>
       </section>
 
       {/* ── TICKER ── */}
-      <div className="border-y border-white/[0.06] bg-white/[0.02] py-4 overflow-hidden relative">
-        <div className="flex gap-12 whitespace-nowrap animate-[marquee_30s_linear_infinite]">
+      <div className="border-y border-white/[0.05] bg-[#080e10] py-4 overflow-hidden" aria-hidden="true">
+        <div className="flex gap-14 whitespace-nowrap animate-[marquee_35s_linear_infinite]">
           {[...TICKER, ...TICKER].map((item, i) => (
-            <span key={i} className="text-sm font-semibold text-white/30 shrink-0 flex items-center gap-2">
-              <span className="h-1.5 w-1.5 rounded-full bg-[#56B246] shrink-0" />{item}
+            <span key={i} className="text-xs font-semibold text-white/20 shrink-0 flex items-center gap-2.5">
+              <span className="h-1 w-1 rounded-full bg-[#56B246]" />{item}
             </span>
           ))}
         </div>
       </div>
 
-      {/* ── FEATURES ── */}
-      <section id="features" className="py-28 px-6">
+      {/* ── PRODUCT SUITE ── */}
+      <section id="product" aria-labelledby="product-heading" className="py-32 px-6">
         <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-16">
-            <p className="text-[#56B246] text-[11px] uppercase tracking-[0.2em] font-semibold mb-3">Complete Platform</p>
-            <h2 className="text-3xl md:text-4xl lg:text-5xl font-black">Everything Your Clinic Needs</h2>
+          <FadeUp className="text-center mb-16">
+            <p className="text-[#56B246] text-[11px] uppercase tracking-[0.22em] font-semibold mb-3">Single Connected System</p>
+            <h2 id="product-heading" className="text-3xl md:text-5xl font-black tracking-tight">Everything. Unified. Intelligent.</h2>
             <p className="text-white/35 mt-4 max-w-xl mx-auto text-sm leading-relaxed">
-              From the first check-in to the final invoice — every step of the veterinary workflow covered.
+              From first check-in to final invoice — every step of the veterinary workflow in one platform.
             </p>
+          </FadeUp>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+            {HERO_PRODUCTS.map((p, i) => (
+              <FadeUp key={p.title} delay={i * 0.08}>
+                <motion.div whileHover={{ y: -4, scale: 1.01 }} transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                  className="group relative rounded-2xl bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.07] hover:border-[#56B246]/25 p-8 overflow-hidden transition-colors duration-300 cursor-default h-full">
+                  <div className="absolute inset-0 bg-gradient-to-br from-[#56B246]/[0.04] to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
+                  <div className={cn("h-12 w-12 rounded-2xl flex items-center justify-center mb-5", p.iconBg)}>
+                    <p.icon className={cn("h-6 w-6", p.iconColor)} aria-hidden="true" />
+                  </div>
+                  <h3 className="font-bold text-white text-lg mb-2">{p.title}</h3>
+                  <p className="text-sm text-white/40 leading-relaxed">{p.desc}</p>
+                  <div className="mt-5 flex flex-wrap gap-1.5">
+                    {p.tags.map(t => (
+                      <span key={t} className="text-[10px] font-semibold text-white/28 bg-white/[0.05] px-2.5 py-1 rounded-full">{t}</span>
+                    ))}
+                  </div>
+                </motion.div>
+              </FadeUp>
+            ))}
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {FEATURES.map(({ icon: Icon, title, desc }) => (
-              <div key={title}
-                className="group bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.06] hover:border-[#56B246]/30 rounded-2xl p-6 transition-all duration-300 cursor-default hover:-translate-y-0.5">
-                <div className="h-11 w-11 rounded-xl bg-[#56B246]/12 flex items-center justify-center mb-4 group-hover:bg-[#56B246]/20 transition-colors">
-                  <Icon className="h-5 w-5 text-[#56B246]" />
-                </div>
-                <h3 className="font-bold text-white text-sm mb-2">{title}</h3>
-                <p className="text-xs text-white/38 leading-relaxed">{desc}</p>
-              </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {FEATURES.map((f, i) => (
+              <FadeUp key={f.title} delay={i * 0.04}>
+                <motion.div whileHover={{ y: -2 }}
+                  className="group bg-white/[0.02] hover:bg-white/[0.05] border border-white/[0.05] hover:border-white/[0.1] rounded-xl p-5 transition-all duration-200 cursor-default h-full">
+                  <div className="h-9 w-9 rounded-xl bg-[#56B246]/10 flex items-center justify-center mb-3.5 group-hover:bg-[#56B246]/18 transition-colors">
+                    <f.icon className="h-4 w-4 text-[#56B246]" aria-hidden="true" />
+                  </div>
+                  <h3 className="font-bold text-white text-sm mb-1.5">{f.title}</h3>
+                  <p className="text-xs text-white/32 leading-relaxed">{f.desc}</p>
+                </motion.div>
+              </FadeUp>
             ))}
           </div>
         </div>
       </section>
 
       {/* ── WORKFLOW ── */}
-      <section id="workflow" className="py-28 px-6 bg-white/[0.015]">
+      <section id="workflow" aria-labelledby="workflow-heading" className="py-32 px-6 bg-white/[0.012]">
         <div className="max-w-6xl mx-auto">
-          <div className="text-center mb-16">
-            <p className="text-[#56B246] text-[11px] uppercase tracking-[0.2em] font-semibold mb-3">How It Works</p>
-            <h2 className="text-3xl md:text-4xl font-black">From Check-In to Discharge</h2>
-            <p className="text-white/35 mt-4 text-sm max-w-lg mx-auto">Three seamless role-handoffs. Every patient moves through the same intelligent workflow.</p>
-          </div>
+          <FadeUp className="text-center mb-16">
+            <p className="text-[#56B246] text-[11px] uppercase tracking-[0.22em] font-semibold mb-3">How It Works</p>
+            <h2 id="workflow-heading" className="text-3xl md:text-5xl font-black">From Check-In to Discharge</h2>
+            <p className="text-white/35 mt-4 text-sm max-w-md mx-auto">Three seamless role-handoffs. Every patient moves through the same intelligent workflow.</p>
+          </FadeUp>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {WORKFLOW.map((step, i) => (
-              <div key={step.num} className="relative group">
-                {i < WORKFLOW.length - 1 && (
-                  <div className="hidden md:block absolute top-10 -right-3 z-10">
-                    <ArrowRight className="h-5 w-5 text-white/15" />
-                  </div>
-                )}
-                <div className="bg-white/[0.04] border border-white/[0.07] group-hover:border-white/[0.12] rounded-2xl p-8 h-full transition-all duration-300">
+              <FadeUp key={step.num} delay={i * 0.1}>
+                <motion.div whileHover={{ scale: 1.02 }} transition={{ type: "spring", stiffness: 300, damping: 25 }}
+                  className="relative group bg-white/[0.035] hover:bg-white/[0.055] border border-white/[0.07] hover:border-white/[0.12] rounded-2xl p-8 h-full transition-colors duration-300 overflow-hidden cursor-default">
                   <div className="flex items-center gap-3 mb-5">
-                    <div className={cn("h-10 w-10 rounded-xl flex items-center justify-center shrink-0", step.color)}>
-                      <step.icon className="h-5 w-5 text-white" />
+                    <div className={cn("h-11 w-11 rounded-xl flex items-center justify-center shrink-0", step.color)}>
+                      <step.icon className="h-5 w-5 text-white" aria-hidden="true" />
                     </div>
                     <div>
                       <div className="text-[10px] text-white/25 font-semibold uppercase tracking-widest">Step {step.num}</div>
                       <div className="font-bold text-white text-sm">{step.role}</div>
                     </div>
                   </div>
-                  <p className="text-sm text-white/45 leading-relaxed">{step.desc}</p>
-                  <div className="text-7xl font-black text-white/[0.03] absolute bottom-4 right-5 leading-none select-none">{step.num}</div>
-                </div>
-              </div>
+                  <p className="text-sm text-white/42 leading-relaxed">{step.desc}</p>
+                  <div className="text-7xl font-black text-white/[0.025] absolute bottom-4 right-5 leading-none select-none" aria-hidden="true">{step.num}</div>
+                </motion.div>
+              </FadeUp>
             ))}
           </div>
-          <div className="mt-12 text-center flex flex-col sm:flex-row items-center justify-center gap-4">
-            <Button size="lg" className="bg-[#56B246] hover:bg-[#56B246]/90 text-white font-bold px-12 gap-2"
-              onClick={() => goTo("access")}>
-              Request Access to Explore <ArrowRight className="h-4 w-4" />
-            </Button>
-            <Button size="lg" variant="outline"
-              className="border-white/20 text-white/70 hover:text-white hover:bg-white/[0.06] gap-2 bg-transparent"
-              onClick={() => navigate("/pricing")}>
-              See Pricing Plans
-            </Button>
+          <FadeUp className="mt-12 flex flex-col sm:flex-row items-center justify-center gap-4">
+            <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>
+              <Button size="lg" className="bg-[#56B246] hover:bg-[#4ca33d] text-white font-bold px-10 gap-2 shadow-lg shadow-[#56B246]/20"
+                onClick={() => goTo("access")}>
+                Request Access <ArrowRight className="h-4 w-4" />
+              </Button>
+            </motion.div>
+            <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
+              onClick={() => goTo("product")}
+              className="flex items-center gap-2 text-sm text-white/38 hover:text-white transition-colors">
+              <Play className="h-4 w-4" aria-hidden="true" /> Watch Demo
+            </motion.button>
+          </FadeUp>
+        </div>
+      </section>
+
+      {/* ── EFFICIENCY ── */}
+      <section id="efficiency" aria-labelledby="efficiency-heading" className="py-32 px-6">
+        <div className="max-w-7xl mx-auto">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
+            <FadeUp>
+              <p className="text-[#56B246] text-[11px] uppercase tracking-[0.22em] font-semibold mb-4">The InnoVetPro Efficiency Edge</p>
+              <h2 id="efficiency-heading" className="text-3xl md:text-5xl font-black leading-tight mb-6">
+                Efficient Clinics<br /><span className="text-[#56B246]">Operate Smarter.</span>
+              </h2>
+              <p className="text-white/38 text-sm leading-relaxed mb-10 max-w-lg">
+                InnoVetPro turns clinic data into decisions. Practices using InnoVetPro see measurable
+                reductions in billing overhead, faster discharge cycles, and real-time performance visibility.
+              </p>
+              <div className="space-y-5">
+                {EFFICIENCY.map((e, i) => (
+                  <motion.div key={e.stat}
+                    initial={{ opacity: 0, x: -20 }} whileInView={{ opacity: 1, x: 0 }}
+                    viewport={{ once: true }} transition={{ delay: i * 0.1, duration: 0.5 }}
+                    className="flex items-start gap-4">
+                    <div className="h-10 w-10 rounded-xl bg-[#56B246]/10 flex items-center justify-center shrink-0 mt-0.5">
+                      <e.icon className="h-5 w-5 text-[#56B246]" aria-hidden="true" />
+                    </div>
+                    <div>
+                      <div className="flex items-baseline gap-2 mb-0.5">
+                        <span className="text-2xl font-black text-white">{e.stat}</span>
+                        <span className="text-xs text-[#56B246] font-semibold">{e.label}</span>
+                      </div>
+                      <p className="text-xs text-white/32 leading-relaxed">{e.desc}</p>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            </FadeUp>
+            <FadeUp delay={0.2}>
+              <div className="grid grid-cols-2 gap-3">
+                {STATS.map(({ num, label, icon: Icon, accent }) => (
+                  <motion.div key={label} whileHover={{ scale: 1.03 }}
+                    className="bg-white/[0.035] hover:bg-white/[0.055] border border-white/[0.06] rounded-2xl p-6 text-center transition-colors duration-200 cursor-default">
+                    <Icon className={cn("h-5 w-5 mx-auto mb-3", accent)} aria-hidden="true" />
+                    <div className="text-3xl font-black text-white leading-none mb-1">{num}</div>
+                    <div className="text-[11px] text-white/28 uppercase tracking-wider font-medium">{label}</div>
+                  </motion.div>
+                ))}
+              </div>
+            </FadeUp>
           </div>
         </div>
       </section>
 
       {/* ── FIELD-VET MOBILITY ── */}
-      <section id="mobility" className="py-28 px-6">
+      <section id="mobility" aria-labelledby="mobility-heading" className="py-32 px-6 bg-white/[0.012]">
         <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
-          {/* Left — content */}
-          <div className="space-y-6">
-            <p className="text-[#56B246] text-[11px] uppercase tracking-[0.2em] font-semibold">Field Veterinary Mobility</p>
-            <h2 className="text-3xl md:text-4xl font-black leading-tight">
-              Works Wherever <br />
-              <span className="text-[#56B246]">You Practise</span>
+          <FadeUp className="space-y-6">
+            <p className="text-[#56B246] text-[11px] uppercase tracking-[0.22em] font-semibold">Field Veterinary Mobility</p>
+            <h2 id="mobility-heading" className="text-3xl md:text-4xl font-black leading-tight">
+              Works Wherever<br /><span className="text-[#56B246]">You Practise</span>
             </h2>
-            <p className="text-white/45 text-sm leading-relaxed max-w-lg">
-              Whether you're doing farm rounds, wildlife conservation work, or running a mobile clinic —
-              InnoVetPro's local-first architecture keeps you functional even in low-connectivity environments.
-              Data syncs automatically the moment you're back online.
+            <p className="text-white/38 text-sm leading-relaxed max-w-lg">
+              Farm rounds, wildlife conservation, mobile clinics — InnoVetPro's local-first architecture
+              keeps you functional even offline. Data syncs automatically when you reconnect.
             </p>
-            <div className="space-y-4">
-              {[
-                { icon: Smartphone, title: "Mobile-Optimised Interface",   desc: "Responsive layout designed for tablets and phones. Record vitals and notes in the field." },
-                { icon: Wifi,       title: "Offline-First Data Sync",       desc: "Continue working without internet. All actions queue locally and sync when reconnected." },
-                { icon: MapPin,     title: "Multi-Location Support",        desc: "Manage satellite branches and outreach sites from a single centralised dashboard." },
-                { icon: HeadphonesIcon, title: "24/7 Technical Support",    desc: "Our East Africa support team is available around the clock — phone, chat, or email." },
-              ].map(({ icon: Icon, title, desc }) => (
+            <div className="space-y-5">
+              {MOBILITY.map(({ icon: Icon, title, desc }) => (
                 <div key={title} className="flex gap-4">
-                  <div className="h-10 w-10 rounded-xl bg-[#56B246]/12 flex items-center justify-center shrink-0">
-                    <Icon className="h-5 w-5 text-[#56B246]" />
+                  <div className="h-10 w-10 rounded-xl bg-[#56B246]/10 flex items-center justify-center shrink-0">
+                    <Icon className="h-5 w-5 text-[#56B246]" aria-hidden="true" />
                   </div>
                   <div>
                     <div className="font-semibold text-white text-sm mb-0.5">{title}</div>
-                    <div className="text-xs text-white/38 leading-relaxed">{desc}</div>
+                    <div className="text-xs text-white/33 leading-relaxed">{desc}</div>
                   </div>
                 </div>
               ))}
             </div>
-          </div>
-          {/* Right — illustration card */}
-          <div className="relative">
-            <div className="absolute -inset-6 bg-[#56B246]/[0.04] rounded-3xl blur-3xl" />
-            <div className="relative rounded-2xl border border-white/[0.08] bg-[#0d1a1c] overflow-hidden">
-              <div className="px-5 py-4 border-b border-white/[0.06] flex items-center gap-3">
-                <div className="h-8 w-8 rounded-full bg-[#56B246]/20 flex items-center justify-center shrink-0">
-                  <MapPin className="h-4 w-4 text-[#56B246]" />
-                </div>
-                <div>
-                  <div className="text-xs font-bold text-white">Field Visit — Naivasha Farm</div>
-                  <div className="text-[10px] text-white/30">Offline mode · 3 records pending sync</div>
-                </div>
-                <div className="ml-auto flex items-center gap-1.5">
-                  <div className="h-2 w-2 rounded-full bg-amber-400 animate-pulse" />
-                  <span className="text-[10px] text-amber-400 font-semibold">Offline</span>
-                </div>
-              </div>
-              <div className="p-4 space-y-2">
-                {[
-                  { pet: "Daisy — Holstein Cow",   action: "Vitals recorded",     saved: true },
-                  { pet: "Herd B — 12 Cattle",     action: "Vaccination logged",  saved: true },
-                  { pet: "Rufus — Farm Dog",        action: "Wound assessment",    saved: false },
-                ].map(r => (
-                  <div key={r.pet} className="flex items-center justify-between bg-white/[0.03] rounded-lg px-3 py-2.5">
-                    <div>
-                      <div className="text-xs text-white/80 font-medium">{r.pet}</div>
-                      <div className="text-[10px] text-white/30">{r.action}</div>
-                    </div>
-                    <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${
-                      r.saved ? "bg-[#56B246]/20 text-[#56B246]" : "bg-amber-500/20 text-amber-400"
-                    }`}>{r.saved ? "Saved" : "Queued"}</span>
+          </FadeUp>
+          <FadeUp delay={0.15}>
+            <div className="relative">
+              <div className="absolute -inset-6 bg-[#56B246]/[0.04] rounded-3xl blur-3xl" aria-hidden="true" />
+              <div className="relative rounded-2xl border border-white/[0.07] bg-[#0d1a1c] overflow-hidden">
+                <div className="px-5 py-4 border-b border-white/[0.06] flex items-center gap-3">
+                  <div className="h-8 w-8 rounded-full bg-[#56B246]/20 flex items-center justify-center shrink-0">
+                    <MapPin className="h-4 w-4 text-[#56B246]" aria-hidden="true" />
                   </div>
-                ))}
-              </div>
-              <div className="px-4 pb-4">
-                <div className="rounded-xl border border-[#56B246]/20 bg-[#56B246]/[0.06] px-3 py-2.5 flex items-center gap-2">
-                  <Wifi className="h-4 w-4 text-[#56B246]" />
-                  <span className="text-xs text-white/60"><span className="text-[#56B246] font-semibold">Auto-sync ready</span> · Will upload when connected</span>
+                  <div>
+                    <div className="text-xs font-bold text-white">Field Visit — Naivasha Farm</div>
+                    <div className="text-[10px] text-white/28">Offline mode · 3 records pending sync</div>
+                  </div>
+                  <div className="ml-auto flex items-center gap-1.5">
+                    <div className="h-2 w-2 rounded-full bg-amber-400 animate-pulse" aria-hidden="true" />
+                    <span className="text-[10px] text-amber-400 font-semibold">Offline</span>
+                  </div>
+                </div>
+                <div className="p-4 space-y-2">
+                  {[
+                    { pet: "Daisy — Holstein Cow",  action: "Vitals recorded",    saved: true },
+                    { pet: "Herd B — 12 Cattle",    action: "Vaccination logged", saved: true },
+                    { pet: "Rufus — Farm Dog",       action: "Wound assessment",   saved: false },
+                  ].map(r => (
+                    <div key={r.pet} className="flex items-center justify-between bg-white/[0.03] rounded-lg px-3 py-2.5">
+                      <div>
+                        <div className="text-xs text-white/80 font-medium">{r.pet}</div>
+                        <div className="text-[10px] text-white/28">{r.action}</div>
+                      </div>
+                      <span className={cn("text-[9px] font-bold px-2 py-0.5 rounded-full",
+                        r.saved ? "bg-[#56B246]/20 text-[#56B246]" : "bg-amber-500/20 text-amber-400")}>
+                        {r.saved ? "Saved" : "Queued"}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                <div className="px-4 pb-4">
+                  <div className="rounded-xl border border-[#56B246]/20 bg-[#56B246]/[0.06] px-3 py-2.5 flex items-center gap-2">
+                    <Wifi className="h-4 w-4 text-[#56B246]" aria-hidden="true" />
+                    <span className="text-xs text-white/55">
+                      <span className="text-[#56B246] font-semibold">Auto-sync ready</span> · Will upload when connected
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ── STATS ── */}
-      <section className="py-20 px-6 border-y border-white/[0.06]">
-        <div className="max-w-5xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-10 text-center">
-          {STATS.map(({ num, label }) => (
-            <div key={label}>
-              <div className="text-4xl md:text-5xl font-black text-white mb-2 leading-none">
-                <span className="text-[#56B246]">{num.replace(/[0-9]+/,"")}</span>
-                <span>{num.replace(/[^0-9.]+/g,"")}</span>
-                <span className="text-[#56B246]">{num.match(/[^0-9.]+$/)?.[0] ?? ""}</span>
-              </div>
-              <div className="text-[11px] text-white/30 uppercase tracking-wider font-medium">{label}</div>
-            </div>
-          ))}
+          </FadeUp>
         </div>
       </section>
 
       {/* ── TESTIMONIALS ── */}
-      <section id="testimonials" className="py-28 px-6">
+      <section id="testimonials" aria-labelledby="testimonials-heading" className="py-32 px-6">
         <div className="max-w-6xl mx-auto">
-          <div className="text-center mb-16">
-            <p className="text-[#56B246] text-[11px] uppercase tracking-[0.2em] font-semibold mb-3">Trusted by Clinics</p>
-            <h2 className="text-3xl md:text-4xl font-black">What Clinics Are Saying</h2>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {TESTIMONIALS.map(({ name, role, clinic, quote, stars }) => (
-              <div key={name} className="group bg-white/[0.04] hover:bg-white/[0.07] border border-white/[0.07] hover:border-[#56B246]/20 rounded-2xl p-7 flex flex-col gap-5 transition-all duration-300">
-                <div className="flex items-start justify-between">
-                  <Quote className="h-7 w-7 text-[#56B246]/40 group-hover:text-[#56B246]/60 transition-colors" />
-                  <div className="flex gap-0.5">
-                    {Array.from({ length: stars }).map((_,i) => (
-                      <Star key={i} className="h-3 w-3 fill-amber-400 text-amber-400" />
-                    ))}
+          <FadeUp className="text-center mb-16">
+            <p className="text-[#56B246] text-[11px] uppercase tracking-[0.22em] font-semibold mb-3">Trusted by Clinics</p>
+            <h2 id="testimonials-heading" className="text-3xl md:text-5xl font-black">What Clinics Are Saying</h2>
+          </FadeUp>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+            {TESTIMONIALS.map(({ name, role, clinic, quote, stars }, i) => (
+              <FadeUp key={name} delay={i * 0.1}>
+                <motion.div whileHover={{ y: -4 }} transition={{ type: "spring", stiffness: 300, damping: 25 }}
+                  className="group bg-white/[0.035] hover:bg-white/[0.06] border border-white/[0.06] hover:border-[#56B246]/20 rounded-2xl p-7 flex flex-col gap-5 transition-colors duration-300 cursor-default h-full">
+                  <div className="flex items-start justify-between">
+                    <Quote className="h-7 w-7 text-[#56B246]/35 group-hover:text-[#56B246]/60 transition-colors" aria-hidden="true" />
+                    <div className="flex gap-0.5" aria-label={`${stars} out of 5 stars`}>
+                      {Array.from({ length: stars }).map((_, j) => (
+                        <Star key={j} className="h-3 w-3 fill-amber-400 text-amber-400" aria-hidden="true" />
+                      ))}
+                    </div>
                   </div>
-                </div>
-                <p className="text-sm text-white/55 leading-relaxed flex-1 italic">"{quote}"</p>
-                <div className="flex items-center gap-3 border-t border-white/[0.06] pt-4">
-                  <div className="h-9 w-9 rounded-full bg-[#56B246]/20 flex items-center justify-center shrink-0">
-                    <span className="text-xs font-bold text-[#56B246]">{name.split(" ").map(n => n[0]).join("").slice(0,2)}</span>
+                  <p className="text-sm text-white/48 leading-relaxed flex-1 italic">"{quote}"</p>
+                  <div className="flex items-center gap-3 border-t border-white/[0.06] pt-4">
+                    <div className="h-9 w-9 rounded-full bg-[#56B246]/20 flex items-center justify-center shrink-0" aria-hidden="true">
+                      <span className="text-xs font-bold text-[#56B246]">{name.split(" ").map(n => n[0]).join("").slice(0,2)}</span>
+                    </div>
+                    <div>
+                      <div className="font-bold text-white text-sm">{name}</div>
+                      <div className="text-xs text-white/28">{role} · {clinic}</div>
+                    </div>
                   </div>
-                  <div>
-                    <div className="font-bold text-white text-sm">{name}</div>
-                    <div className="text-xs text-white/35">{role} · {clinic}</div>
-                  </div>
-                </div>
-              </div>
+                </motion.div>
+              </FadeUp>
             ))}
           </div>
         </div>
       </section>
 
-      {/* ── REQUEST ACCESS ── */}
-      <section id="access" className="py-28 px-6 relative overflow-hidden">
-        <div className="pointer-events-none absolute inset-0">
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[400px] bg-[#56B246]/[0.05] rounded-full blur-[120px]" />
-          <PawPrint className="absolute bottom-10 right-20 w-32 h-32 text-[#56B246]/[0.03] rotate-12" />
-          <PawPrint className="absolute top-10 left-10 w-20 h-20 text-white/[0.02] -rotate-6" />
-        </div>
-        <div className="max-w-2xl mx-auto text-center relative">
-          <Badge className="mb-6 bg-[#56B246]/15 text-[#56B246] border-[#56B246]/30 text-[11px] uppercase tracking-[0.18em] font-semibold px-4 py-1.5 rounded-full">
-            Get Started Today
-          </Badge>
-          <h2 className="text-4xl md:text-5xl font-black mb-5 leading-tight">
-            Ready to Elevate<br />
-            <span className="text-[#56B246]">Your Clinic?</span>
-          </h2>
-          <p className="text-white/40 text-sm leading-relaxed mb-10 max-w-md mx-auto">
-            Login credentials are available upon request. Submit your details and our team
-            will personally review and send you access within 24 hours.
+      {/* ── PRICING UPON REQUEST ── */}
+      <section id="pricing-info" aria-labelledby="pricing-heading" className="py-20 px-6 border-y border-white/[0.05] bg-white/[0.012]">
+        <FadeUp className="max-w-4xl mx-auto text-center">
+          <p className="text-[#56B246] text-[11px] uppercase tracking-[0.22em] font-semibold mb-3">Pricing</p>
+          <h2 id="pricing-heading" className="text-2xl md:text-3xl font-black mb-4">Pricing Upon Request</h2>
+          <p className="text-white/33 text-sm leading-relaxed mb-8 max-w-lg mx-auto">
+            We tailor access packages to the size and needs of your clinic. No hidden fees.
+            No long-term lock-in. Get a personalised quote by submitting your details below.
           </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center mb-6">
-            <AccessForm center />
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-2xl mx-auto">
+            {[
+              { label: "Single Clinic",    icon: Stethoscope, desc: "Small to mid-size practices" },
+              { label: "Multi-Branch",     icon: Building2,   desc: "Group practices & chains" },
+              { label: "Enterprise / NGO", icon: Shield,      desc: "Large networks & wildlife orgs" },
+            ].map(({ label, icon: Icon, desc }) => (
+              <motion.button key={label} whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }}
+                onClick={() => goTo("access")}
+                className="bg-white/[0.04] hover:bg-white/[0.07] border border-white/[0.07] hover:border-[#56B246]/30 rounded-xl p-5 text-center transition-colors duration-200">
+                <Icon className="h-6 w-6 text-[#56B246] mx-auto mb-2.5" aria-hidden="true" />
+                <div className="text-sm font-bold text-white mb-1">{label}</div>
+                <div className="text-[11px] text-white/28">{desc}</div>
+                <div className="mt-3 text-xs text-[#56B246] font-semibold flex items-center justify-center gap-1">
+                  Inquire <ChevronRight className="h-3 w-3" aria-hidden="true" />
+                </div>
+              </motion.button>
+            ))}
           </div>
-          <div className="flex items-center justify-center gap-3 mb-6">
-            <Button variant="outline"
-              className="border-white/20 text-white/70 hover:text-white hover:bg-white/[0.06] bg-transparent gap-2"
-              onClick={() => navigate("/pricing")}>
-              Compare Subscription Plans <ArrowRight className="h-4 w-4" />
-            </Button>
-          </div>
-          <div className="flex items-center justify-center gap-6 mt-2 text-xs text-white/25">
-            <span className="flex items-center gap-1.5"><CheckCircle2 className="h-3.5 w-3.5 text-[#56B246]" />No credit card</span>
-            <span className="flex items-center gap-1.5"><CheckCircle2 className="h-3.5 w-3.5 text-[#56B246]" />Private & secure</span>
-            <span className="flex items-center gap-1.5"><CheckCircle2 className="h-3.5 w-3.5 text-[#56B246]" />24-hr response</span>
-          </div>
+        </FadeUp>
+      </section>
+
+      {/* ── REQUEST ACCESS ── */}
+      <section id="access" aria-labelledby="access-heading" className="py-32 px-6 relative overflow-hidden">
+        <div className="pointer-events-none absolute inset-0" aria-hidden="true">
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[500px] bg-[#56B246]/[0.06] rounded-full blur-[140px]" />
         </div>
+        <FadeUp className="max-w-xl mx-auto text-center relative">
+          <p className="text-[#56B246] text-[11px] uppercase tracking-[0.22em] font-semibold mb-4">Get Started Today</p>
+          <h2 id="access-heading" className="text-4xl md:text-5xl font-black mb-5 leading-tight">
+            Ready to Elevate<br /><span className="text-[#56B246]">Your Clinic?</span>
+          </h2>
+          <p className="text-white/33 text-sm leading-relaxed mb-10 max-w-md mx-auto">
+            Submit your details and our team will personally review and send access credentials within 24 hours.
+          </p>
+          <AccessForm center />
+          <div className="flex items-center justify-center gap-6 mt-6 text-xs text-white/20">
+            <span className="flex items-center gap-1.5"><CheckCircle2 className="h-3.5 w-3.5 text-[#56B246]" aria-hidden="true" />No credit card</span>
+            <span className="flex items-center gap-1.5"><CheckCircle2 className="h-3.5 w-3.5 text-[#56B246]" aria-hidden="true" />Private &amp; secure</span>
+            <span className="flex items-center gap-1.5"><CheckCircle2 className="h-3.5 w-3.5 text-[#56B246]" aria-hidden="true" />24-hr response</span>
+          </div>
+        </FadeUp>
       </section>
 
       {/* ── FOOTER ── */}
-      <footer className="border-t border-white/[0.06] py-12 px-6">
+      <footer aria-label="Site footer" className="border-t border-white/[0.06] py-16 px-6 bg-[#060c0e]">
         <div className="max-w-7xl mx-auto">
-          <div className="flex flex-col md:flex-row items-start justify-between gap-10 mb-10">
-            <div className="max-w-xs">
-              <AppLogo imgHeight={32} showText textClassName="text-sm font-bold text-white" className="mb-3" />
-              <p className="text-xs text-white/30 leading-relaxed">Intelligent veterinary management software built for clinics that care about efficiency and exceptional patient outcomes.</p>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-10 mb-12">
+            <div>
+              <AppLogo imgHeight={30} showText textClassName="text-sm font-bold text-white" className="mb-4" />
+              <p className="text-xs text-white/22 leading-relaxed mb-5 max-w-xs">
+                AI-powered veterinary management software built for East African clinics that care about efficiency and exceptional outcomes.
+              </p>
+              <motion.div whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.96 }}>
+                <Button size="sm" className="bg-[#56B246] hover:bg-[#4ca33d] text-white font-semibold gap-1.5 text-xs"
+                  onClick={() => goTo("access")}>
+                  Request Access <ArrowRight className="h-3.5 w-3.5" />
+                </Button>
+              </motion.div>
             </div>
-            <div className="grid grid-cols-2 gap-10 text-sm">
-              <div>
-                <div className="text-white/50 font-semibold mb-3 text-xs uppercase tracking-wider">Product</div>
-                {[["features","Features"],["workflow","How It Works"],["mobility","Field Vet"],["access","Request Access"]].map(([id,label]) => (
-                  <button key={id} onClick={() => goTo(id)} className="block text-white/30 hover:text-white/60 mb-2 text-xs transition-colors">{label}</button>
+            {FOOTER_COLS.map(col => (
+              <div key={col.heading}>
+                <div className="text-white/35 font-semibold mb-4 text-xs uppercase tracking-wider">{col.heading}</div>
+                {col.items.map(({ label, action }) => (
+                  <button key={label} onClick={action}
+                    className="block text-white/22 hover:text-white/55 mb-2.5 text-xs transition-colors text-left">{label}</button>
                 ))}
-                <button onClick={() => navigate("/pricing")} className="block text-white/30 hover:text-white/60 mb-2 text-xs transition-colors">Pricing</button>
               </div>
-              <div>
-                <div className="text-white/50 font-semibold mb-3 text-xs uppercase tracking-wider">Access</div>
-                <button onClick={() => navigate("/login")} className="block text-white/30 hover:text-white/60 mb-2 text-xs transition-colors">Sign In</button>
-                <button onClick={() => navigate("/signup")} className="block text-white/30 hover:text-white/60 mb-2 text-xs transition-colors">Create Account</button>
-                <button onClick={() => navigate("/login")} className="block text-white/30 hover:text-white/60 mb-2 text-xs transition-colors">Demo Clinic</button>
-              </div>
-            </div>
+            ))}
           </div>
-          <div className="border-t border-white/[0.06] pt-6 flex flex-col sm:flex-row items-center justify-between gap-3">
-            <p className="text-xs text-white/20">© {new Date().getFullYear()} InnoVetPro · Veterinary Management System</p>
-            <p className="text-xs text-white/20">All credentials provided personally upon request.</p>
+          <div className="border-t border-white/[0.05] pt-6 flex flex-col sm:flex-row items-center justify-between gap-3">
+            <p className="text-xs text-white/16">© {new Date().getFullYear()} InnoVetPro · AI Veterinary Software Kenya</p>
+            <p className="text-xs text-white/16">Billing in KES · GDPR-aligned · 99.9% uptime</p>
           </div>
         </div>
       </footer>
